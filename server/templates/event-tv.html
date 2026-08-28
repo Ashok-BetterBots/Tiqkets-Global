@@ -52,18 +52,6 @@
       z-index: 0;
     }
 
-    /* ── Refresh progress bar ── */
-    #refresh-bar {
-      position: fixed;
-      top: 0; left: 0;
-      height: 2px;
-      width: 100%;
-      background: linear-gradient(90deg, var(--c-violet), var(--c-cyan), var(--c-green));
-      transform-origin: left center;
-      transform: scaleX(0);
-      z-index: 200;
-    }
-
     /* ── Loading state ── */
     #loading {
       position: fixed;
@@ -408,11 +396,6 @@
         radial-gradient(ellipse 52% 42% at 0% 0%, #FBEAF2 0%, rgba(251,234,242,0.65) 32%, transparent 72%);
     }
 
-    #refresh-bar {
-      height: 3px;
-      background: linear-gradient(90deg, var(--raspberry), var(--teal));
-    }
-
     #loading, #error-screen {
       background: var(--tv-bg);
       color: var(--tv-ink);
@@ -448,16 +431,21 @@
       padding: 5px 12px 5px 9px;
       margin-bottom: 9px;
       gap: 7px;
-      background: #E6F6F1;
+      background: #FDECEC;
       border: 0;
-      color: var(--teal);
+      color: #D92D20;
       font-size: 11px;
       letter-spacing: 0.08em;
     }
     .live-dot {
       width: 7px;
       height: 7px;
-      background: var(--teal);
+      background: #D92D20;
+      animation: livePulseRed 3.8s ease-in-out infinite;
+    }
+    @keyframes livePulseRed {
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(217,45,32,0.35); }
+      50% { opacity: 0.5; transform: scale(0.78); box-shadow: 0 0 0 6px rgba(217,45,32,0); }
     }
     .event-name-wrap {
       text-align: left;
@@ -499,22 +487,87 @@
     .clock-wrap {
       padding-top: 2px;
       text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 5px;
+      min-width: clamp(190px, 18vw, 280px);
+    }
+    .inside-now-readout {
+      text-align: right;
+      line-height: 1;
+    }
+    .inside-now-label {
+      color: var(--tv-secondary);
+      font-size: clamp(10px, 0.78vw, 13px);
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .inside-now-value {
+      color: var(--teal);
+      font-family: Manrope, Inter, sans-serif;
+      font-size: clamp(48px, 5.2vw, 78px);
+      font-weight: 800;
+      letter-spacing: -0.07em;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.35s;
+    }
+    .inside-now-meta {
+      color: var(--tv-secondary);
+      font-size: clamp(10px, 0.78vw, 13px);
+      font-weight: 700;
+      margin-top: 6px;
+    }
+    .inside-now-meta strong {
+      color: var(--tv-ink);
+      font-weight: 800;
+    }
+    .inside-now-balance {
+      color: var(--teal);
+      font-size: clamp(10px, 0.78vw, 13px);
+      font-weight: 800;
+      margin-top: 4px;
+      transition: color 0.35s;
+    }
+    .inside-now-readout.occupancy-amber .inside-now-value,
+    .inside-now-readout.occupancy-amber .inside-now-balance {
+      color: var(--amber);
+    }
+    .inside-now-readout.occupancy-red .inside-now-value,
+    .inside-now-readout.occupancy-red .inside-now-balance {
+      color: #D92D20;
+    }
+    .inside-now-readout.occupancy-critical .inside-now-value {
+      color: #D92D20;
+      animation: occupancyAlert 1.5s ease-in-out infinite;
+    }
+    .inside-now-readout.occupancy-critical .inside-now-balance {
+      color: #D92D20;
+    }
+    @keyframes occupancyAlert {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.22; }
+    }
+    .clock-context {
+      text-align: right;
     }
     #clock {
       color: var(--tv-ink);
       font-family: Manrope, Inter, sans-serif;
-      font-size: clamp(30px, 3.1vw, 46px);
+      font-size: clamp(16px, 1.45vw, 23px);
       font-weight: 800;
       letter-spacing: -0.045em;
     }
     #clock-date {
       margin-top: 5px;
       color: var(--tv-secondary);
-      font-size: clamp(11px, 0.9vw, 14px);
+      font-size: clamp(9px, 0.72vw, 12px);
     }
 
     #metrics {
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: clamp(12px, 1.2vw, 22px);
     }
     .metric-card {
@@ -564,33 +617,7 @@
       font-size: clamp(10px, 0.78vw, 13px);
       line-height: 1.25;
     }
-    .occupancy-ring {
-      width: 38px;
-      height: 38px;
-      display: grid;
-      place-items: center;
-      flex: 0 0 auto;
-      border-radius: 50%;
-      background: conic-gradient(var(--teal) 0deg, var(--teal) 0deg, #DCEFEA 0deg, #DCEFEA 360deg);
-      position: relative;
-    }
-    .occupancy-ring::after {
-      content: "";
-      position: absolute;
-      inset: 4px;
-      border-radius: 50%;
-      background: var(--tv-surface);
-    }
-    .occupancy-ring span {
-      position: relative;
-      z-index: 1;
-      color: var(--teal);
-      font-size: 9px;
-      font-weight: 800;
-    }
-
     .metric-card.customers { --accent: var(--raspberry); --tint: #FBEAF2; }
-    .metric-card.inside { --accent: var(--teal); --tint: #E6F6F1; }
     .metric-card.gate { --accent: var(--amber); --tint: #FCEFDC; }
     .metric-card.exited { --accent: var(--indigo); --tint: #ECEBF5; }
     .metric-card.avg { --accent: var(--plum); --tint: #F5EAF1; }
@@ -671,9 +698,8 @@
       .metric-icon { width: 24px; height: 24px; font-size: 11px; }
       .metric-value { font-size: 22px; }
       .metric-number-row { gap: 5px; }
-      .occupancy-ring { width: 30px; height: 30px; }
-      .occupancy-ring::after { inset: 3px; }
-      .occupancy-ring span { font-size: 7px; }
+      .inside-now-value { font-size: 42px; }
+      .clock-wrap { min-width: 156px; }
       .metric-label { font-size: 8px; }
       .metric-sub { font-size: 8px; }
       .chart-card { padding: 14px; }
@@ -683,9 +709,6 @@
   </style>
 </head>
 <body>
-
-<!-- Refresh progress bar -->
-<div id="refresh-bar"></div>
 
 <!-- Loading -->
 <div id="loading">
@@ -713,14 +736,20 @@
           <span id="meta-date">—</span>
           <span class="sub-sep">·</span>
           <span id="meta-location">—</span>
-          <span class="sub-sep" id="status-sep">·</span>
-          <span id="meta-status"></span>
         </div>
       </div>
     </div>
     <div class="clock-wrap">
-      <div id="clock">00:00:00</div>
-      <div id="clock-date"></div>
+      <div class="inside-now-readout" id="inside-now-readout">
+        <div class="inside-now-label">Inside Now</div>
+        <div class="inside-now-value" id="inside-now-value">—</div>
+        <div class="inside-now-meta">Slot capacity <strong id="inside-slot-capacity">—</strong> · <span id="inside-percentage">—</span></div>
+        <div class="inside-now-balance" id="inside-balance">— balance capacity</div>
+      </div>
+      <div class="clock-context">
+        <div id="clock">00:00:00</div>
+        <div id="clock-date"></div>
+      </div>
     </div>
   </div>
 
@@ -733,16 +762,6 @@
       </div>
       <div class="metric-label">Customers</div>
       <div class="metric-sub" id="m-registered-sub"></div>
-    </div>
-
-    <div class="metric-card inside">
-      <div class="metric-icon"><i class="fa-solid fa-circle-check"></i></div>
-      <div class="metric-number-row">
-        <div class="metric-value" id="m-inside">—</div>
-        <div class="occupancy-ring" id="m-inside-ring"><span id="m-inside-ring-label">0%</span></div>
-      </div>
-      <div class="metric-label">Inside Now</div>
-      <div class="metric-sub" id="m-inside-sub"></div>
     </div>
 
     <div class="metric-card gate">
@@ -778,7 +797,7 @@
     <div class="chart-card">
       <div class="chart-header">
         <div>
-          <div class="chart-title">Arrivals at Gate</div>
+          <div class="chart-title">Arrivals</div>
           <div class="chart-subtitle">Customers entering in 30-minute intervals</div>
         </div>
         <div class="chart-legend">
@@ -831,17 +850,6 @@
   }
   setInterval(updateClock, 1000);
   updateClock();
-
-  // ── Refresh bar animation ─────────────────────────────────────────────────
-  function animateRefreshBar() {
-    const bar = document.getElementById('refresh-bar');
-    bar.style.transition = 'none';
-    bar.style.transform  = 'scaleX(0)';
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      bar.style.transition = `transform ${REFRESH_MS}ms linear`;
-      bar.style.transform  = 'scaleX(1)';
-    }));
-  }
 
   // ── Formatters ────────────────────────────────────────────────────────────
   function fmtCount(n) {
@@ -983,14 +991,13 @@
           hoverBackgroundColor: color1,
           borderRadius: 5,
           borderSkipped: false,
-          // Nearly double the previous bar width while retaining a narrow
-          // visual gap between adjacent 30-minute intervals.
+          // Keep a clear visual gap between adjacent 30-minute intervals.
           // A fixed width keeps arrivals and exits visually comparable even
           // when one chart has more populated intervals than the other.
-          barThickness: 30,
-          maxBarThickness: 30,
-          barPercentage: 0.92,
-          categoryPercentage: 0.92,
+          barThickness: 22,
+          maxBarThickness: 22,
+          barPercentage: 0.72,
+          categoryPercentage: 0.8,
         },
       ],
     };
@@ -1090,26 +1097,32 @@
           : (displayLocations[0] ? displayLocations[0].name : 'All Locations'));
     locEl.innerHTML = '<span class="location-pill"><i class="fa-solid fa-location-dot"></i> ' + (locName || '—') + '</span>';
 
-    // Status pill
-    const st = (event.status || '').toLowerCase();
-    const statusEl = document.getElementById('meta-status');
-    statusEl.innerHTML = st
-      ? '<span class="status-pill ' + st + '">' + st.charAt(0).toUpperCase() + st.slice(1) + '</span>'
-      : '';
-
     // Metrics
-    const { totalRegistrations, insideGuests, totalGuests, arrivedGuests, exitedGuests, advanceRevenue, avgVisitMinutes } = metrics;
+    const { totalRegistrations, insideGuests, totalGuests, slotCapacity, arrivedGuests, exitedGuests, advanceRevenue, avgVisitMinutes } = metrics;
 
     set('m-registered',      fmtCount(totalGuests));
     set('m-registered-sub',  fmtCount(totalRegistrations) + ' tickets registered');
-    set('m-inside',          fmtCount(insideGuests));
-    const insidePct = totalGuests ? pct(insideGuests, totalGuests) : 0;
-    set('m-inside-sub',      insidePct + '% of customers');
-    const insideRing = document.getElementById('m-inside-ring');
-    const insideRingLabel = document.getElementById('m-inside-ring-label');
-    if (insideRing) insideRing.style.background =
-      'conic-gradient(var(--teal) 0deg, var(--teal) ' + (insidePct * 3.6) + 'deg, #DCEFEA ' + (insidePct * 3.6) + 'deg, #DCEFEA 360deg)';
-    if (insideRingLabel) insideRingLabel.textContent = insidePct + '%';
+    const insideReadout = document.getElementById('inside-now-readout');
+    const capacity = Number(slotCapacity);
+    const occupancyRatio = capacity > 0 ? insideGuests / capacity : null;
+    const occupancyPct = occupancyRatio === null ? null : Math.round(occupancyRatio * 100);
+    const occupancyState = occupancyRatio === null
+      ? ''
+      : occupancyRatio <= 0.8
+        ? 'occupancy-green'
+        : occupancyRatio < 0.9
+          ? 'occupancy-amber'
+          : occupancyRatio <= 0.95
+            ? 'occupancy-red'
+            : 'occupancy-critical';
+    if (insideReadout) {
+      insideReadout.classList.remove('occupancy-green', 'occupancy-amber', 'occupancy-red', 'occupancy-critical');
+      if (occupancyState) insideReadout.classList.add(occupancyState);
+    }
+    set('inside-now-value', fmtCount(insideGuests));
+    set('inside-slot-capacity', capacity > 0 ? fmtCount(capacity) : '—');
+    set('inside-percentage', occupancyPct === null ? '—' : occupancyPct + '% full');
+    set('inside-balance', capacity > 0 ? fmtCount(capacity - insideGuests) + ' balance capacity' : 'Capacity unavailable');
     set('m-arrived',         fmtCount(arrivedGuests));
     set('m-exited',          fmtCount(exitedGuests));
     set('m-exited-sub',      totalGuests ? pct(exitedGuests, totalGuests) + '% of customers' : '0% of customers');
@@ -1141,7 +1154,6 @@
       }
       const data = await res.json();
       renderDashboard(data);
-      animateRefreshBar();
     } catch (e) {
       console.error('[event-tv] fetch error:', e);
       if (!initialized) showError('Could not connect to server.');

@@ -1165,6 +1165,7 @@ export function registerEventsRoutes(app: Express) {
       const ev = evRows[0];
 
       const locFilter = String((req.query.locationId as string) || "").trim();
+      let slotCapacity = Math.max(0, Number(ev.maxCapacityPerSlot) || 0);
 
       const allRegs = await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, ev.id));
       const regs = locFilter ? allRegs.filter((r) => r.locationId === locFilter) : allRegs;
@@ -1173,8 +1174,16 @@ export function registerEventsRoutes(app: Express) {
       // TV page can render the location badge regardless of ?locationId.
       const locIds = [...new Set(allRegs.map((r) => r.locationId).filter((id): id is string => Boolean(id)))];
       const locRows = locIds.length
-        ? await db.select({ id: services.id, name: services.name }).from(services).where(inArray(services.id, locIds))
+        ? await db.select().from(services).where(inArray(services.id, locIds))
         : [];
+      if (locFilter) {
+        const [selectedLocation] = await db
+          .select()
+          .from(services)
+          .where(and(eq(services.id, locFilter), eq(services.branchId, ev.branchId)))
+          .limit(1);
+        if (selectedLocation) slotCapacity = resolveLocationConfig(ev, selectedLocation).maxCapacityPerSlot;
+      }
 
       // Aggregate metrics over the (possibly filtered) set of registrations.
       let insideGuests = 0, arrivedGuests = 0, exitedGuests = 0, expectedGuests = 0, totalGuests = 0, revenue = 0;
@@ -1229,7 +1238,7 @@ export function registerEventsRoutes(app: Express) {
           startDate: ev.startDate,
           endDate: ev.endDate,
         },
-        locations: locRows,
+        locations: locRows.map((location) => ({ id: location.id, name: location.name })),
         metrics: {
           totalRegistrations: regs.length,
           insideGuests,
@@ -1237,6 +1246,7 @@ export function registerEventsRoutes(app: Express) {
           exitedGuests,
           expectedGuests,
           totalGuests,
+          slotCapacity,
           advanceRevenue: revenue,
           avgVisitMinutes: durations.length
             ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
