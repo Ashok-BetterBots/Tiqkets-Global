@@ -61,6 +61,7 @@ function ExitScanPanel() {
   const [manualQuery, setManualQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [recentRefreshKey, setRecentRefreshKey] = useState(0);
+  const [recentEventId, setRecentEventId] = useState<string | null>(null);
 
   // Modal state — mirrors the Check-In preview/confirm flow
   const [modalData, setModalData] = useState<ScanResponseData | null>(null);
@@ -136,6 +137,7 @@ function ExitScanPanel() {
       const data = await res.json();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSuccessTone();
+      setRecentEventId(data.registration?.eventId || null);
       setRecentRefreshKey((k) => k + 1);
       notifyEventDataChanged(data.registration?.eventId);
       // Valid exits show no banner/info — close the modal right away.
@@ -285,7 +287,12 @@ function ExitScanPanel() {
             </View>
           </View>
 
-          <RecentActivityList type="exit" refreshKey={recentRefreshKey} hideHeader />
+          <RecentActivityList
+            type="exit"
+            refreshKey={recentRefreshKey}
+            hideHeader
+            eventId={recentEventId}
+          />
         </ScrollView>
 
         <TicketScanResultModal

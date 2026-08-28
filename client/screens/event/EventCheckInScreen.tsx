@@ -68,6 +68,7 @@ function ScanPanel() {
   const [pendingValue, setPendingValue] = useState<string>("");
   const [confirming, setConfirming] = useState(false);
   const [recentRefreshKey, setRecentRefreshKey] = useState(0);
+  const [recentEventId, setRecentEventId] = useState<string | null>(null);
   const [eventEndedName, setEventEndedName] = useState<string | null>(null);
 
   // ── Step 1: Lookup ticket WITHOUT recording check-in ──────────────────────
@@ -151,6 +152,7 @@ function ScanPanel() {
         formLabels: data.formLabels,
       });
       setModalMode("result");
+      setRecentEventId(data.registration?.eventId || null);
       setRecentRefreshKey((k) => k + 1);
       notifyEventDataChanged(data.registration?.eventId);
       // Auto-dismiss the bottom modal shortly after a successful check-in
@@ -316,7 +318,11 @@ function ScanPanel() {
           </View>
 
           {/* ── Recent check-ins — RecentActivityList renders its own header ── */}
-          <RecentActivityList type="checkin" refreshKey={recentRefreshKey} />
+          <RecentActivityList
+            type="checkin"
+            refreshKey={recentRefreshKey}
+            eventId={recentEventId}
+          />
         </ScrollView>
 
         <TicketScanResultModal

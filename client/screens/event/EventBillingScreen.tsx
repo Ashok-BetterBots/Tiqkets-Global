@@ -97,8 +97,8 @@ export default function EventBillingScreen() {
 
   const handleSuccess = useCallback(() => {
     setRecentRefreshKey((k) => k + 1);
-    notifyEventDataChanged();
-  }, []);
+    notifyEventDataChanged(lookup?.registration.eventId);
+  }, [lookup?.registration.eventId]);
 
   if (Platform.OS === "web") {
     return (
@@ -211,7 +211,11 @@ export default function EventBillingScreen() {
           </View>
 
           {/* Recent billing activity */}
-          <RecentActivityList type="billing" refreshKey={recentRefreshKey} />
+          <RecentActivityList
+            type="billing"
+            refreshKey={recentRefreshKey}
+            eventId={lookup?.registration.eventId}
+          />
         </ScrollView>
 
         {/* Transaction modal */}

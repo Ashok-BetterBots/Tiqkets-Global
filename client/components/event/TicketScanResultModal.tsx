@@ -25,6 +25,7 @@ export interface ScanResponseData {
   guests?: number;
   formLabels?: Record<string, string>;
   registration?: {
+    eventId?: string;
     bookingId?: string;
     customerName?: string;
     customerPhone?: string;

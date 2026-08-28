@@ -47,6 +47,7 @@ interface Props {
   type: ActivityType;
   refreshKey?: number;
   hideHeader?: boolean;
+  eventId?: string | null;
 }
 
 function fmtTime(ts: string | null | undefined): string {
@@ -83,7 +84,12 @@ const TYPE_META: Record<ActivityType, {
   billing: { title: "Recent Transactions", icon: "credit-card", actualIcon: "credit-card", emptyMsg: "No billing transactions yet",  actualLabel: "Billed" },
 };
 
-export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }: Props) {
+export function RecentActivityList({
+  type,
+  refreshKey = 0,
+  hideHeader = false,
+  eventId: transactionEventId,
+}: Props) {
   const { theme } = useTheme();
   const [items, setItems]       = useState<ActivityItem[]>([]);
   const [page, setPage]         = useState(1);
@@ -155,6 +161,11 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
 
   const triggerActivityRefresh = useEventLiveRefresh(async (reason, isCurrent) => {
     const quiet = reason !== "focus";
+    if (transactionEventId) {
+      eventIdRef.current = transactionEventId;
+      await loadItems(transactionEventId, page, debouncedSearch, quiet, isCurrent);
+      return;
+    }
     if (reason === "focus" || reason === "foreground") {
       await resolveEventAndLoad(quiet, isCurrent);
       return;
@@ -171,33 +182,48 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
     }
   }), [triggerActivityRefresh]);
 
+  useEffect(() => {
+    if (!transactionEventId || transactionEventId === eventIdRef.current) return;
+    resolveSeqRef.current += 1;
+    eventIdRef.current = transactionEventId;
+    setEventId(transactionEventId);
+    setPage(1);
+    setSearch("");
+    setDebouncedSearch("");
+    void loadItems(transactionEventId, 1, "", false);
+  }, [transactionEventId, loadItems]);
+
   // Refresh triggered from parent
   useEffect(() => {
     if (
       refreshKey > 0
       && refreshKey !== handledRefreshKeyRef.current
-      && eventIdRef.current
+      && (transactionEventId || eventIdRef.current)
     ) {
       handledRefreshKeyRef.current = refreshKey;
+      const refreshEventId = transactionEventId || eventIdRef.current;
       const needsReset = page !== 1 || search !== "" || debouncedSearch !== "";
       resetRefreshPendingRef.current = needsReset;
       setPage(1);
       setSearch("");
       setDebouncedSearch("");
-      if (!needsReset) void triggerActivityRefresh();
+      if (!needsReset) {
+        void loadItems(refreshEventId!, 1, "", false);
+      }
     }
-  }, [refreshKey, page, search, debouncedSearch, triggerActivityRefresh]);
+  }, [refreshKey, page, search, debouncedSearch, transactionEventId, loadItems]);
 
   useEffect(() => {
     if (
       resetRefreshPendingRef.current
       && page === 1
       && debouncedSearch === ""
+      && eventIdRef.current
     ) {
       resetRefreshPendingRef.current = false;
-      void triggerActivityRefresh();
+      void loadItems(eventIdRef.current, 1, "", false);
     }
-  }, [page, debouncedSearch, triggerActivityRefresh]);
+  }, [page, debouncedSearch, loadItems]);
 
   // Page change
   useEffect(() => {
