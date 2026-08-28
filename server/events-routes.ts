@@ -1922,6 +1922,9 @@ export function registerEventsRoutes(app: Express) {
       if (ev.status === "ended") {
         return res.status(409).json({ error: "This event has ended. New registrations are no longer accepted." });
       }
+      if (ev.status === "paused") {
+        return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please resume the event before adding customers.", paused: true });
+      }
 
       const name = String(customerName || "").trim();
       const phone = normalizeIndianPhone(customerPhone);
