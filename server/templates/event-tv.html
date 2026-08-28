@@ -776,10 +776,10 @@
     <div class="metric-card gate">
       <div class="metric-icon"><i class="fa-solid fa-person-walking-arrow-right"></i></div>
       <div class="metric-number-row">
-        <div class="metric-value" id="m-arrived">—</div>
+        <div class="metric-value" id="m-checkin">—</div>
       </div>
-      <div class="metric-label">At Gate</div>
-      <div class="metric-sub">Awaiting check-in</div>
+      <div class="metric-label">Check In</div>
+      <div class="metric-sub" id="m-checkin-sub">— tickets checked in</div>
     </div>
 
     <div class="metric-card exited">
@@ -1114,7 +1114,7 @@
     locEl.innerHTML = '<span class="location-pill"><i class="fa-solid fa-location-dot"></i> ' + (locName || '—') + '</span>';
 
     // Metrics
-    const { totalRegistrations, insideGuests, totalGuests, slotCapacity, arrivedGuests, exitedGuests, advanceRevenue, avgVisitMinutes } = metrics;
+    const { totalRegistrations, insideGuests, checkedInTickets, totalGuests, slotCapacity, exitedGuests, advanceRevenue, avgVisitMinutes } = metrics;
 
     set('m-registered',      fmtCount(totalGuests));
     set('m-registered-sub',  fmtCount(totalRegistrations) + ' tickets registered');
@@ -1137,7 +1137,8 @@
     set('inside-now-count', fmtCount(insideGuests));
     set('inside-slot-capacity', capacity > 0 ? fmtCount(capacity) : '—');
     set('inside-balance', capacity > 0 ? fmtCount(capacity - insideGuests) : '—');
-    set('m-arrived',         fmtCount(arrivedGuests));
+    set('m-checkin',         fmtCount(insideGuests));
+    set('m-checkin-sub',     fmtCount(checkedInTickets) + ' tickets checked in');
     set('m-exited',          fmtCount(exitedGuests));
     set('m-exited-sub',      totalGuests ? pct(exitedGuests, totalGuests) + '% of customers' : '0% of customers');
     set('m-revenue',         fmtRupees(advanceRevenue));
