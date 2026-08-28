@@ -718,13 +718,11 @@ export default function OrgSettingsScreen() {
     }).start(() => setShowAnnouncementLangModal(false));
   };
 
-  // Source the announcer candidates from the team-members endpoint rather than
-  // the org `users` list. The `users` list is scoped by the staff-management
-  // hierarchy, so a non-owner (e.g. a Location Manager) only sees lower-ranked
-  // roles. The announcer is just "which device speaks", so every active staff
-  // member in the branch must be selectable regardless of the viewer's rank.
+  // Use the announcement-authorized candidate endpoint. The generic team-members
+  // endpoint is protected by queue-settings permissions, which announcement
+  // managers do not necessarily have.
   const { data: teamMembersData } = useQuery<{ members: any[] }>({
-    queryKey: ["/api/dashboard/branches", selectedBranch?.id, "team-members"],
+    queryKey: ["/api/dashboard/branches", selectedBranch?.id, "announcer-candidates"],
     enabled: !!selectedBranch?.id,
   });
 
@@ -800,7 +798,10 @@ export default function OrgSettingsScreen() {
     closeAnnouncerPicker();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      await updateBranchSettings(selectedBranch.id, { announcerUserId: userId } as any);
+      await apiRequest("PUT", `/api/dashboard/branches/${selectedBranch.id}/announcer`, {
+        announcerUserId: userId,
+      });
+      await refreshOrganizationData();
     } catch (err: any) {
       Alert.alert("Couldn't save announcer", err?.message || "Please try again.");
     }

@@ -3652,6 +3652,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
   // ANNOUNCEMENT DEVICES (per-branch reception speakers)
   // ============================================
+  app.get("/api/dashboard/branches/:branchId/announcer-candidates", requirePermission("org.announcements.toggle"), async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
+      const branch = await storage.getBranchById(branchId);
+      if (!branch) return res.status(404).json({ error: "Branch not found" });
+
+      const users = await storage.getOrgUsersByOrganization(branch.organizationId);
+      const members = await Promise.all(
+        users
+          .filter((u: any) => u.isActive !== false)
+          .map(async (u: any) => ({
+            id: u.id,
+            name: u.name || u.fullName || u.username || u.email || "User",
+            email: u.email || null,
+            role: u.role || null,
+            branchIds: resolveEffectiveBranchIds(u.role, u.branchId, await storage.getOrgUserBranches(u.id)),
+          }))
+      );
+      res.json({ members });
+    } catch (error) {
+      console.error("Error listing announcer candidates:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/dashboard/branches/:branchId/announcer", requirePermission("org.announcements.toggle"), async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
+      const branch = await storage.getBranchById(branchId);
+      if (!branch) return res.status(404).json({ error: "Branch not found" });
+
+      const announcerUserId = req.body?.announcerUserId;
+      if (announcerUserId === undefined) {
+        return res.status(400).json({ error: "announcerUserId is required" });
+      }
+
+      if (announcerUserId === null || announcerUserId === "") {
+        const updated = await storage.updateBranch(branchId, { announcerUserId: null });
+        return res.json({ branch: updated });
+      }
+
+      if (String(announcerUserId).startsWith("owner:")) {
+        if (announcerUserId !== `owner:${branch.organizationId}`) {
+          return res.status(400).json({ error: "announcerUserId must belong to the same organization" });
+        }
+      } else {
+        const target = await storage.getOrgUserById(String(announcerUserId));
+        if (!target || target.organizationId !== branch.organizationId || target.isActive === false) {
+          return res.status(400).json({ error: "announcerUserId must belong to the same organization" });
+        }
+        const targetBranchIds = resolveEffectiveBranchIds(
+          target.role,
+          target.branchId,
+          await storage.getOrgUserBranches(target.id),
+        );
+        if (targetBranchIds.length > 0 && !targetBranchIds.includes(branchId)) {
+          return res.status(400).json({ error: "announcerUserId must be assigned to this branch" });
+        }
+      }
+
+      const updated = await storage.updateBranch(branchId, { announcerUserId: String(announcerUserId) });
+      res.json({ branch: updated });
+    } catch (error) {
+      console.error("Error updating branch announcer:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   function generateAnnouncementToken(): string {
     return randomBytes(24).toString("hex");
   }
