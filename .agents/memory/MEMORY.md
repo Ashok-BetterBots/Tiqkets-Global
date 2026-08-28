@@ -64,3 +64,4 @@
 - [Pre-printed duplex artwork](preprinted-duplex-artwork.md) — ticket artwork is event-level and reused by batches; each front print sheet must be followed by its matching back sheet.
 - [Reminder send claims](reminder-send-claims.md) — one-shot reminder timestamps may lock an in-flight send, but must be cleared when delivery or media preparation fails so the next tick retries.
 - [Event feature controls default on](event-feature-controls.md) — parking visibility and five event WhatsApp triggers are per-event, backward-compatible, and enforced centrally.
+- [Event registration source metrics](event-registration-source-metrics.md) — staff dashboard registrations are store; public QR/link registrations are customer; revenue excludes store amounts.

@@ -1526,6 +1526,9 @@ export const eventRegistrations = pgTable("event_registrations", {
   // Values entered for the chosen location's custom input fields, keyed by
   // field id.
   formData: jsonb("form_data").$type<Record<string, unknown>>().default({}).notNull(),
+  // `customer` means the public event QR/link flow; `store` means an
+  // organizer or billing user created it from the staff dashboard.
+  registrationSource: text("registration_source").default("customer").notNull(),
   bookingId: varchar("booking_id", { length: 20 }),
   qrToken: varchar("qr_token", { length: 64 }),
   customerName: text("customer_name").notNull(),
