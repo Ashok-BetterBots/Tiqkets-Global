@@ -11,6 +11,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { subscribeToEventDataChanges } from "@/lib/event-live-refresh";
+import { useEventLiveRefresh } from "@/hooks/useEventLiveRefresh";
 
 const BRAND   = BrandColors.primary;
 const SUCCESS = "#10B981";
@@ -91,6 +93,10 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const eventIdRef              = useRef<string | null>(null);
   const debounceRef             = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestSeqRef           = useRef(0);
+  const resolveSeqRef           = useRef(0);
+  const resetRefreshPendingRef  = useRef(false);
+  const handledRefreshKeyRef    = useRef(0);
   const pageSize = type === "billing" ? BILLING_PAGE_SIZE : DEFAULT_PAGE_SIZE;
 
   // Debounce search input — reset to page 1 on change
@@ -103,8 +109,15 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
     }, 400);
   };
 
-  const loadItems = useCallback(async (evId: string, pg: number, q: string) => {
-    setLoading(true);
+  const loadItems = useCallback(async (
+    evId: string,
+    pg: number,
+    q: string,
+    quiet = false,
+    isCurrent: () => boolean = () => true,
+  ) => {
+    const requestSeq = ++requestSeqRef.current;
+    if (!quiet) setLoading(true);
     try {
       const searchParam = q ? `&search=${encodeURIComponent(q)}` : "";
       const url = new URL(
@@ -114,49 +127,87 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
       const res = await fetch(url, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
-        setItems(data.items || []);
+        if (requestSeq === requestSeqRef.current && isCurrent()) setItems(data.items || []);
       }
     } catch {}
-    setLoading(false);
+    if (requestSeq === requestSeqRef.current && isCurrent()) setLoading(false);
   }, [type]);
 
-  // Initial load — find the active event
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(new URL(`/api/dashboard/events?t=${Date.now()}`, getApiUrl()), { credentials: "include" });
-        if (!res.ok) return;
-        const data = await res.json();
-        const evList = data.events || data || [];
-        const active = evList.find((e: any) => ["published", "active"].includes(e.status)) ?? evList[0];
-        if (active) {
-          setEventId(active.id);
-          eventIdRef.current = active.id;
-          loadItems(active.id, 1, "");
-        }
-      } catch {}
-    })();
-  }, []);
+  const resolveEventAndLoad = useCallback(async (
+    quiet = false,
+    isCurrent: () => boolean = () => true,
+  ) => {
+    const resolveSeq = ++resolveSeqRef.current;
+    try {
+      const res = await fetch(new URL(`/api/dashboard/events?t=${Date.now()}`, getApiUrl()), { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (resolveSeq !== resolveSeqRef.current || !isCurrent()) return;
+      const evList = data.events || data || [];
+      const active = evList.find((e: any) => ["published", "active"].includes(e.status)) ?? evList[0];
+      if (active) {
+        setEventId(active.id);
+        eventIdRef.current = active.id;
+        await loadItems(active.id, page, debouncedSearch, quiet, isCurrent);
+      }
+    } catch {}
+  }, [loadItems, page, debouncedSearch]);
+
+  const triggerActivityRefresh = useEventLiveRefresh(async (reason, isCurrent) => {
+    const quiet = reason !== "focus";
+    if (reason === "focus" || reason === "foreground") {
+      await resolveEventAndLoad(quiet, isCurrent);
+      return;
+    }
+    const evId = eventIdRef.current;
+    if (evId) await loadItems(evId, page, debouncedSearch, quiet, isCurrent);
+    else await resolveEventAndLoad(quiet, isCurrent);
+  });
+
+  useEffect(() => subscribeToEventDataChanges((changedEventId) => {
+    const evId = eventIdRef.current;
+    if (evId && (!changedEventId || changedEventId === evId)) {
+      void triggerActivityRefresh();
+    }
+  }), [triggerActivityRefresh]);
 
   // Refresh triggered from parent
   useEffect(() => {
-    if (refreshKey > 0 && eventIdRef.current) {
+    if (
+      refreshKey > 0
+      && refreshKey !== handledRefreshKeyRef.current
+      && eventIdRef.current
+    ) {
+      handledRefreshKeyRef.current = refreshKey;
+      const needsReset = page !== 1 || search !== "" || debouncedSearch !== "";
+      resetRefreshPendingRef.current = needsReset;
       setPage(1);
       setSearch("");
       setDebouncedSearch("");
-      loadItems(eventIdRef.current, 1, "");
+      if (!needsReset) void triggerActivityRefresh();
     }
-  }, [refreshKey]);
+  }, [refreshKey, page, search, debouncedSearch, triggerActivityRefresh]);
+
+  useEffect(() => {
+    if (
+      resetRefreshPendingRef.current
+      && page === 1
+      && debouncedSearch === ""
+    ) {
+      resetRefreshPendingRef.current = false;
+      void triggerActivityRefresh();
+    }
+  }, [page, debouncedSearch, triggerActivityRefresh]);
 
   // Page change
   useEffect(() => {
-    if (eventId && page > 1) loadItems(eventId, page, debouncedSearch);
-  }, [page, eventId]);
+    if (eventId && page > 1) void triggerActivityRefresh();
+  }, [page, eventId, triggerActivityRefresh]);
 
   // Debounced search change
   useEffect(() => {
-    if (eventIdRef.current) loadItems(eventIdRef.current, 1, debouncedSearch);
-  }, [debouncedSearch]);
+    if (eventIdRef.current) void triggerActivityRefresh();
+  }, [debouncedSearch, triggerActivityRefresh]);
 
   const meta = TYPE_META[type];
   const isLastPage = items.length < pageSize;

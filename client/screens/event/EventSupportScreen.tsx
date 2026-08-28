@@ -22,6 +22,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { notifyEventDataChanged } from "@/lib/event-live-refresh";
 import { playSuccessTone, playErrorTone } from "@/utils/alertSounds";
 
 const BRAND = BrandColors.primary;
@@ -667,6 +668,7 @@ export default function EventSupportScreen() {
     setSelected(updated);
     setEditPanelOpen(false);
     loadLog(updated.id);
+    notifyEventDataChanged();
   }, [loadLog]);
 
   const baseUrl = getApiUrl().replace(/\/$/, "");
