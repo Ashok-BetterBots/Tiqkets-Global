@@ -185,8 +185,10 @@ export function RecentActivityList({
   useEffect(() => {
     if (!transactionEventId || transactionEventId === eventIdRef.current) return;
     resolveSeqRef.current += 1;
+    requestSeqRef.current += 1;
     eventIdRef.current = transactionEventId;
     setEventId(transactionEventId);
+    setItems([]);
     setPage(1);
     setSearch("");
     setDebouncedSearch("");

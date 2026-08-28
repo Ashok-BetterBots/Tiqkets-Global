@@ -27,6 +27,8 @@ import {
   notifyEventDataChanged,
 } from "@/lib/event-live-refresh";
 import { useEventLiveRefresh } from "@/hooks/useEventLiveRefresh";
+import { useEventSelection } from "@/contexts/EventSelectionContext";
+import { SelectedEventBanner } from "@/components/event/SelectedEventBanner";
 
 const BRAND      = BrandColors.primary;
 const BRAND_BG   = BRAND + "15";
@@ -208,6 +210,7 @@ function ParkingPanel() {
   const insets       = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const scrollRef    = useRef<ScrollView>(null);
+  const { selectedEvent } = useEventSelection();
 
   const CameraModule = require("expo-camera");
   const { CameraView, useCameraPermissions } = CameraModule;
@@ -249,6 +252,7 @@ function ParkingPanel() {
   const parkingRefreshInFlightRef     = useRef(false);
   const logsRequestSeqRef             = useRef(0);
   const parkingInfoRequestSeqRef      = useRef(0);
+  const selectionGenerationRef        = useRef(0);
 
   // ── Load parking info ──────────────────────────────────────────────────────
   const loadParking = useCallback(async (
@@ -259,25 +263,26 @@ function ParkingPanel() {
     if (!quiet) setLoading(true);
     setError(null);
     try {
-      const evRes  = await fetchJson(`/api/dashboard/events?t=${Date.now()}`);
-      if (requestSeq !== parkingInfoRequestSeqRef.current || !isCurrent()) return;
-      const evList = evRes.events || evRes || [];
-      const active = evList.find((e: any) => e.status === "published" || e.status === "active") ?? evList[0];
-      if (!active) { setInfo(null); setLoading(false); setRefreshing(false); return; }
-      if (active.parkingEnabled === false) {
+      if (!selectedEvent) {
         eventIdRef.current = null;
         setInfo(null);
         setLogs([]);
-        setDisabledEventName(active.name || "This event");
+        return;
+      }
+      if (selectedEvent.parkingEnabled === false) {
+        eventIdRef.current = selectedEvent.id;
+        setInfo(null);
+        setLogs([]);
+        setDisabledEventName(selectedEvent.name || "This event");
         return;
       }
       setDisabledEventName(null);
-      const stats = await fetchJson(`/api/dashboard/events/${active.id}/stats?t=${Date.now()}`);
+      const stats = await fetchJson(`/api/dashboard/events/${selectedEvent.id}/stats?t=${Date.now()}`);
       if (requestSeq !== parkingInfoRequestSeqRef.current || !isCurrent()) return;
-      eventIdRef.current = active.id;
+      eventIdRef.current = selectedEvent.id;
       setInfo({
-        eventId:     active.id,
-        eventName:   stats.event?.name || active.name,
+        eventId:     selectedEvent.id,
+        eventName:   stats.event?.name || selectedEvent.name,
         totalSpaces: stats.event?.parkingTotalSpaces ?? 0,
         occupied:    stats.event?.parkingOccupied ?? 0,
         available:   (stats.event?.parkingTotalSpaces ?? 0) - (stats.event?.parkingOccupied ?? 0),
@@ -292,7 +297,7 @@ function ParkingPanel() {
         setRefreshing(false);
       }
     }
-  }, []);
+  }, [selectedEvent]);
 
   // ── Load recent logs ───────────────────────────────────────────────────────
   const loadLogs = useCallback(async (
@@ -323,29 +328,64 @@ function ParkingPanel() {
     try {
       await loadParking(quiet, isCurrent);
       if (!isCurrent()) return;
-      const eventId = eventIdRef.current;
+      const eventId = selectedEvent?.id;
       if (eventId) await loadLogs(eventId, logsPage, debouncedSearch, quiet, isCurrent);
     } finally {
       parkingRefreshInFlightRef.current = false;
     }
-  }, [loadParking, loadLogs, logsPage, debouncedSearch]);
+  }, [loadParking, loadLogs, logsPage, debouncedSearch, selectedEvent?.id]);
 
   const triggerParkingRefresh = useEventLiveRefresh(
     (reason, isCurrent) => refreshParkingData(reason !== "focus", isCurrent),
   );
 
   useEffect(() => {
-    const eventId = info?.eventId;
-    if (eventId) {
-      eventIdRef.current = eventId;
-      void triggerParkingRefresh();
+    selectionGenerationRef.current += 1;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
     }
-  }, [info?.eventId, logsPage, debouncedSearch, triggerParkingRefresh]);
+    parkingInfoRequestSeqRef.current += 1;
+    logsRequestSeqRef.current += 1;
+    eventIdRef.current = selectedEvent?.id ?? null;
+    setInfo(null);
+    setLogs([]);
+    setDisabledEventName(null);
+    setLogsPage(1);
+    setLogsSearch("");
+    setDebouncedSearch("");
+    setModalVisible(false);
+    setModalCustomer(null);
+    setActionLoading(null);
+    setActionSuccess(null);
+    setCounterLoading(null);
+    setCounterVehicleReg("");
+    setVehicleReg("");
+    setSearching(false);
+    setManualQuery("");
+    setScanned(false);
+    if (selectedEvent) {
+      void loadParking(false);
+      if (selectedEvent.parkingEnabled !== false) {
+        void loadLogs(selectedEvent.id, 1, "", false);
+      }
+    } else {
+      setLoading(false);
+    }
+  }, [selectedEvent, loadParking, loadLogs]);
+
+  useEffect(() => {
+    if (selectedEvent?.id) {
+      void loadLogs(selectedEvent.id, logsPage, debouncedSearch, true);
+    }
+  }, [selectedEvent?.id, logsPage, debouncedSearch, loadLogs]);
 
   const handleLogsSearch = (text: string) => {
+    const selectionGeneration = selectionGenerationRef.current;
     setLogsSearch(text);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       setDebouncedSearch(text);
       setLogsPage(1);
     }, 400);
@@ -354,11 +394,13 @@ function ParkingPanel() {
   // ── Customer lookup ────────────────────────────────────────────────────────
   const lookupCustomer = useCallback(async (value: string) => {
     if (!value.trim()) return;
+    const selectionGeneration = selectionGenerationRef.current;
     setLookupError(null);
     setSearching(true);
     try {
       const q    = encodeURIComponent(value.trim());
       const data = await fetchJson(`/api/dashboard/events/support/lookup?q=${q}&t=${Date.now()}`);
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       const results = data.results || [];
       if (results.length > 0) {
         const r = results[0];
@@ -371,6 +413,7 @@ function ParkingPanel() {
             const logsData = await fetchJson(
               `/api/dashboard/events/${evId}/parking/logs?search=${encodeURIComponent(r.bookingId)}&t=${Date.now()}`
             );
+            if (selectionGeneration !== selectionGenerationRef.current) return;
             const bkLogs: ParkingLogItem[] = (logsData.items || []).filter(
               (l: ParkingLogItem) => l.bookingId === r.bookingId
             );
@@ -399,20 +442,26 @@ function ParkingPanel() {
         playErrorTone();
       }
     } catch (e: any) {
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       setLookupError(e?.message || "Lookup failed");
     } finally {
-      setSearching(false);
-      setManualQuery("");
+      if (selectionGeneration === selectionGenerationRef.current) {
+        setSearching(false);
+        setManualQuery("");
+      }
     }
   }, []);
 
   const handleBarCodeScanned = useCallback(async (scanData: { data: string }) => {
     if (scanned) return;
+    const selectionGeneration = selectionGenerationRef.current;
     setScanned(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCameraOpen(false);
     await lookupCustomer(scanData.data);
-    setTimeout(() => setScanned(false), 1500);
+    setTimeout(() => {
+      if (selectionGeneration === selectionGenerationRef.current) setScanned(false);
+    }, 1500);
   }, [scanned, lookupCustomer]);
 
   const openCamera = useCallback(async () => {
@@ -427,10 +476,12 @@ function ParkingPanel() {
     opts?: { vehicleReg?: string; customer?: CustomerInfo | null }
   ) => {
     if (!info?.eventId) return;
+    const actionEventId = info.eventId;
+    const selectionGeneration = selectionGenerationRef.current;
     parkingInfoRequestSeqRef.current += 1;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const res = await apiRequest("POST", `/api/dashboard/events/${info.eventId}/parking`, {
+      const res = await apiRequest("POST", `/api/dashboard/events/${actionEventId}/parking`, {
         action: action === "entry" ? "increment" : "decrement",
         value: 1,
         vehicleRegNumber: opts?.vehicleReg || undefined,
@@ -441,15 +492,17 @@ function ParkingPanel() {
         logAction:        action,
       });
       const data = await res.json();
+      notifyEventDataChanged(actionEventId);
+      if (selectionGeneration !== selectionGenerationRef.current || eventIdRef.current !== actionEventId) return null;
       setInfo((prev) =>
         prev ? { ...prev, occupied: data.parkingOccupied ?? prev.occupied, available: data.available ?? prev.available } : prev
       );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSuccessTone();
       void triggerParkingRefresh();
-      notifyEventDataChanged(info.eventId);
       return true;
     } catch (e: any) {
+      if (selectionGeneration !== selectionGenerationRef.current) return false;
       setError(e?.message || "Update failed");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       playErrorTone();
@@ -460,11 +513,13 @@ function ParkingPanel() {
   // Modal action
   const handleModalAction = useCallback(async (action: "entry" | "exit") => {
     if (actionLoading) return;
+    const selectionGeneration = selectionGenerationRef.current;
     setActionLoading(action);
     const ok = await doAction(action, { vehicleReg, customer: modalCustomer });
-    if (ok) {
+    if (ok && selectionGeneration === selectionGenerationRef.current) {
       setActionSuccess(action);
       setTimeout(() => {
+        if (selectionGeneration !== selectionGenerationRef.current) return;
         setModalVisible(false);
         setModalCustomer(null);
         setVehicleReg("");
@@ -473,16 +528,19 @@ function ParkingPanel() {
         setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
       }, 800);
     }
-    setActionLoading(null);
+    if (selectionGeneration === selectionGenerationRef.current) setActionLoading(null);
   }, [actionLoading, doAction, vehicleReg, modalCustomer]);
 
   // Counter action
   const handleCounterAction = useCallback(async (action: "entry" | "exit") => {
     if (counterLoading) return;
+    const selectionGeneration = selectionGenerationRef.current;
     setCounterLoading(action);
     await doAction(action, { vehicleReg: counterVehicleReg });
-    setCounterLoading(null);
-    setCounterVehicleReg("");
+    if (selectionGeneration === selectionGenerationRef.current) {
+      setCounterLoading(null);
+      setCounterVehicleReg("");
+    }
   }, [counterLoading, doAction, counterVehicleReg]);
 
   if (loading && !info) {
@@ -541,6 +599,7 @@ function ParkingPanel() {
             />
           }
         >
+          <SelectedEventBanner />
           {/* Error banner */}
           {error ? (
             <View style={[styles.errorBanner, { backgroundColor: EXIT_COLOR + "18", borderColor: EXIT_COLOR + "33" }]}>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -22,6 +22,8 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { RecentActivityList } from "@/components/event/RecentActivityList";
 import { TicketScanResultModal, ScanResponseData } from "@/components/event/TicketScanResultModal";
 import { notifyEventDataChanged } from "@/lib/event-live-refresh";
+import { SelectedEventBanner } from "@/components/event/SelectedEventBanner";
+import { useEventSelection } from "@/contexts/EventSelectionContext";
 
 const BRAND = "#8c1867";
 const BRAND_BG = "#8c186715";
@@ -51,6 +53,7 @@ function ExitScanPanel() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
+  const { selectedEventId } = useEventSelection();
 
   const CameraModule = require("expo-camera");
   const { CameraView, useCameraPermissions } = CameraModule;
@@ -61,7 +64,6 @@ function ExitScanPanel() {
   const [manualQuery, setManualQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [recentRefreshKey, setRecentRefreshKey] = useState(0);
-  const [recentEventId, setRecentEventId] = useState<string | null>(null);
 
   // Modal state — mirrors the Check-In preview/confirm flow
   const [modalData, setModalData] = useState<ScanResponseData | null>(null);
@@ -69,6 +71,19 @@ function ExitScanPanel() {
   const [modalVisible, setModalVisible] = useState(false);
   const [pendingValue, setPendingValue] = useState<string>("");
   const [confirming, setConfirming] = useState(false);
+  const selectionGenerationRef = useRef(0);
+
+  useEffect(() => {
+    selectionGenerationRef.current += 1;
+    setModalVisible(false);
+    setModalData(null);
+    setPendingValue("");
+    setCameraOpen(false);
+    setConfirming(false);
+    setSearching(false);
+    setManualQuery("");
+    setScanned(false);
+  }, [selectedEventId]);
 
   const closeModal = useCallback(() => {
     setModalVisible(false);
@@ -77,6 +92,7 @@ function ExitScanPanel() {
 
   // ── Step 1: Lookup ticket WITHOUT recording exit ──────────────────────────
   const processValue = useCallback(async (rawValue: string) => {
+    const selectionGeneration = selectionGenerationRef.current;
     const value = rawValue.trim();
     try {
       const url = new URL(
@@ -85,6 +101,7 @@ function ExitScanPanel() {
       );
       const res = await fetch(url, { credentials: "include" });
       const data = await res.json();
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       if (!res.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         playErrorTone();
@@ -117,6 +134,7 @@ function ExitScanPanel() {
         setModalVisible(true);
       }
     } catch (e: any) {
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       playErrorTone();
       setModalData({ success: false, invalid: true, error: "Lookup failed. Please try again." });
@@ -128,6 +146,7 @@ function ExitScanPanel() {
   // ── Step 2: Staff confirms → actually record exit ─────────────────────────
   const handleConfirm = useCallback(async () => {
     if (!pendingValue || confirming) return;
+    const selectionGeneration = selectionGenerationRef.current;
     setConfirming(true);
     try {
       const res = await apiRequest("POST", "/api/dashboard/events/scan", {
@@ -135,16 +154,17 @@ function ExitScanPanel() {
         action: "exit",
       });
       const data = await res.json();
+      notifyEventDataChanged(data.registration?.eventId);
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSuccessTone();
-      setRecentEventId(data.registration?.eventId || null);
       setRecentRefreshKey((k) => k + 1);
-      notifyEventDataChanged(data.registration?.eventId);
       // Valid exits show no banner/info — close the modal right away.
       setModalVisible(false);
       setPendingValue("");
       setModalData(null);
     } catch (e: any) {
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       const apiErr = e instanceof ApiError ? e : null;
       const body = apiErr?.body;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -161,29 +181,36 @@ function ExitScanPanel() {
       setModalMode("result");
       // Invalid/duplicate exits still surface an alert, but auto-dismiss too.
       setTimeout(() => {
+        if (selectionGeneration !== selectionGenerationRef.current) return;
         closeModal();
       }, 3500);
     }
-    setConfirming(false);
+    if (selectionGeneration === selectionGenerationRef.current) setConfirming(false);
   }, [pendingValue, confirming, modalData, closeModal]);
 
   const handleBarCodeScanned = useCallback(
     async (scanEvent: { data: string }) => {
       if (scanned) return;
+      const selectionGeneration = selectionGenerationRef.current;
       setScanned(true);
       setCameraOpen(false);
       await processValue(scanEvent.data);
-      setTimeout(() => setScanned(false), 1500);
+      setTimeout(() => {
+        if (selectionGeneration === selectionGenerationRef.current) setScanned(false);
+      }, 1500);
     },
     [scanned, processValue],
   );
 
   const handleManualSearch = useCallback(async () => {
     if (!manualQuery.trim() || searching) return;
+    const selectionGeneration = selectionGenerationRef.current;
     setSearching(true);
     await processValue(manualQuery.trim());
-    setSearching(false);
-    setManualQuery("");
+    if (selectionGeneration === selectionGenerationRef.current) {
+      setSearching(false);
+      setManualQuery("");
+    }
   }, [manualQuery, searching, processValue]);
 
   const openCamera = useCallback(async () => {
@@ -211,6 +238,7 @@ function ExitScanPanel() {
           ]}
           keyboardShouldPersistTaps="handled"
         >
+          <SelectedEventBanner />
           {/* Scan card */}
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <ThemedText type="body" style={styles.cardTitle}>Scan or Enter Ticket</ThemedText>
@@ -291,7 +319,7 @@ function ExitScanPanel() {
             type="exit"
             refreshKey={recentRefreshKey}
             hideHeader
-            eventId={recentEventId}
+            eventId={selectedEventId}
           />
         </ScrollView>
 

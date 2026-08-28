@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -20,6 +20,8 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { RecentActivityList } from "@/components/event/RecentActivityList";
 import { BillingTransactionModal, LookupResult } from "@/components/event/BillingTransactionModal";
 import { notifyEventDataChanged } from "@/lib/event-live-refresh";
+import { SelectedEventBanner } from "@/components/event/SelectedEventBanner";
+import { useEventSelection } from "@/contexts/EventSelectionContext";
 
 const BRAND = "#8c1867";
 const BRAND_BG = "#8c186715";
@@ -40,6 +42,7 @@ async function fetchJson(path: string): Promise<any> {
 export default function EventBillingScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
+  const { selectedEventId } = useEventSelection();
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const [scanned, setScanned] = useState(false);
@@ -49,6 +52,17 @@ export default function EventBillingScreen() {
   const [lookup, setLookup] = useState<LookupResult | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [recentRefreshKey, setRecentRefreshKey] = useState(0);
+  const selectionGenerationRef = useRef(0);
+
+  useEffect(() => {
+    selectionGenerationRef.current += 1;
+    setModalVisible(false);
+    setLookup(null);
+    setManualInput("");
+    setError(null);
+    setCameraOpen(false);
+    setLoading(false);
+  }, [selectedEventId]);
 
   const CameraModule = Platform.OS !== "web" ? require("expo-camera") : null;
   const { CameraView, useCameraPermissions } = CameraModule || { CameraView: null, useCameraPermissions: () => [null, () => {}] };
@@ -56,19 +70,22 @@ export default function EventBillingScreen() {
 
   const doLookup = useCallback(async (value: string) => {
     if (!value.trim()) return;
+    const selectionGeneration = selectionGenerationRef.current;
     setError(null);
     setLoading(true);
     try {
       const q = encodeURIComponent(value.trim());
       const data: LookupResult = await fetchJson(`/api/dashboard/events/billing/lookup?q=${q}&t=${Date.now()}`);
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setLookup(data);
       setModalVisible(true);
     } catch (e: any) {
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(e?.message || "No matching booking found");
     } finally {
-      setLoading(false);
+      if (selectionGeneration === selectionGenerationRef.current) setLoading(false);
     }
   }, []);
 
@@ -124,6 +141,7 @@ export default function EventBillingScreen() {
           ]}
           keyboardShouldPersistTaps="handled"
         >
+          <SelectedEventBanner />
           {/* ── Scan card ── */}
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <ThemedText style={styles.cardTitle}>Scan or Enter Booking</ThemedText>
@@ -214,7 +232,7 @@ export default function EventBillingScreen() {
           <RecentActivityList
             type="billing"
             refreshKey={recentRefreshKey}
-            eventId={lookup?.registration.eventId}
+            eventId={selectedEventId}
           />
         </ScrollView>
 

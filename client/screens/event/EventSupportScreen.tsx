@@ -24,6 +24,8 @@ import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { notifyEventDataChanged } from "@/lib/event-live-refresh";
 import { playSuccessTone, playErrorTone } from "@/utils/alertSounds";
+import { SelectedEventBanner } from "@/components/event/SelectedEventBanner";
+import { useEventSelection } from "@/contexts/EventSelectionContext";
 
 const BRAND = BrandColors.primary;
 const SUCCESS = "#10B981";
@@ -565,6 +567,7 @@ export default function EventSupportScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
+  const { selectedEventId } = useEventSelection();
 
   const CameraModule = Platform.OS !== "web" ? require("expo-camera") : null;
   const { CameraView, useCameraPermissions } = CameraModule || {};
@@ -586,6 +589,19 @@ export default function EventSupportScreen() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const editPanelY = useRef(0);
+  const selectionGenerationRef = useRef(0);
+
+  useEffect(() => {
+    selectionGenerationRef.current += 1;
+    setQuery("");
+    setResults([]);
+    setSearched(false);
+    setSelected(null);
+    setEditPanelOpen(false);
+    setStageLog([]);
+    setError(null);
+    setCameraOpen(false);
+  }, [selectedEventId]);
 
   useEffect(() => {
     if (editPanelOpen) {
@@ -602,13 +618,18 @@ export default function EventSupportScreen() {
   }, [permission, requestPermission]);
 
   const loadLog = useCallback(async (regId: string) => {
+    const selectionGeneration = selectionGenerationRef.current;
     setStageLog([]);
     setLogLoading(true);
     try {
       const data = await fetchJson(`/api/dashboard/events/registration/${regId}/log?t=${Date.now()}`);
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       setStageLog(data.log || []);
-    } catch { setStageLog([]); }
-    finally { setLogLoading(false); }
+    } catch {
+      if (selectionGeneration === selectionGenerationRef.current) setStageLog([]);
+    } finally {
+      if (selectionGeneration === selectionGenerationRef.current) setLogLoading(false);
+    }
   }, []);
 
   const selectRegistration = useCallback(async (reg: RegResult) => {
@@ -619,6 +640,7 @@ export default function EventSupportScreen() {
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
+    const selectionGeneration = selectionGenerationRef.current;
     setLoading(true);
     setError(null);
     setResults([]);
@@ -629,13 +651,17 @@ export default function EventSupportScreen() {
     try {
       const enc = encodeURIComponent(q.trim());
       const data = await fetchJson(`/api/dashboard/events/support/lookup?q=${enc}&t=${Date.now()}`);
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       const regs: RegResult[] = data.results || [];
       setResults(regs);
       setSearched(true);
       if (regs.length === 1) selectRegistration(regs[0]);
     } catch (e: any) {
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       setError(e?.message || "Search failed");
-    } finally { setLoading(false); }
+    } finally {
+      if (selectionGeneration === selectionGenerationRef.current) setLoading(false);
+    }
   }, [selectRegistration]);
 
   const handleBarCodeScanned = useCallback(async (scanData: { data: string }) => {
@@ -681,6 +707,7 @@ export default function EventSupportScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <SelectedEventBanner />
         {/* ── Search card ── */}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <ThemedText type="body" style={styles.cardTitle}>Find Customer</ThemedText>
