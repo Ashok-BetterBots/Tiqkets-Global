@@ -2003,7 +2003,7 @@
                     </button>
                   </template>
                   <div class="flex-1"></div>
-                  <button x-show="(hasPerm('org.events.manage') || hasPerm('org.events.billing')) && selectedEvent"
+                  <button x-show="(hasPerm('org.events.manage') || hasPerm('org.events.billing')) && selectedEvent && selectedEvent.status !== 'paused'"
                     @click="openManualRegModal()" class="btn-primary text-xs whitespace-nowrap">
                     <i class="fa-solid fa-circle-plus mr-1.5"></i>Add customer registration
                   </button>

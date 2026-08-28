@@ -470,7 +470,7 @@ export default function EventDashboardScreen() {
               </Pressable>
             </View>
 
-            {canRegisterAttendees ? (
+            {canRegisterAttendees && selectedEvent?.status !== "paused" ? (
               <View style={{ flexDirection: "row", gap: Spacing.xs }}>
                 <Pressable
                   onPress={() => setAddCustomerOpen(true)}
