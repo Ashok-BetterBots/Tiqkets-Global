@@ -3083,23 +3083,41 @@ export function registerEventsRoutes(app: Express) {
     try {
       if (!(await assertEventOwnership(req, res, String(req.params.eventId)))) return;
       const { status, q, slotDate } = req.query as Record<string, string>;
+      const pageSize = 20;
+      const requestedPage = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
       const conds = [eq(eventRegistrations.eventId, String(req.params.eventId))];
       if (status) conds.push(inArray(eventRegistrations.status, status.split(",")));
       if (slotDate) conds.push(eq(eventRegistrations.slotDate, slotDate));
-      let rows = await db
+      if (q?.trim()) {
+        const needle = `%${q.trim()}%`;
+        conds.push(or(
+          ilike(eventRegistrations.customerName, needle),
+          ilike(eventRegistrations.customerPhone, needle),
+          ilike(eventRegistrations.bookingId, needle),
+        ) as any);
+      }
+      const whereClause = and(...conds);
+      const [countRow] = await db
+        .select({ total: dsql<number>`count(*)::int` })
+        .from(eventRegistrations)
+        .where(whereClause);
+      const total = countRow?.total ?? 0;
+      const pages = Math.max(1, Math.ceil(total / pageSize));
+      const page = Math.min(requestedPage, pages);
+      const rows = await db
         .select()
         .from(eventRegistrations)
-        .where(and(...conds))
+        .where(whereClause)
         .orderBy(desc(eventRegistrations.createdAt))
-        .limit(1000);
-      if (q) {
-        const needle = q.toLowerCase();
-        rows = rows.filter((r) =>
-          r.customerName.toLowerCase().includes(needle) ||
-          r.customerPhone.includes(needle) ||
-          (r.bookingId || "").toLowerCase().includes(needle));
-      }
-      res.json({ registrations: rows.map(regShape) });
+        .limit(pageSize)
+        .offset((page - 1) * pageSize);
+      res.json({
+        registrations: rows.map(regShape),
+        total,
+        page,
+        limit: pageSize,
+        pages,
+      });
     } catch (e) {
       console.error("[events] registrations list failed:", e);
       res.status(500).json({ error: "Internal server error" });

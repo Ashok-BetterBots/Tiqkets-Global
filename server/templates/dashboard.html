@@ -2038,8 +2038,8 @@
                     <div class="flex flex-wrap items-center gap-3 mb-4">
                       <p class="text-sm font-extrabold text-gray-800">Registrations</p>
                       <div class="flex-1"></div>
-                      <input x-model="eventsRegQ" @input.debounce.400ms="loadEventRegs()" placeholder="Search name / phone / booking ID" class="input-field !w-56 text-xs">
-                      <select x-model="eventsRegStatus" @change="loadEventRegs()" class="input-field !w-auto text-xs">
+                      <input x-model="eventsRegQ" @input.debounce.400ms="eventsRegPage=1; loadEventRegs()" placeholder="Search name / phone / booking ID" class="input-field !w-56 text-xs">
+                      <select x-model="eventsRegStatus" @change="eventsRegPage=1; loadEventRegs()" class="input-field !w-auto text-xs">
                         <option value="">All statuses</option>
                         <template x-for="s in ['pending_payment','payment_completed','ticket_generated','arrived','checked_in','exited','feedback_submitted','expired']" :key="s">
                           <option :value="s" x-text="s.replace('_',' ')"></option>
@@ -2075,6 +2075,38 @@
                           <tr x-show="eventsRegs.length === 0"><td colspan="7" class="py-6 text-center text-gray-400">No registrations found</td></tr>
                         </tbody>
                       </table>
+                    </div>
+                    <div class="flex items-center justify-between mt-3 text-xs text-gray-500">
+                      <span>
+                        Showing
+                        <span class="font-semibold text-gray-700" x-text="eventsRegTotal > 0 ? ((eventsRegPage - 1) * eventsRegLimit + 1).toLocaleString() : '0'"></span>
+                        –
+                        <span class="font-semibold text-gray-700" x-text="eventsRegTotal > 0 ? Math.min(eventsRegPage * eventsRegLimit, eventsRegTotal).toLocaleString() : '0'"></span>
+                        of
+                        <span class="font-semibold text-gray-700" x-text="eventsRegTotal.toLocaleString()"></span>
+                        registrations
+                      </span>
+                      <div class="flex items-center gap-1">
+                        <button @click="eventsGoPage(1)" :disabled="eventsRegPage<=1"
+                                class="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                          <i class="fa-solid fa-angles-left text-[10px]"></i>
+                        </button>
+                        <button @click="eventsGoPage(eventsRegPage-1)" :disabled="eventsRegPage<=1"
+                                class="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                          <i class="fa-solid fa-angle-left text-[10px]"></i>
+                        </button>
+                        <span class="px-2 font-semibold text-gray-700">
+                          <span x-text="eventsRegPage"></span> / <span x-text="eventsRegPages"></span>
+                        </span>
+                        <button @click="eventsGoPage(eventsRegPage+1)" :disabled="eventsRegPage>=eventsRegPages"
+                                class="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                          <i class="fa-solid fa-angle-right text-[10px]"></i>
+                        </button>
+                        <button @click="eventsGoPage(eventsRegPages)" :disabled="eventsRegPage>=eventsRegPages"
+                                class="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                          <i class="fa-solid fa-angles-right text-[10px]"></i>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -7309,6 +7341,10 @@
         eventsRegs: [],
         eventsRegQ: '',
         eventsRegStatus: '',
+        eventsRegPage: 1,
+        eventsRegLimit: 20,
+        eventsRegTotal: 0,
+        eventsRegPages: 1,
         eventsRefreshing: false,
         eventModalOpen: false,
         eventForm: {
@@ -12862,6 +12898,7 @@
         },
         onEventSelected() {
           this.eventsStats = null; this.eventsRegs = [];
+          this.eventsRegPage = 1; this.eventsRegTotal = 0; this.eventsRegPages = 1;
           this.eventsLocationId = '';
           this.eventLocationCounts = {};
           this.eventLocationGuests = {};
@@ -13001,12 +13038,21 @@
         async loadEventRegs() {
           if (!this.eventsSelectedId) return;
           try {
-            const params = new URLSearchParams({ t: Date.now() });
+            const params = new URLSearchParams({ t: Date.now(), page: this.eventsRegPage });
             if (this.eventsRegQ) params.set('q', this.eventsRegQ);
             if (this.eventsRegStatus) params.set('status', this.eventsRegStatus);
             const data = await api(`/api/dashboard/events/${this.eventsSelectedId}/registrations?${params}`);
             this.eventsRegs = data.registrations || [];
+            this.eventsRegTotal = Number(data.total) || 0;
+            this.eventsRegLimit = Number(data.limit) || 20;
+            this.eventsRegPages = Math.max(1, Number(data.pages) || 1);
+            this.eventsRegPage = Math.min(Math.max(1, Number(data.page) || 1), this.eventsRegPages);
           } catch (e) { this.showToast(e.message || 'Failed to load registrations', 'error'); }
+        },
+        async eventsGoPage(page) {
+          if (page < 1 || page > this.eventsRegPages || page === this.eventsRegPage) return;
+          this.eventsRegPage = page;
+          await this.loadEventRegs();
         },
         eventsRefresh() {
           return this.withSpin('eventsRefreshing', async () => { await this.loadEventsList(); });
