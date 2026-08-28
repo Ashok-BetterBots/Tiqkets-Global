@@ -21,6 +21,7 @@ import { apiRequest, ApiError, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RecentActivityList } from "@/components/event/RecentActivityList";
 import { TicketScanResultModal, ScanResponseData } from "@/components/event/TicketScanResultModal";
+import { notifyEventDataChanged } from "@/lib/event-live-refresh";
 
 const BRAND = "#8c1867";
 const BRAND_BG = "#8c186715";
@@ -151,6 +152,7 @@ function ScanPanel() {
       });
       setModalMode("result");
       setRecentRefreshKey((k) => k + 1);
+      notifyEventDataChanged(data.registration?.eventId);
       // Auto-dismiss the bottom modal shortly after a successful check-in
       setTimeout(() => {
         setModalVisible(false);

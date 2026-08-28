@@ -19,6 +19,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RecentActivityList } from "@/components/event/RecentActivityList";
 import { BillingTransactionModal, LookupResult } from "@/components/event/BillingTransactionModal";
+import { notifyEventDataChanged } from "@/lib/event-live-refresh";
 
 const BRAND = "#8c1867";
 const BRAND_BG = "#8c186715";
@@ -96,6 +97,7 @@ export default function EventBillingScreen() {
 
   const handleSuccess = useCallback(() => {
     setRecentRefreshKey((k) => k + 1);
+    notifyEventDataChanged();
   }, []);
 
   if (Platform.OS === "web") {

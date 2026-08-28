@@ -21,6 +21,7 @@ import { apiRequest, ApiError, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RecentActivityList } from "@/components/event/RecentActivityList";
 import { TicketScanResultModal, ScanResponseData } from "@/components/event/TicketScanResultModal";
+import { notifyEventDataChanged } from "@/lib/event-live-refresh";
 
 const BRAND = "#8c1867";
 const BRAND_BG = "#8c186715";
@@ -136,6 +137,7 @@ function ExitScanPanel() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSuccessTone();
       setRecentRefreshKey((k) => k + 1);
+      notifyEventDataChanged(data.registration?.eventId);
       // Valid exits show no banner/info — close the modal right away.
       setModalVisible(false);
       setPendingValue("");

@@ -23,6 +23,10 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import {
+  notifyEventDataChanged,
+} from "@/lib/event-live-refresh";
+import { useEventLiveRefresh } from "@/hooks/useEventLiveRefresh";
 
 const BRAND      = BrandColors.primary;
 const BRAND_BG   = BRAND + "15";
@@ -215,7 +219,6 @@ function ParkingPanel() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError]           = useState<string | null>(null);
   const [disabledEventName, setDisabledEventName] = useState<string | null>(null);
-  const intervalRef                 = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Scan / search
   const [cameraOpen, setCameraOpen]     = useState(false);
@@ -241,16 +244,23 @@ function ParkingPanel() {
   const [logsPage, setLogsPage]       = useState(1);
   const [logsSearch, setLogsSearch]   = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [refreshKey, setRefreshKey]   = useState(0);
   const debounceRef                   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const eventIdRef                    = useRef<string | null>(null);
+  const parkingRefreshInFlightRef     = useRef(false);
+  const logsRequestSeqRef             = useRef(0);
+  const parkingInfoRequestSeqRef      = useRef(0);
 
   // ── Load parking info ──────────────────────────────────────────────────────
-  const loadParking = useCallback(async (quiet = false) => {
+  const loadParking = useCallback(async (
+    quiet = false,
+    isCurrent: () => boolean = () => true,
+  ) => {
+    const requestSeq = ++parkingInfoRequestSeqRef.current;
     if (!quiet) setLoading(true);
     setError(null);
     try {
       const evRes  = await fetchJson(`/api/dashboard/events?t=${Date.now()}`);
+      if (requestSeq !== parkingInfoRequestSeqRef.current || !isCurrent()) return;
       const evList = evRes.events || evRes || [];
       const active = evList.find((e: any) => e.status === "published" || e.status === "active") ?? evList[0];
       if (!active) { setInfo(null); setLoading(false); setRefreshing(false); return; }
@@ -263,6 +273,7 @@ function ParkingPanel() {
       }
       setDisabledEventName(null);
       const stats = await fetchJson(`/api/dashboard/events/${active.id}/stats?t=${Date.now()}`);
+      if (requestSeq !== parkingInfoRequestSeqRef.current || !isCurrent()) return;
       eventIdRef.current = active.id;
       setInfo({
         eventId:     active.id,
@@ -272,50 +283,64 @@ function ParkingPanel() {
         available:   (stats.event?.parkingTotalSpaces ?? 0) - (stats.event?.parkingOccupied ?? 0),
       });
     } catch (e: any) {
-      setError(e?.message || "Failed to load parking data");
+      if (requestSeq === parkingInfoRequestSeqRef.current && isCurrent()) {
+        setError(e?.message || "Failed to load parking data");
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestSeq === parkingInfoRequestSeqRef.current && isCurrent()) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
-  useEffect(() => {
-    loadParking();
-    intervalRef.current = setInterval(() => loadParking(true), 15000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [loadParking]);
-
   // ── Load recent logs ───────────────────────────────────────────────────────
-  const loadLogs = useCallback(async (evId: string, pg: number, q: string) => {
-    setLogsLoading(true);
+  const loadLogs = useCallback(async (
+    evId: string,
+    pg: number,
+    q: string,
+    quiet = false,
+    isCurrent: () => boolean = () => true,
+  ) => {
+    const requestSeq = ++logsRequestSeqRef.current;
+    if (!quiet) setLogsLoading(true);
     try {
       const searchParam = q ? `&search=${encodeURIComponent(q)}` : "";
       const data = await fetchJson(
         `/api/dashboard/events/${evId}/parking/logs?page=${pg}${searchParam}&t=${Date.now()}`
       );
-      setLogs(data.items || []);
+      if (requestSeq === logsRequestSeqRef.current && isCurrent()) setLogs(data.items || []);
     } catch {}
-    setLogsLoading(false);
+    if (requestSeq === logsRequestSeqRef.current && isCurrent()) setLogsLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (eventIdRef.current) loadLogs(eventIdRef.current, 1, "");
-  }, [refreshKey]);
-
-  useEffect(() => {
-    if (eventIdRef.current && info) loadLogs(eventIdRef.current, logsPage, debouncedSearch);
-  }, [logsPage]);
-
-  useEffect(() => {
-    if (eventIdRef.current && info) loadLogs(eventIdRef.current, 1, debouncedSearch);
-  }, [debouncedSearch]);
-
-  useEffect(() => {
-    if (info) {
-      loadLogs(info.eventId, 1, "");
-      eventIdRef.current = info.eventId;
+  const refreshParkingData = useCallback(async (
+    quiet = true,
+    isCurrent: () => boolean = () => true,
+  ) => {
+    if (parkingRefreshInFlightRef.current) return;
+    parkingRefreshInFlightRef.current = true;
+    try {
+      await loadParking(quiet, isCurrent);
+      if (!isCurrent()) return;
+      const eventId = eventIdRef.current;
+      if (eventId) await loadLogs(eventId, logsPage, debouncedSearch, quiet, isCurrent);
+    } finally {
+      parkingRefreshInFlightRef.current = false;
     }
-  }, [info?.eventId]);
+  }, [loadParking, loadLogs, logsPage, debouncedSearch]);
+
+  const triggerParkingRefresh = useEventLiveRefresh(
+    (reason, isCurrent) => refreshParkingData(reason !== "focus", isCurrent),
+  );
+
+  useEffect(() => {
+    const eventId = info?.eventId;
+    if (eventId) {
+      eventIdRef.current = eventId;
+      void triggerParkingRefresh();
+    }
+  }, [info?.eventId, logsPage, debouncedSearch, triggerParkingRefresh]);
 
   const handleLogsSearch = (text: string) => {
     setLogsSearch(text);
@@ -402,6 +427,7 @@ function ParkingPanel() {
     opts?: { vehicleReg?: string; customer?: CustomerInfo | null }
   ) => {
     if (!info?.eventId) return;
+    parkingInfoRequestSeqRef.current += 1;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       const res = await apiRequest("POST", `/api/dashboard/events/${info.eventId}/parking`, {
@@ -420,7 +446,8 @@ function ParkingPanel() {
       );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSuccessTone();
-      setRefreshKey((k) => k + 1);
+      void triggerParkingRefresh();
+      notifyEventDataChanged(info.eventId);
       return true;
     } catch (e: any) {
       setError(e?.message || "Update failed");
@@ -428,7 +455,7 @@ function ParkingPanel() {
       playErrorTone();
       return false;
     }
-  }, [info?.eventId]);
+  }, [info?.eventId, triggerParkingRefresh]);
 
   // Modal action
   const handleModalAction = useCallback(async (action: "entry" | "exit") => {
@@ -503,7 +530,16 @@ function ParkingPanel() {
             { paddingTop: Spacing.xl, paddingBottom: tabBarHeight + Spacing["2xl"] },
           ]}
           keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadParking(true); }} tintColor={BRAND} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                void triggerParkingRefresh().finally(() => setRefreshing(false));
+              }}
+              tintColor={BRAND}
+            />
+          }
         >
           {/* Error banner */}
           {error ? (

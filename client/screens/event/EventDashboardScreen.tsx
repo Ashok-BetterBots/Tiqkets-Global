@@ -27,6 +27,11 @@ import { getRoleLabel } from "@/types/organization";
 import { getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { OrgStackParamList } from "@/navigation/OrgStackNavigator";
+import {
+  notifyEventDataChanged,
+  subscribeToEventDataChanges,
+} from "@/lib/event-live-refresh";
+import { useEventLiveRefresh } from "@/hooks/useEventLiveRefresh";
 
 const BRAND = BrandColors.primary;
 
@@ -315,9 +320,9 @@ export default function EventDashboardScreen() {
   const [eventModalOpen, setEventModalOpen] = useState(false);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const selectedEventIdRef = useRef<string | null>(null);
   const selectedLocationIdRef = useRef<string | null>(null);
+  const statsRequestSeqRef = useRef(0);
 
   const visibleLocations = useMemo(() => {
     if (isOwner || !assignedServiceIds || assignedServiceIds.length === 0) return locations;
@@ -328,16 +333,19 @@ export default function EventDashboardScreen() {
   const selectedLocation = useMemo(() => visibleLocations.find((l) => l.id === selectedLocationId) ?? null, [visibleLocations, selectedLocationId]);
 
   const loadStats = useCallback(async (eventId: string, locationId: string | null, quiet = false) => {
+    const requestSeq = ++statsRequestSeqRef.current;
     if (!quiet) setLoading(true);
     try {
       const locQ = locationId ? `&locationId=${encodeURIComponent(locationId)}` : "";
       const s: EventStats = await fetchJson(`/api/dashboard/events/${eventId}/stats?t=${Date.now()}${locQ}`);
-      setStats(s);
-      setLocations(s.locations || []);
+      if (requestSeq === statsRequestSeqRef.current) {
+        setStats(s);
+        setLocations(s.locations || []);
+      }
     } catch (e: any) {
-      if (!quiet) setError(e?.message || "Failed to load stats");
+      if (requestSeq === statsRequestSeqRef.current && !quiet) setError(e?.message || "Failed to load stats");
     } finally {
-      setLoading(false);
+      if (requestSeq === statsRequestSeqRef.current) setLoading(false);
     }
   }, []);
 
@@ -371,15 +379,20 @@ export default function EventDashboardScreen() {
   useEffect(() => { selectedEventIdRef.current = selectedEventId; }, [selectedEventId]);
   useEffect(() => { selectedLocationIdRef.current = selectedLocationId; }, [selectedLocationId]);
 
-  useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      const evId = selectedEventIdRef.current;
-      if (evId) {
-        loadStats(evId, selectedLocationIdRef.current, true);
-      }
-    }, 30000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  const refreshSelectedStats = useCallback(() => {
+    const evId = selectedEventIdRef.current;
+    if (evId) return loadStats(evId, selectedLocationIdRef.current, true);
+    return Promise.resolve();
   }, [loadStats]);
+
+  const triggerStatsRefresh = useEventLiveRefresh(() => refreshSelectedStats());
+
+  useEffect(() => subscribeToEventDataChanges((changedEventId) => {
+    const selectedId = selectedEventIdRef.current;
+    if (selectedId && (!changedEventId || changedEventId === selectedId)) {
+      void triggerStatsRefresh();
+    }
+  }), [triggerStatsRefresh]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -455,7 +468,7 @@ export default function EventDashboardScreen() {
               <ThemedText style={[styles.filterLabel, { color: theme.textSecondary }]}>EVENT</ThemedText>
               <Pressable
                 onPress={() => events.length > 1 ? setEventModalOpen(true) : undefined}
-                style={[styles.selectorBtn, { borderColor: theme.border, backgroundColor: theme.backgroundRoot ?? theme.background }]}
+                style={[styles.selectorBtn, { borderColor: theme.border, backgroundColor: theme.backgroundRoot }]}
                 testID="button-event-selector"
               >
                 {selectedEvent ? <StatusDot status={selectedEvent.status} /> : null}
@@ -499,7 +512,7 @@ export default function EventDashboardScreen() {
                 <ThemedText style={[styles.filterLabel, { color: theme.textSecondary }]}>LOCATION</ThemedText>
                 <Pressable
                   onPress={() => setLocationModalOpen(true)}
-                  style={[styles.selectorBtn, { borderColor: theme.border, backgroundColor: theme.backgroundRoot ?? theme.background }]}
+                  style={[styles.selectorBtn, { borderColor: theme.border, backgroundColor: theme.backgroundRoot }]}
                   testID="button-location-selector"
                 >
                   <Feather name="map-pin" size={14} color={BRAND} />
@@ -683,7 +696,11 @@ export default function EventDashboardScreen() {
         branchId={selectedEvent?.branchId ?? null}
         eventId={selectedEventId}
         eventName={selectedEvent?.name}
-        onSuccess={() => { if (selectedEventId) loadStats(selectedEventId, selectedLocationIdRef.current, true); }}
+        onSuccess={() => {
+          if (selectedEventId) {
+            notifyEventDataChanged(selectedEventId);
+          }
+        }}
       />
     </ThemedView>
   );
