@@ -1077,6 +1077,13 @@
     const { labels, datasets } = buildChartData(buckets, c1, c2);
     chart.data.labels   = labels;
     chart.data.datasets = datasets;
+    const maxBarValue = datasets.reduce((max, dataset) => {
+      const datasetMax = Math.max(0, ...dataset.data.map(value => Number(value) || 0));
+      return Math.max(max, datasetMax);
+    }, 0);
+    // Keep exactly one whole-number step above the tallest bar so the
+    // value-label plugin always has room to draw the bar value.
+    chart.options.scales.y.max = Math.max(1, Math.ceil(maxBarValue) + 1);
     chart.update('active');
   }
 
