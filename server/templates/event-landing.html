@@ -1,0 +1,3314 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Event Registration - TIQKETS</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+
+  <!-- PWA / App Clip Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TIQKETS" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#760157" />
+  <meta name="application-name" content="TIQKETS" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <!-- iOS Splash Screens -->
+  <meta name="apple-touch-fullscreen" content="yes" />
+  <link rel="apple-touch-icon" href="/assets/icon-180.png" />
+
+  <!-- Android Chrome -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Open Graph for link previews -->
+  <meta property="og:title" content="Event Registration - TIQKETS" />
+  <meta property="og:description" content="Book your slot and get your QR ticket instantly" />
+  <meta property="og:type" content="website" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Poppins:wght@600;700;800&family=Noto+Sans+Tamil:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Default brand colors — organizations can override these at runtime
+         via event.brandPrimaryColor / event.brandButtonColor (see applyBranding()). */
+      --brand-primary: #760157;
+      --brand-primary-dark: #55013F;
+      --brand-primary-light: #9C1A75;
+      --brand-button: #760157;
+      --brand-button-dark: #55013F;
+      --brand-font: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
+      --brand-tint: #fbf6f9;
+      --brand-tint-strong: #f3e6ee;
+      --brand-secondary: #1d499b;
+      --brand-accent: #ffd700;
+      --brand-accent-dark: #e6c200;
+      --white: #ffffff;
+      --bg: #F7F5FE;
+      --surface: #ffffff;
+      --line: #ececf1;
+      --line-strong: #e2e2ea;
+      --text: #1a1a1f;
+      --text-secondary: #6b6b76;
+      --text-muted: #9a9aa6;
+      --light-gray: #f2f2f5;
+      --dark-gray: #272626;
+      --success: #10B981;
+      --success-tint: #ecfdf5;
+      --warning: #f59e0b;
+      --warning-tint: #fffbeb;
+      --error: #EF4444;
+      --error-tint: #fef2f2;
+      --radius-sm: 12px;
+      --radius-md: 16px;
+      --radius-lg: 22px;
+      --radius-xl: 28px;
+      --shadow-sm: 0 1px 2px rgba(20, 12, 26, 0.04);
+      --shadow-md: 0 8px 24px rgba(20, 12, 26, 0.07);
+      --shadow-lg: 0 18px 48px -12px rgba(20, 12, 26, 0.14), 0 4px 12px rgba(20, 12, 26, 0.05);
+      --shadow-btn: 0 10px 24px -8px rgba(118, 1, 87, 0.5);
+      --brand-rgb: 118, 1, 87;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html[dir="rtl"] body { direction: rtl; }
+
+    body {
+      font-family: 'Inter', 'Noto Sans Tamil', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background:
+        radial-gradient(1100px 520px at 50% -180px, rgba(var(--brand-rgb), 0.10) 0%, rgba(var(--brand-rgb), 0) 60%),
+        var(--bg);
+      min-height: 100vh;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      letter-spacing: -0.01em;
+    }
+
+    body[data-lang="ta"] { letter-spacing: 0; }
+
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 0 0 40px;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    .safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
+    .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 20px); }
+
+    .hidden { display: none !important; }
+
+    button, a, input, select, textarea { font-family: inherit; }
+    ::selection { background: rgba(var(--brand-rgb), 0.18); }
+
+    /* ---------- Language switcher ---------- */
+    /* Sits inside the input/registration card's top-right corner. */
+    .lang-switch-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 14px;
+    }
+    .lang-switch {
+      display: flex;
+      background: rgba(20, 12, 20, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.28);
+      border-radius: 999px;
+      padding: 3px;
+      gap: 2px;
+      box-shadow: 0 8px 18px -6px rgba(0,0,0,0.3);
+    }
+    .lang-switch button {
+      position: relative;
+      z-index: 1;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.82);
+      font-size: 12.5px;
+      font-weight: 700;
+      padding: 7px 13px;
+      border-radius: 999px;
+      cursor: pointer;
+      min-height: 30px;
+      transition: color 200ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .lang-switch button.active {
+      color: var(--brand-primary-dark);
+      background: #fff;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.18);
+    }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      position: relative;
+      width: 100%;
+      min-height: 220px;
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      background-size: cover;
+      background-position: center;
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      overflow: hidden;
+    }
+
+    .hero-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.55) 100%);
+    }
+
+    .hero-content {
+      position: relative;
+      padding: 26px 22px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      min-height: 220px;
+      color: #fff;
+    }
+
+    .hero-logo {
+      width: 62px;
+      height: 62px;
+      border-radius: 16px;
+      object-fit: cover;
+      background: #fff;
+      padding: 4px;
+      box-shadow: var(--shadow-md);
+      margin-bottom: 14px;
+    }
+
+    .hero-title {
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
+      font-size: 19px;
+      font-weight: 500;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+    }
+
+    .hero-meta {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.92);
+    }
+
+    .hero-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hero-meta-row svg { flex-shrink: 0; opacity: 0.9; }
+
+    .maps-link {
+      color: #fff;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    /* ---------- Sections ---------- */
+    .section {
+      padding: 0 20px;
+      margin-top: 18px;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      padding: 22px 20px;
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--line);
+    }
+
+    .section-title {
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 14px;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title .title-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 9px;
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .desc-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+    }
+
+    /* Gallery */
+    .gallery-scroll {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+    .gallery-scroll::-webkit-scrollbar { display: none; }
+
+    .gallery-img {
+      flex: 0 0 auto;
+      width: 220px;
+      height: 140px;
+      object-fit: cover;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      cursor: pointer;
+    }
+
+    /* ---------- Gallery lightbox ---------- */
+    .lightbox-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 6, 10, 0.94);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 300;
+      padding: 20px;
+    }
+    .lightbox-overlay.hidden { display: none; }
+    .lightbox-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 10px;
+      user-select: none;
+    }
+    .lightbox-close-btn {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.14);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .lightbox-nav-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.14);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .lightbox-nav-btn:hover { background: rgba(255,255,255,0.24); }
+    .lightbox-nav-prev { left: 14px; }
+    .lightbox-nav-next { right: 14px; }
+    .lightbox-nav-btn.hidden { display: none; }
+    .lightbox-counter {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.85);
+      font-size: 13px;
+      font-weight: 600;
+      background: rgba(255,255,255,0.14);
+      padding: 5px 12px;
+      border-radius: 999px;
+    }
+    @media (max-width: 480px) {
+      .lightbox-nav-btn { width: 38px; height: 38px; }
+      .lightbox-nav-prev { left: 6px; }
+      .lightbox-nav-next { right: 6px; }
+    }
+
+    .venue-map-img {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      display: block;
+    }
+
+    /* Event details link + modal */
+    .details-link-row {
+      padding: 0 20px;
+      margin-top: 18px;
+    }
+    .details-link-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px;
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      box-shadow: var(--shadow-md);
+      cursor: pointer;
+    }
+    .details-link-btn svg { flex-shrink: 0; color: var(--brand-primary); }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 15, 20, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      z-index: 200;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-sheet {
+      background: var(--bg, #fff);
+      width: 100%;
+      max-width: 520px;
+      max-height: 86vh;
+      border-radius: 22px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 18px 0 28px;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px 12px;
+      position: sticky;
+      top: 0;
+      background: var(--bg, #fff);
+      z-index: 1;
+    }
+    .modal-title {
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .modal-close-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--surface-alt, #f2f2f4);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+    .modal-sheet .section:first-of-type { margin-top: 4px; }
+
+    /* FAQ accordion */
+    .faq-item {
+      border-bottom: 1px solid var(--line);
+    }
+    .faq-item:last-child { border-bottom: none; }
+
+    .faq-q {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 15px 2px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      min-height: 44px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .faq-q .faq-chevron {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1), background 200ms ease;
+    }
+
+    .faq-item.open .faq-q .faq-chevron { transform: rotate(180deg); background: var(--brand-primary); color: #fff; }
+
+    .faq-a-wrap {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 260ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .faq-item.open .faq-a-wrap { grid-template-rows: 1fr; }
+    .faq-a-inner { overflow: hidden; }
+    .faq-a {
+      padding: 0 2px 16px;
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    /* Collapsible T&C */
+    .collapsible-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      min-height: 44px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .collapsible-toggle .faq-chevron {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1), background 200ms ease;
+    }
+    .collapsible.open .collapsible-toggle .faq-chevron { transform: rotate(180deg); background: var(--brand-primary); color: #fff; }
+    .collapsible-body-wrap {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 260ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .collapsible.open .collapsible-body-wrap { grid-template-rows: 1fr; }
+    .collapsible-body {
+      overflow: hidden;
+    }
+    .collapsible-body-inner {
+      padding-top: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+    }
+
+    .support-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .support-row a { color: var(--brand-primary); text-decoration: none; }
+
+    /* ---------- Registration ---------- */
+    .reg-card {
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      padding: 26px 20px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid rgba(255,255,255,0.7);
+    }
+
+    .reg-title {
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
+      font-size: 19px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 4px;
+      letter-spacing: -0.01em;
+    }
+    .reg-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    /* ---------- Stepper (progress) ---------- */
+    .progress-stepper {
+      display: flex;
+      align-items: center;
+      margin-bottom: 24px;
+      padding: 0 2px;
+    }
+    .progress-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+      width: 64px;
+    }
+    .progress-step-dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--light-gray);
+      border: 1.5px solid var(--line-strong);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      transition: background 220ms ease, border-color 220ms ease, color 220ms ease, transform 220ms ease;
+      flex-shrink: 0;
+    }
+    .progress-step-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    .progress-step.active .progress-step-dot {
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      border-color: transparent;
+      color: #fff;
+      transform: scale(1.08);
+    }
+    .progress-step.active .progress-step-label { color: var(--brand-primary); }
+    .progress-step.done .progress-step-dot {
+      background: var(--success);
+      border-color: transparent;
+      color: #fff;
+    }
+    .progress-step.done .progress-step-label { color: var(--text); }
+    .progress-line {
+      flex: 1 1 auto;
+      height: 2px;
+      background: var(--line-strong);
+      margin: 0 -6px 18px;
+      border-radius: 2px;
+      position: relative;
+      overflow: hidden;
+    }
+    .progress-line::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--success);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 320ms ease;
+    }
+    html[dir="rtl"] .progress-line::after { transform-origin: right; }
+    .progress-line.filled::after { transform: scaleX(1); }
+
+    /* ---------- Step header (icon badge + title/subtitle) ---------- */
+    .step-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+      font-size: 11.5px;
+      font-weight: 800;
+      padding: 6px 12px;
+      border-radius: 999px;
+      margin-bottom: 16px;
+    }
+    .step-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 13px;
+      margin-bottom: 22px;
+    }
+    .step-icon-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-title {
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      line-height: 1.25;
+    }
+    .step-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+
+    .step-panel { display: block; }
+    .step-panel.hidden { display: none !important; }
+
+    /* ---------- OTP verification sub-step ---------- */
+    @keyframes ev-spin { to { transform: rotate(360deg); } }
+    .ev-spinning { animation: ev-spin 0.8s linear infinite; }
+    .otp-spinner-row {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--brand-tint); border-radius: 12px;
+      padding: 14px; font-size: 13px; font-weight: 600;
+      color: var(--brand-primary);
+    }
+    .otp-sent-badge {
+      display: flex; align-items: center; gap: 8px;
+      background: #E8F5E9; border: 1px solid #A5D6A7;
+      border-radius: 10px; padding: 10px 14px;
+      font-size: 13px; font-weight: 600; color: #2E7D32;
+      margin-bottom: 16px;
+    }
+    .otp-input-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+    .otp-input {
+      width: 100%; font-size: 26px; font-weight: 800;
+      letter-spacing: 10px; text-align: center;
+      border: 2px solid var(--brand-primary);
+      border-radius: 14px; padding: 14px;
+      background: var(--surface); color: var(--text);
+      outline: none; box-sizing: border-box; margin: 12px 0;
+      transition: border-color 180ms;
+    }
+    .otp-input:focus { border-color: var(--brand-primary-dark, #5a0141); }
+    .otp-input-error { font-size: 12.5px; font-weight: 600; color: #C62828; margin-bottom: 10px; }
+    .otp-send-error {
+      background: #FFEBEE; border: 1px solid #FFCDD2;
+      border-radius: 10px; padding: 12px 14px;
+      font-size: 13px; color: #C62828; margin-bottom: 12px;
+    }
+    .btn-link-sub {
+      background: none; border: none; padding: 12px 0 0;
+      font-size: 13px; font-weight: 600; color: var(--brand-primary);
+      cursor: pointer; width: 100%; text-align: center;
+      text-decoration: underline; display: block;
+    }
+    .btn-link-sub:disabled { color: var(--text-muted); text-decoration: none; cursor: not-allowed; }
+
+    /* ---------- Slot groups (Morning / Afternoon / Evening) ---------- */
+    .slot-group { margin-bottom: 6px; }
+    .slot-group-title {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin: 4px 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .slot-group-title svg { color: var(--brand-primary); flex-shrink: 0; }
+
+    /* ---------- Review rows (read-only summary of earlier steps) ---------- */
+    .review-card {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 6px 16px;
+      margin-bottom: 20px;
+    }
+    .review-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 13px 0;
+    }
+    .review-row:not(:last-child) { border-bottom: 1px solid var(--line-strong); }
+    .review-row-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .review-row-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--brand-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border: 1px solid var(--line-strong);
+    }
+    .review-row-label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+    .review-row-value { font-size: 13.5px; color: var(--text); font-weight: 700; margin-top: 1px; }
+    .review-row-edit {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      color: var(--brand-primary);
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 6px 4px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ---------- Fixed bottom step actions ---------- */
+    .step-actions {
+      position: sticky;
+      bottom: 0;
+      z-index: 5;
+      display: flex;
+      gap: 12px;
+      margin: 22px -20px -26px;
+      padding: 14px 20px calc(env(safe-area-inset-bottom, 0px) + 14px);
+      background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #fff 28%);
+      border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+    }
+    .btn-outline {
+      background: var(--surface);
+      color: var(--text);
+      border: 1.5px solid var(--line-strong);
+      flex: 0 0 108px;
+    }
+    .btn-outline:active { transform: scale(0.98); background: var(--light-gray); }
+    .step-actions .btn-primary { flex: 1 1 auto; }
+
+    .field-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 700;
+      font-size: 12.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .field-label .required { color: var(--error); text-transform: none; letter-spacing: 0; }
+    .field-hint {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .form-section-divider {
+      height: 1px;
+      background: var(--line);
+      margin: 22px 0;
+    }
+
+    .chips {
+      display: flex;
+      gap: 9px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 2px 2px 6px;
+      scrollbar-width: none;
+      margin: 0 -2px 22px;
+    }
+    .chips::-webkit-scrollbar { display: none; }
+
+    .chip {
+      flex: 0 0 auto;
+      min-height: 44px;
+      padding: 11px 16px;
+      border-radius: 999px;
+      border: 1.5px solid var(--line-strong);
+      background: var(--surface);
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, color 180ms ease, transform 120ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .chip:active { transform: scale(0.96); }
+    .chip.selected {
+      border-color: var(--brand-primary);
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      color: #fff;
+    }
+
+    /* Date scroller: chip variant with a stacked date/weekday layout and a
+       peeking-next-item feel so users know to scroll for more dates. */
+    .date-chips {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 2px 20px 8px 2px;
+      scrollbar-width: none;
+      margin: 0 -2px 22px;
+      scroll-snap-type: x proximity;
+    }
+    .date-chips::-webkit-scrollbar { display: none; }
+    .date-chip {
+      flex: 0 0 auto;
+      width: 60px;
+      min-height: 68px;
+      border-radius: 16px;
+      border: 1.5px solid var(--line-strong);
+      background: var(--surface);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      padding: 10px 4px;
+      scroll-snap-align: start;
+      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .date-chip:active { transform: scale(0.96); }
+    .date-chip-dow {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+    .date-chip-day {
+      font-size: 19px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+    }
+    .date-chip-mon {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .date-chip.selected {
+      border-color: var(--brand-primary);
+      background: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+    }
+    .date-chip.selected .date-chip-dow,
+    .date-chip.selected .date-chip-mon { color: rgba(255,255,255,0.82); }
+    .date-chip.selected .date-chip-day { color: #fff; }
+
+    .slot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+
+    .slot {
+      position: relative;
+      border: 1.5px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      padding: 12px 10px;
+      text-align: left;
+      cursor: pointer;
+      background: var(--surface);
+      min-height: 44px;
+      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html[dir="rtl"] .slot { text-align: right; }
+    .slot:active:not(.disabled) { transform: scale(0.98); }
+    .slot.selected {
+      border-color: var(--brand-primary);
+      background: var(--brand-tint);
+    }
+    .slot.selected .slot-time { color: var(--brand-primary); }
+    .slot.disabled {
+      opacity: 1;
+      cursor: not-allowed;
+      background: var(--light-gray);
+      border-color: var(--line);
+    }
+    .slot.disabled .slot-time {
+      color: var(--text-muted);
+      text-decoration: line-through;
+      text-decoration-color: var(--text-muted);
+    }
+    .slot.disabled .slot-left { color: var(--text-muted); }
+    .slot-time {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text);
+      display: block;
+    }
+    .slot-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      color: var(--success);
+      margin-top: 5px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: var(--success-tint);
+    }
+    .slot-left::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+    .slot-left.low { color: var(--warning); background: var(--warning-tint); }
+    .slot-left.full { color: var(--error); background: var(--error-tint); }
+    .slot-left.past { color: var(--text-muted); background: transparent; padding: 2px 0; }
+    .slot-left.past::before { display: none; }
+
+    .form-group { margin-bottom: 20px; }
+
+    /* ---------- Floating-label fields ---------- */
+    .field-float {
+      position: relative;
+    }
+    .field-float input,
+    .field-float textarea,
+    .field-float select {
+      width: 100%;
+      min-height: 56px;
+      padding: 22px 15px 8px;
+      border: 1.5px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--text);
+      transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--surface);
+    }
+    .field-float select { padding-top: 24px; }
+    .field-float label {
+      position: absolute;
+      left: 16px;
+      top: 18px;
+      font-size: 15px;
+      color: var(--text-muted);
+      font-weight: 500;
+      pointer-events: none;
+      transform-origin: left top;
+      transition: transform 160ms ease, color 160ms ease, top 160ms ease;
+      background: transparent;
+    }
+    html[dir="rtl"] .field-float label { left: auto; right: 16px; transform-origin: right top; }
+    .field-float input:focus + label,
+    .field-float input.has-value + label,
+    .field-float textarea:focus + label,
+    .field-float textarea.has-value + label,
+    .field-float select.has-value + label,
+    .field-float select:focus + label {
+      top: 9px;
+      transform: scale(0.72);
+      color: var(--brand-primary);
+      font-weight: 700;
+    }
+    .field-float .required-mark { color: var(--error); }
+    .field-float textarea { min-height: 92px; padding-top: 24px; resize: vertical; }
+    .field-float select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b6b76' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 40px;
+    }
+    html[dir="rtl"] .field-float select { background-position: left 14px center; padding-right: 15px; padding-left: 40px; }
+
+    .field-float input:focus, .field-float textarea:focus, .field-float select:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 4px rgba(var(--brand-rgb), 0.1);
+    }
+    .field-float input.field-invalid, .field-float textarea.field-invalid, .field-float select.field-invalid {
+      border-color: var(--error);
+    }
+    .field-float input.field-valid, .field-float textarea.field-valid {
+      border-color: #c7e8d7;
+    }
+    .field-error-msg {
+      font-size: 12px;
+      color: var(--error);
+      font-weight: 600;
+      margin-top: 6px;
+      display: none;
+    }
+    .field-error-msg.show { display: block; }
+
+    /* ---------- Toggle switches (replaces plain checkboxes) ---------- */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+      padding: 4px 0;
+      min-height: 44px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .toggle-row span.toggle-label { font-size: 14px; color: var(--text); line-height: 1.5; font-weight: 500; }
+    .toggle-switch {
+      position: relative;
+      flex-shrink: 0;
+      width: 46px;
+      height: 27px;
+      border-radius: 999px;
+      background: var(--line-strong);
+      transition: background 200ms ease;
+    }
+    .toggle-switch input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      margin: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .toggle-switch .toggle-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 21px;
+      height: 21px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .toggle-switch input:checked ~ .toggle-thumb { transform: translateX(19px); }
+    html[dir="rtl"] .toggle-switch input:checked ~ .toggle-thumb { transform: translateX(-19px); }
+    .toggle-switch:has(input:checked) { background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%); }
+
+    .stepper-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+    }
+    .stepper-row-label { font-size: 14px; font-weight: 600; color: var(--text); }
+    .stepper-row-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    .stepper button {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      border: 1.5px solid var(--line-strong);
+      background: var(--surface);
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--brand-primary);
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 150ms ease, border-color 150ms ease, transform 120ms ease, color 150ms ease, box-shadow 150ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .stepper button:active:not(:disabled) { transform: scale(0.9); }
+    .stepper button:not(:disabled):hover {
+      border-color: var(--brand-primary);
+    }
+    .stepper button:disabled {
+      opacity: 1;
+      cursor: not-allowed;
+      color: var(--text-muted);
+      background: var(--light-gray);
+      border-color: var(--line);
+    }
+    .stepper .stepper-value {
+      min-width: 24px;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 800;
+      display: inline-block;
+      transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .stepper .stepper-value.bump { transform: scale(1.28); }
+
+    /* ---------- Order summary ---------- */
+    .summary {
+      background: linear-gradient(150deg, var(--brand-tint) 0%, #f7edf3 100%);
+      border: 1px solid var(--brand-tint-strong);
+      border-radius: var(--radius-md);
+      padding: 4px 18px;
+      margin: 22px 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .summary::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--brand-primary), var(--brand-primary-light));
+    }
+    .summary-heading {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--brand-primary);
+      padding: 14px 0 4px;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 0;
+      font-size: 14px;
+    }
+    .summary-row:not(:last-child) { border-bottom: 1px dashed var(--brand-tint-strong); }
+    .summary-row.total { padding-top: 13px; }
+    .summary-label { color: var(--text-secondary); font-weight: 500; }
+    .summary-value { font-weight: 800; color: var(--text); }
+    .summary-value.accent { color: var(--brand-primary); font-size: 17px; }
+    .advance-note {
+      font-size: 12px;
+      color: var(--brand-primary);
+      font-weight: 600;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn {
+      width: 100%;
+      min-height: 52px;
+      padding: 15px 18px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 15.5px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: -0.01em;
+      transition: background 180ms ease, box-shadow 220ms ease, transform 140ms ease, opacity 180ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--brand-button) 0%, var(--brand-button-dark) 100%);
+      color: #fff;
+    }
+    .btn-primary:hover { filter: brightness(1.06); }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled {
+      background: #e5e5ec;
+      color: #a8a8b3;
+      cursor: not-allowed;
+      box-shadow: none;
+      filter: none;
+    }
+    .btn-secondary {
+      background: var(--light-gray);
+      color: var(--text);
+      text-decoration: none;
+      display: block;
+      text-align: center;
+    }
+
+    /* ---------- Sticky bottom bar ---------- */
+    .sticky-cta {
+      position: sticky;
+      bottom: 0;
+      z-index: 5;
+      margin: 22px -20px -26px;
+      padding: 14px 20px calc(env(safe-area-inset-bottom, 0px) + 14px);
+      background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #fff 28%);
+    }
+    .sticky-cta-summary {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      padding: 0 2px;
+    }
+    .sticky-cta-fee-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+    .sticky-cta-fee-value { font-size: 17px; font-weight: 800; color: var(--brand-primary); }
+
+    /* Success */
+    .success-screen { text-align: center; padding: 12px 0; }
+    .success-icon {
+      width: 76px;
+      height: 76px;
+      background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      box-shadow: 0 12px 24px -10px rgba(16,185,129,0.55);
+      animation: pop-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes pop-in {
+      0% { transform: scale(0.4); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .success-icon svg { width: 38px; height: 38px; color: #fff; }
+    .success-heading { font-size: 21px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.02em; }
+    .success-ticket-preview {
+      width: 100%;
+      max-width: 360px;
+      margin: 18px auto 20px;
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgba(20, 12, 26, 0.12);
+      display: block;
+      background: #f7f6f9;
+    }
+    .booking-id {
+      font-family: 'Poppins', monospace;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--brand-primary);
+      letter-spacing: 2px;
+      margin: 14px 0 4px;
+    }
+    .wa-note {
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin: 16px 0 20px;
+    }
+
+    /* Empty / error state */
+    .empty-state {
+      text-align: center;
+      padding: 60px 28px;
+    }
+    .empty-icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #F3F4F6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+    }
+    .empty-state h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+    .empty-state p { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--dark-gray);
+      color: #fff;
+      padding: 13px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      z-index: 200;
+      opacity: 0;
+      transition: opacity 220ms ease, transform 220ms ease;
+      max-width: 90%;
+      text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.error { background: #B91C1C; }
+
+    /* Loading */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--line-strong);
+      border-top-color: var(--brand-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .powered {
+      text-align: center;
+      margin-top: 26px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .powered strong { color: var(--brand-primary); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+  </div>
+
+  <div class="container safe-area-top safe-area-bottom">
+    <!-- 404 / no active event -->
+    <div id="emptyState" class="empty-state hidden">
+      <div class="empty-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+      </div>
+      <h2 data-i18n="empty.title">No active event</h2>
+      <p data-i18n="empty.body">There is no event open for registration here right now. Please check back later or contact the venue.</p>
+      <div class="powered">Powered by <strong>TIQKETS</strong></div>
+    </div>
+
+    <!-- Main content -->
+    <div id="mainContent" class="hidden">
+      <div id="hero" class="hero">
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+          <img id="heroLogo" class="hero-logo hidden" alt="" />
+          <div id="heroTitle" class="hero-title"></div>
+          <div class="hero-meta">
+            <div id="heroDateRow" class="hero-meta-row hidden">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+              <span id="heroDate"></span>
+            </div>
+            <div id="heroVenueRow" class="hero-meta-row hidden">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+              <span id="heroVenue"></span>
+              <a id="heroMapsLink" class="maps-link hidden" target="_blank" rel="noopener" data-i18n="hero.map">Map</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Details modal: About / Gallery / Venue map -->
+      <div id="detailsModal" class="modal-overlay hidden">
+        <div class="modal-sheet">
+          <div class="modal-header">
+            <div class="modal-title" data-i18n="details.title">Event details</div>
+            <button type="button" id="detailsModalClose" class="modal-close-btn" aria-label="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+
+          <div id="descSection" class="section hidden">
+            <div class="card">
+              <div class="section-title" data-i18n="details.about">About this event</div>
+              <div id="descText" class="desc-text"></div>
+            </div>
+          </div>
+
+          <div id="gallerySection" class="section hidden">
+            <div class="section-title" style="padding-left:2px;" data-i18n="details.gallery">Gallery</div>
+            <div id="galleryScroll" class="gallery-scroll"></div>
+          </div>
+
+          <div id="venueMapSection" class="section hidden">
+            <div class="card">
+              <div class="section-title" data-i18n="details.venueMap">Venue Map</div>
+              <img id="venueMapImg" class="venue-map-img" alt="Venue map" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gallery lightbox: fullscreen image viewer with prev/next browsing -->
+      <div id="lightboxOverlay" class="lightbox-overlay hidden">
+        <button type="button" id="lightboxClose" class="lightbox-close-btn" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+        <button type="button" id="lightboxPrev" class="lightbox-nav-btn lightbox-nav-prev" aria-label="Previous image">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <img id="lightboxImg" class="lightbox-img" alt="" />
+        <button type="button" id="lightboxNext" class="lightbox-nav-btn lightbox-nav-next" aria-label="Next image">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+        <div id="lightboxCounter" class="lightbox-counter"></div>
+      </div>
+
+      <!-- Registration -->
+      <div class="section">
+        <div class="reg-card">
+          <!-- Language switcher: EN + Tamil now, architecture supports adding
+               more (incl. RTL languages like Arabic) by extending UI_LANGUAGES.
+               Sits in the input section's top-right corner. -->
+          <div class="lang-switch-row">
+            <div id="langSwitch" class="lang-switch"></div>
+          </div>
+          <!-- Paused banner (shown instead of the form when registrations are paused) -->
+          <div id="pausedBanner" class="hidden" style="text-align:center; padding:24px 16px;">
+            <div style="font-size:32px; margin-bottom:10px;">&#9208;</div>
+            <div class="reg-title" data-i18n="paused.title">Registrations are paused</div>
+            <div class="reg-subtitle" style="margin-bottom:0;" data-i18n="paused.body">The organizer has temporarily paused new registrations for this event. Please check back soon. Already have a ticket? It is still valid at the gate.</div>
+          </div>
+          <!-- Registration flow -->
+          <div id="regFlow">
+            <div class="step-pill"><span id="stepPillText">Step 1 of 3</span></div>
+
+            <!-- Progress stepper: Details -> Schedule -> Review -->
+            <div id="progressStepper" class="progress-stepper">
+              <div class="progress-step active" id="step1" data-step="1">
+                <div class="progress-step-dot">1</div>
+                <div class="progress-step-label" data-i18n="stepper.details">Details</div>
+              </div>
+              <div class="progress-line" id="line1"></div>
+              <div class="progress-step" id="step2" data-step="2">
+                <div class="progress-step-dot">2</div>
+                <div class="progress-step-label" data-i18n="stepper.slot">Schedule</div>
+              </div>
+              <div class="progress-line" id="line2"></div>
+              <div class="progress-step" id="step3" data-step="3">
+                <div class="progress-step-dot">3</div>
+                <div class="progress-step-label" data-i18n="stepper.confirm">Review</div>
+              </div>
+            </div>
+
+            <!-- Step 1: Personal details -->
+            <div id="stepDetails" class="step-panel">
+              <div class="step-header">
+                <div class="step-icon-badge">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
+                <div>
+                  <div class="step-title" data-i18n="reg.title">Your details</div>
+                  <div class="step-subtitle" id="regSubtitle" data-i18n="reg.subtitle">Tell us a bit about yourself</div>
+                </div>
+              </div>
+
+              <div id="locationBlock" class="hidden">
+                <label class="field-label"><span data-i18n="reg.selectLocation">Select a location</span> <span class="required">*</span></label>
+                <div id="locationChips" class="chips"></div>
+              </div>
+
+              <div class="form-group field-float">
+                <input type="text" id="fullName" placeholder=" " autocomplete="name" />
+                <label for="fullName"><span data-i18n="reg.fullName">Full name</span> <span class="required-mark">*</span></label>
+                <div class="field-error-msg" id="fullNameError" data-i18n="reg.fullNameError">Please enter your full name</div>
+              </div>
+
+              <div class="form-group field-float">
+                <input type="tel" id="phone" inputmode="numeric" maxlength="10" placeholder=" " autocomplete="tel" />
+                <label for="phone"><span data-i18n="reg.phone">WhatsApp number</span> <span class="required-mark">*</span></label>
+                <div class="field-error-msg" id="phoneError" data-i18n="reg.phoneError">Enter a valid 10-digit mobile number</div>
+              </div>
+
+              <div class="form-group field-float">
+                <input type="email" id="email" placeholder=" " autocomplete="email" />
+                <label for="email"><span data-i18n="reg.email">Email</span> <span class="field-hint" data-i18n="reg.optional">Optional</span></label>
+              </div>
+
+              <div id="customFields"></div>
+
+              <div class="form-group">
+                <label class="field-label" style="margin-bottom:8px;"><span data-i18n="reg.family">Family members joining you</span></label>
+                <div class="stepper-row">
+                  <div>
+                    <div class="stepper-row-label" data-i18n="reg.guests">Guests</div>
+                    <div class="stepper-row-sub" data-i18n="reg.besidesYou">Besides you</div>
+                  </div>
+                  <div class="stepper">
+                    <button type="button" id="famMinus" aria-label="Decrease">&minus;</button>
+                    <div class="stepper-value" id="famValue">0</div>
+                    <button type="button" id="famPlus" aria-label="Increase">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- OTP verification sub-step (shown between Details and Schedule) -->
+            <div id="stepOtp" class="step-panel hidden">
+              <div class="step-header">
+                <div class="step-icon-badge">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                </div>
+                <div>
+                  <div class="step-title" data-i18n="otp.title">Verify WhatsApp</div>
+                  <div class="step-subtitle" id="otpSubtitleText">We'll send a 6-digit code to your WhatsApp</div>
+                </div>
+              </div>
+
+              <div id="otpSendingState" class="hidden">
+                <div class="otp-spinner-row">
+                  <svg class="ev-spinning" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M21 12a9 9 0 11-9-9"/></svg>
+                  <span data-i18n="otp.sending">Sending code to your WhatsApp...</span>
+                </div>
+              </div>
+
+              <div id="otpSentState" class="hidden">
+                <div class="otp-sent-badge">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  <span id="otpSentBadgeText" data-i18n="otp.sentBadge">Code sent to your WhatsApp</span>
+                </div>
+                <div class="otp-input-label" data-i18n="otp.inputLabel">Enter the 6-digit code</div>
+                <input type="tel" id="otpInput" inputmode="numeric" maxlength="6" placeholder="••••••" class="otp-input" autocomplete="one-time-code">
+                <div id="otpInputError" class="otp-input-error hidden"></div>
+                <button type="button" class="btn btn-primary" id="verifyOtpBtn" disabled data-i18n="otp.verify">Verify &amp; Continue</button>
+                <button type="button" class="btn-link-sub" id="resendOtpBtn" data-i18n="otp.resend">Didn't receive it? Resend OTP</button>
+              </div>
+
+              <div id="otpSendFailState" class="hidden">
+                <div class="otp-send-error" id="otpSendFailMsg"></div>
+                <button type="button" class="btn btn-outline" id="retryOtpBtn" data-i18n="otp.retry">Try again</button>
+              </div>
+            </div>
+
+            <!-- Step 2: Date + time -->
+            <div id="stepSchedule" class="step-panel hidden">
+              <div class="step-header">
+                <div class="step-icon-badge">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>
+                </div>
+                <div>
+                  <div class="step-title" data-i18n="reg.scheduleTitle">Choose date &amp; time</div>
+                  <div class="step-subtitle" data-i18n="reg.scheduleSubtitle">Pick a date, then a slot that suits you</div>
+                </div>
+              </div>
+
+              <div id="slotBlock">
+                <!-- Infant / senior citizens: show only the last available date -->
+                <div style="margin-bottom:16px;">
+                  <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafafa;">
+                    <input type="checkbox" id="specialNeedsCheck" onchange="handleSpecialNeedsChange(this.checked)"
+                           style="width:18px;height:18px;margin-top:2px;flex-shrink:0;accent-color:#8c1867;cursor:pointer;">
+                    <div>
+                      <div style="font-size:13px;font-weight:700;color:#1a1a2e;line-height:1.4;" data-i18n="reg.specialNeeds">Visiting with infants / senior citizens / pregnant women?</div>
+                      <div style="font-size:11px;color:#6b7280;margin-top:3px;" data-i18n="reg.specialNeedsHint">The last available event slot will be reserved for you</div>
+                    </div>
+                  </label>
+                </div>
+
+                <label class="field-label"><span data-i18n="reg.selectDate">Select a date</span> <span class="required">*</span></label>
+                <!-- dateChips kept for legacy JS references but hidden; dateSelect is the active element -->
+                <div id="dateChips" style="display:none;"></div>
+                <select id="dateSelect" onchange="handleDateSelectChange(this.value)"
+                        style="width:100%;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;color:#1a1a2e;background:#fff;margin-bottom:16px;cursor:pointer;outline:none;"></select>
+
+                <label class="field-label"><span data-i18n="reg.selectTime">Select a time slot</span> <span class="required">*</span></label>
+                <div id="slotGroups"></div>
+                <div id="noSlotsMsg" class="desc-text hidden" style="margin-bottom:16px;" data-i18n="reg.noSlots">No slots available for this date.</div>
+              </div>
+            </div>
+
+            <!-- Step 3: Review + payment -->
+            <div id="stepReview" class="step-panel hidden">
+              <div class="step-header">
+                <div class="step-icon-badge">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                </div>
+                <div>
+                  <div class="step-title" data-i18n="reg.reviewTitle">Review &amp; confirm</div>
+                  <div class="step-subtitle" data-i18n="reg.reviewSubtitle">Check your details before you confirm</div>
+                </div>
+              </div>
+
+              <div class="review-card">
+                <div class="review-row">
+                  <div class="review-row-left">
+                    <div class="review-row-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"></circle><path d="M5.5 21a6.5 6.5 0 0 1 13 0"></path></svg>
+                    </div>
+                    <div>
+                      <div class="review-row-label" data-i18n="reg.fullName">Full name</div>
+                      <div class="review-row-value" id="reviewName">--</div>
+                    </div>
+                  </div>
+                  <button type="button" class="review-row-edit" data-goto-step="1" data-i18n="reg.edit">Edit</button>
+                </div>
+                <div class="review-row">
+                  <div class="review-row-left">
+                    <div class="review-row-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>
+                    </div>
+                    <div>
+                      <div class="review-row-label" data-i18n="reg.reviewSlot">Date &amp; time</div>
+                      <div class="review-row-value" id="reviewSlot">--</div>
+                    </div>
+                  </div>
+                  <button type="button" class="review-row-edit" data-goto-step="2" data-i18n="reg.edit">Edit</button>
+                </div>
+                <div class="review-row">
+                  <div class="review-row-left">
+                    <div class="review-row-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    </div>
+                    <div>
+                      <div class="review-row-label" data-i18n="reg.guests">Guests</div>
+                      <div class="review-row-value" id="reviewGuests">1</div>
+                    </div>
+                  </div>
+                  <button type="button" class="review-row-edit" data-goto-step="1" data-i18n="reg.edit">Edit</button>
+                </div>
+              </div>
+
+              <div class="summary">
+                <div class="summary-heading">
+                  <span data-i18n="summary.heading">Order summary</span>
+                </div>
+                <div class="summary-row">
+                  <span class="summary-label" data-i18n="summary.totalGuests">Total guests</span>
+                  <span class="summary-value" id="totalGuests">1</span>
+                </div>
+                <div class="summary-row total">
+                  <span class="summary-label" data-i18n="summary.fee">Registration fee</span>
+                  <span class="summary-value accent" id="feeValue" data-i18n="summary.free">Free</span>
+                </div>
+              </div>
+              <div id="advanceNote" class="advance-note hidden"></div>
+            </div>
+
+            <div class="step-actions">
+              <button type="button" class="btn btn-outline hidden" id="backBtn" data-i18n="reg.back">Back</button>
+              <button type="button" class="btn btn-primary" id="nextBtn" disabled data-i18n="reg.continue">Continue</button>
+            </div>
+          </div>
+
+          <!-- Success -->
+          <div id="successScreen" class="success-screen hidden">
+            <div class="success-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div class="success-heading" data-i18n="success.heading">You're registered!</div>
+            <img id="successTicketImage" class="success-ticket-preview" alt="Your event ticket" />
+            <div class="summary-label" data-i18n="success.bookingId">Booking ID</div>
+            <div class="booking-id" id="successBookingId">--</div>
+            <div class="summary" style="margin-top:16px;">
+              <div class="summary-row">
+                <span class="summary-label" data-i18n="success.date">Date</span>
+                <span class="summary-value" id="successDate">--</span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-label" data-i18n="success.time">Time</span>
+                <span class="summary-value" id="successTime">--</span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-label" data-i18n="success.guests">Guests</span>
+                <span class="summary-value" id="successGuests">--</span>
+              </div>
+            </div>
+            <p class="wa-note" data-i18n="success.waNote">Your QR ticket has been sent on WhatsApp. Show it at the entrance.</p>
+            <a id="viewTicketBtn" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;" data-i18n="success.viewTicket">View your ticket</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Details link (opens modal with About / Gallery / Venue map) -->
+      <div id="detailsLinkRow" class="details-link-row hidden">
+        <button type="button" id="detailsLinkBtn" class="details-link-btn">
+          <span data-i18n="details.link">View event details</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        </button>
+      </div>
+
+      <!-- FAQs -->
+      <div id="faqSection" class="section hidden">
+        <div class="card">
+          <div class="section-title" data-i18n="faq.title">Frequently Asked Questions</div>
+          <div id="faqList"></div>
+        </div>
+      </div>
+
+      <!-- Terms -->
+      <div id="termsSection" class="section hidden">
+        <div class="card collapsible" id="termsCollapsible">
+          <div class="collapsible-toggle" id="termsToggle">
+            <span data-i18n="terms.title">Terms &amp; Conditions</span>
+            <span class="faq-chevron">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </span>
+          </div>
+          <div class="collapsible-body-wrap">
+            <div class="collapsible-body" id="termsBody">
+              <div class="collapsible-body-inner" id="termsBodyInner"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Support -->
+      <div id="supportSection" class="section hidden">
+        <div class="card">
+          <div class="section-title" data-i18n="support.title">Need help?</div>
+          <div class="support-row">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+            <a id="supportContact" href="#"></a>
+          </div>
+        </div>
+      </div>
+
+      <div class="powered">Powered by <strong>TIQKETS</strong></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    // ============================================================
+    // i18n — plain dictionary + tiny t()/applyI18n() helpers.
+    // Architecture is RTL-ready: adding a new language (e.g. Hindi,
+    // Arabic) only needs a new UI_LANGUAGES entry + a matching
+    // dictionary in I18N; `rtl: true` automatically flips layout via
+    // the html[dir="rtl"] CSS rules already in place.
+    // ============================================================
+    var UI_LANGUAGES = [
+      { code: "en", label: "EN", bcp47: "en-US", rtl: false },
+      { code: "ta", label: "தமிழ்", bcp47: "ta-IN", rtl: false }
+    ];
+
+    var I18N = {
+      en: {
+        "empty.title": "No active event",
+        "empty.body": "There is no event open for registration here right now. Please check back later or contact the venue.",
+        "hero.map": "Map",
+        "details.link": "View event details",
+        "details.title": "Event details",
+        "details.about": "About this event",
+        "details.gallery": "Gallery",
+        "details.venueMap": "Venue Map",
+        "paused.title": "Registrations are paused",
+        "paused.body": "The organizer has temporarily paused new registrations for this event. Please check back soon. Already have a ticket? It is still valid at the gate.",
+        "reg.title": "Your details",
+        "reg.subtitle": "Tell us a bit about yourself",
+        "reg.subtitleLocation": "Pick a location, then tell us a bit about yourself",
+        "reg.scheduleTitle": "Choose date & time",
+        "reg.scheduleSubtitle": "Pick a date, then a slot that suits you",
+        "reg.reviewTitle": "Review & confirm",
+        "reg.reviewSubtitle": "Check your details before you confirm",
+        "reg.reviewSlot": "Date & time",
+        "reg.edit": "Edit",
+        "reg.back": "Back",
+        "reg.continue": "Continue",
+        "reg.stepOf": "Step {{current}} of {{total}}",
+        "reg.payNow": "Pay {{fee}}",
+        "reg.period.morning": "Morning",
+        "reg.period.afternoon": "Afternoon",
+        "reg.period.evening": "Evening",
+        "stepper.slot": "Schedule",
+        "stepper.details": "Details",
+        "stepper.confirm": "Review",
+        "reg.selectLocation": "Select a location",
+        "reg.selectDate": "Select a date",
+        "reg.selectTime": "Select a time slot",
+        "reg.noSlots": "No slots available for this date.",
+        "reg.noSlotsAlt": "No time slots available for this date. Please pick another date.",
+        "reg.fullName": "Full name",
+        "reg.fullNameError": "Please enter your full name",
+        "reg.phone": "WhatsApp number",
+        "reg.phoneError": "Enter a valid 10-digit mobile number",
+        "reg.email": "Email",
+        "reg.optional": "Optional",
+        "reg.family": "Family members joining you",
+        "reg.guests": "Guests",
+        "reg.besidesYou": "Besides you",
+        "reg.submit": "Register",
+        "reg.submitting": "Registering...",
+        "reg.selectPlaceholder": "Select...",
+        "reg.left": "left",
+        "summary.heading": "Order summary",
+        "summary.totalGuests": "Total guests",
+        "summary.fee": "Registration fee",
+        "summary.free": "Free",
+        "summary.total": "Total",
+        "summary.advanceNote": "Advance {{fee}} \u2014 fully redeemable at billing",
+        "success.heading": "You're registered!",
+        "success.bookingId": "Booking ID",
+        "success.date": "Date",
+        "success.time": "Time",
+        "success.guests": "Guests",
+        "success.waNote": "Your QR ticket has been sent on WhatsApp. Show it at the entrance.",
+        "success.viewTicket": "View your ticket",
+        "faq.title": "Frequently Asked Questions",
+        "terms.title": "Terms & Conditions",
+        "support.title": "Need help?",
+        "toast.slotFilled": "That slot just filled up. Please pick another.",
+        "toast.genericError": "Something went wrong. Please try again.",
+        "toast.name": "Please enter your full name",
+        "toast.phone": "Please enter a valid 10-digit mobile number",
+        "toast.location": "Please choose a location",
+        "toast.slot": "Please pick a date and time slot",
+        "toast.fieldRequired": "\"{{field}}\" is required",
+        "toast.paymentLoadFail": "Could not load payment. Please try again.",
+        "toast.paymentCancelled": "Payment cancelled. You can retry \u2014 your slot is held for 30 minutes.",
+        "toast.paymentFailed": "Payment failed. Please try again \u2014 your slot is held for 30 minutes.",
+        "toast.paymentStartFail": "Could not start payment. Please try again.",
+        "toast.verifyFailed": "Payment verification failed. Please contact support.",
+        "toast.networkError": "Network error. Please try again.",
+        "otp.title": "Verify WhatsApp",
+        "otp.subtitle": "We sent a 6-digit code to {{phone}}. Check your WhatsApp.",
+        "otp.inputLabel": "Enter the 6-digit code",
+        "otp.sentBadge": "Code sent to your WhatsApp",
+        "otp.sending": "Sending code to your WhatsApp...",
+        "otp.verify": "Verify & Continue",
+        "otp.verifying": "Verifying...",
+        "otp.resend": "Didn't receive it? Resend OTP",
+        "otp.resendCooldown": "Resend in {{s}}s",
+        "otp.wrongCode": "Incorrect code. Please try again.",
+        "otp.sendError": "Could not send code to this number. Please check your WhatsApp number.",
+        "reg.specialNeeds": "Visiting with infants / senior citizens / pregnant women?",
+        "reg.specialNeedsHint": "The last available event slot will be reserved for you",
+        "otp.retry": "Try again"
+      },
+      ta: {
+        "empty.title": "நடப்பில் நிகழ்வு இல்லை",
+        "empty.body": "தற்போது பதிவு செய்ய திறந்திருக்கும் நிகழ்வு இங்கு இல்லை. பின்னர் சரிபார்க்கவும் அல்லது இடத்தை தொடர்பு கொள்ளவும்.",
+        "hero.map": "வரைபடம்",
+        "details.link": "நிகழ்வு விவரங்களை காண்க",
+        "details.title": "நிகழ்வு விவரங்கள்",
+        "details.about": "இந்த நிகழ்வு பற்றி",
+        "details.gallery": "படத் தொகுப்பு",
+        "details.venueMap": "இட வரைபடம்",
+        "paused.title": "பதிவுகள் தற்காலிகமாக நிறுத்தப்பட்டுள்ளன",
+        "paused.body": "ஏற்பாட்டாளர் புதிய பதிவுகளை தற்காலிகமாக நிறுத்தியுள்ளார். விரைவில் மீண்டும் பாருங்கள். ஏற்கனவே டிக்கெட் உள்ளதா? அது நுழைவாயிலில் செல்லுபடியாகும்.",
+        "reg.title": "உங்கள் விவரங்கள்",
+        "reg.subtitle": "உங்களைப் பற்றி சிறிது கூறுங்கள்",
+        "reg.subtitleLocation": "இடத்தை தேர்ந்தெடுத்து, உங்களைப் பற்றி சிறிது கூறுங்கள்",
+        "reg.scheduleTitle": "தேதி மற்றும் நேரத்தை தேர்ந்தெடுக்கவும்",
+        "reg.scheduleSubtitle": "ஒரு தேதியை தேர்ந்தெடுத்து, பின்னர் ஏற்ற நேர இடைவெளியை தேர்வுசெய்யவும்",
+        "reg.reviewTitle": "மதிப்பாய்வு செய்து உறுதிப்படுத்தவும்",
+        "reg.reviewSubtitle": "உறுதிப்படுத்தும் முன் உங்கள் விவரங்களை சரிபார்க்கவும்",
+        "reg.reviewSlot": "தேதி & நேரம்",
+        "reg.edit": "திருத்து",
+        "reg.back": "பின்செல்",
+        "reg.continue": "தொடரவும்",
+        "reg.stepOf": "படி {{current}} / {{total}}",
+        "reg.payNow": "{{fee}} செலுத்தவும்",
+        "reg.period.morning": "காலை",
+        "reg.period.afternoon": "மதியம்",
+        "reg.period.evening": "மாலை",
+        "stepper.slot": "நேரம்",
+        "stepper.details": "விவரங்கள்",
+        "stepper.confirm": "மதிப்பாய்வு",
+        "reg.selectLocation": "இடத்தை தேர்ந்தெடுக்கவும்",
+        "reg.selectDate": "தேதியை தேர்ந்தெடுக்கவும்",
+        "reg.selectTime": "நேர இடைவெளியை தேர்ந்தெடுக்கவும்",
+        "reg.noSlots": "இந்த தேதிக்கு நேரங்கள் இல்லை.",
+        "reg.noSlotsAlt": "இந்த தேதிக்கு நேர இடைவெளிகள் இல்லை. வேறு தேதியை தேர்ந்தெடுக்கவும்.",
+        "reg.fullName": "முழு பெயர்",
+        "reg.fullNameError": "உங்கள் முழு பெயரை உள்ளிடவும்",
+        "reg.phone": "வாட்ஸ்அப் எண்",
+        "reg.phoneError": "சரியான 10 இலக்க மொபைல் எண்ணை உள்ளிடவும்",
+        "reg.email": "மின்னஞ்சல்",
+        "reg.optional": "விருப்பத்தேர்வு",
+        "reg.family": "உங்களுடன் சேரும் குடும்ப உறுப்பினர்கள்",
+        "reg.guests": "விருந்தினர்கள்",
+        "reg.besidesYou": "உங்களை தவிர",
+        "reg.submit": "பதிவு செய்யவும்",
+        "reg.submitting": "பதிவு செய்யப்படுகிறது...",
+        "reg.selectPlaceholder": "தேர்ந்தெடுக்கவும்...",
+        "reg.left": "மீதம்",
+        "summary.heading": "ஆர்டர் சுருக்கம்",
+        "summary.totalGuests": "மொத்த விருந்தினர்கள்",
+        "summary.fee": "பதிவு கட்டணம்",
+        "summary.free": "இலவசம்",
+        "summary.total": "மொத்தம்",
+        "summary.advanceNote": "முன்பணம் {{fee}} \u2014 பில்லிங்கில் முழுவதுமாக பெறலாம்",
+        "success.heading": "நீங்கள் பதிவு செய்யப்பட்டீர்கள்!",
+        "success.bookingId": "முன்பதிவு எண்",
+        "success.date": "தேதி",
+        "success.time": "நேரம்",
+        "success.guests": "விருந்தினர்கள்",
+        "success.waNote": "உங்கள் QR டிக்கெட் வாட்ஸ்அப்பில் அனுப்பப்பட்டுள்ளது. நுழைவாயிலில் காட்டவும்.",
+        "success.viewTicket": "உங்கள் டிக்கெட்டை காண்க",
+        "faq.title": "அடிக்கடி கேட்கப்படும் கேள்விகள்",
+        "terms.title": "விதிமுறைகள் மற்றும் நிபந்தனைகள்",
+        "support.title": "உதவி தேவையா?",
+        "toast.slotFilled": "அந்த நேரம் நிரம்பிவிட்டது. வேறு ஒன்றை தேர்ந்தெடுக்கவும்.",
+        "toast.genericError": "ஏதோ தவறு நடந்துவிட்டது. மீண்டும் முயற்சிக்கவும்.",
+        "toast.name": "உங்கள் முழு பெயரை உள்ளிடவும்",
+        "toast.phone": "சரியான 10 இலக்க மொபைல் எண்ணை உள்ளிடவும்",
+        "toast.location": "தயவுசெய்து ஒரு இடத்தை தேர்ந்தெடுக்கவும்",
+        "toast.slot": "தேதி மற்றும் நேர இடைவெளியை தேர்ந்தெடுக்கவும்",
+        "toast.fieldRequired": "\"{{field}}\" அவசியம்",
+        "toast.paymentLoadFail": "கட்டணத்தை ஏற்ற முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+        "toast.paymentCancelled": "கட்டணம் ரத்து செய்யப்பட்டது. மீண்டும் முயற்சிக்கலாம் \u2014 உங்கள் இடம் 30 நிமிடங்கள் ஒதுக்கப்பட்டுள்ளது.",
+        "toast.paymentFailed": "கட்டணம் தோல்வியடைந்தது. மீண்டும் முயற்சிக்கவும் \u2014 உங்கள் இடம் 30 நிமிடங்கள் ஒதுக்கப்பட்டுள்ளது.",
+        "toast.paymentStartFail": "கட்டணத்தை தொடங்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+        "toast.verifyFailed": "கட்டணம் சரிபார்ப்பு தோல்வியடைந்தது. ஆதரவை தொடர்பு கொள்ளவும்.",
+        "toast.networkError": "நெட்வொர்க் பிழை. மீண்டும் முயற்சிக்கவும்.",
+        "otp.title": "WhatsApp சரிபார்க்கவும்",
+        "otp.subtitle": "{{phone}} க்கு 6-இலக்க குறியீடு அனுப்பப்பட்டது.",
+        "otp.inputLabel": "6-இலக்க குறியீட்டை உள்ளிடவும்",
+        "otp.sentBadge": "குறியீடு உங்கள் WhatsApp இல் அனுப்பப்பட்டது",
+        "otp.sending": "WhatsApp இல் குறியீடு அனுப்புகிறோம்...",
+        "otp.verify": "சரிபார்த்து தொடரவும்",
+        "otp.verifying": "சரிபார்க்கிறோம்...",
+        "otp.resend": "கிடைக்கவில்லையா? மீண்டும் அனுப்பவும்",
+        "otp.resendCooldown": "{{s}} வினாடிகளில் மீண்டும் அனுப்பவும்",
+        "otp.wrongCode": "தவறான குறியீடு. மீண்டும் முயற்சிக்கவும்.",
+        "otp.sendError": "இந்த எண்ணிற்கு குறியீடு அனுப்ப முடியவில்லை. உங்கள் WhatsApp எண்ணை சரிபார்க்கவும்.",
+        "reg.specialNeeds": "குழந்தைகள் / முதியோர் / கர்ப்பிணிப் பெண்களுடன் வருகிறீர்களா?",
+        "reg.specialNeedsHint": "கடைசியாக கிடைக்கும் நிகழ்வு இடம் உங்களுக்காக ஒதுக்கப்படும்",
+        "otp.retry": "மீண்டும் முயற்சிக்கவும்"
+      }
+    };
+
+    var LANG_STORAGE_KEY = "tiqkets_event_lang";
+    var currentLang = "en";
+    var languageExplicitlyChosen = false;
+    try {
+      var storedLang = localStorage.getItem(LANG_STORAGE_KEY);
+      if (storedLang && UI_LANGUAGES.some(function (l) { return l.code === storedLang; })) {
+        currentLang = storedLang;
+      }
+    } catch (e) {}
+
+    function currentLangMeta() {
+      return UI_LANGUAGES.find(function (l) { return l.code === currentLang; }) || UI_LANGUAGES[0];
+    }
+
+    function t(key, vars) {
+      var dict = I18N[currentLang] || I18N.en;
+      var str = dict[key] != null ? dict[key] : (I18N.en[key] != null ? I18N.en[key] : key);
+      if (vars) {
+        Object.keys(vars).forEach(function (k) {
+          str = str.replace(new RegExp("\\{\\{\\s*" + k + "\\s*\\}\\}", "g"), vars[k]);
+        });
+      }
+      return str;
+    }
+
+    function renderLangSwitch() {
+      var wrap = $("langSwitch");
+      wrap.innerHTML = "";
+      UI_LANGUAGES.forEach(function (l) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = l.label;
+        btn.className = l.code === currentLang ? "active" : "";
+        btn.addEventListener("click", function () {
+          languageExplicitlyChosen = true;
+          setLanguage(l.code);
+        });
+        wrap.appendChild(btn);
+      });
+    }
+
+    function refreshCustomFieldPlaceholders() {
+      Object.keys(fieldEls || {}).forEach(function (fid) {
+        var entry = fieldEls[fid];
+        if (entry.type === "select") {
+          var first = entry.el.querySelector('option[value=""]');
+          if (first) first.textContent = t("reg.selectPlaceholder");
+        }
+      });
+    }
+
+    function applyI18n() {
+      var meta = currentLangMeta();
+      document.documentElement.lang = currentLang;
+      document.documentElement.dir = meta.rtl ? "rtl" : "ltr";
+      document.body.setAttribute("data-lang", currentLang);
+      document.querySelectorAll("[data-i18n]").forEach(function (el) {
+        el.textContent = t(el.getAttribute("data-i18n"));
+      });
+      renderLangSwitch();
+      refreshCustomFieldPlaceholders();
+      if (data) {
+        updateRegSubtitle();
+        renderFee();
+        renderSlots();
+      }
+          updateSubmitState();
+    }
+
+    function setLanguage(code) {
+      currentLang = UI_LANGUAGES.some(function (l) { return l.code === code; }) ? code : "en";
+      try { localStorage.setItem(LANG_STORAGE_KEY, currentLang); } catch (e) {}
+      applyI18n();
+    }
+
+    function fetchLanguageHint(phone) {
+      if (languageExplicitlyChosen || !branchId) return;
+      fetch(apiEventBase + "/language-hint?phone=" + encodeURIComponent(phone))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (out) {
+          if (languageExplicitlyChosen) return;
+          if (out && out.language && UI_LANGUAGES.some(function (l) { return l.code === out.language; })) {
+            setLanguage(out.language);
+          }
+        })
+        .catch(function () {});
+    }
+
+    function updateRegSubtitle() {
+      $("regSubtitle").textContent = locations.length > 0 ? t("reg.subtitleLocation") : t("reg.subtitle");
+    }
+
+    // ============================================================
+    // Core app logic
+    // ============================================================
+
+    // URL is either /event/:branchId (legacy — resolves whichever event is
+    // currently live on the branch) or /event/:branchId/:eventId (canonical
+    // per-event link). Parse both so each event's QR/link always opens the
+    // event it was generated for, not just "the latest" on the branch.
+    var pathParts = location.pathname.split("/").filter(Boolean); // ["event", branchId, eventId?]
+    var branchId = pathParts[1] || "";
+    var eventId = pathParts[2] || "";
+    var apiEventBase = "/api/event/" + encodeURIComponent(branchId) + (eventId ? "/" + encodeURIComponent(eventId) : "");
+    var data = null;
+    var razorpayKeyId = null;
+    var selectedDate = null;
+    var isSpecialNeeds = false; // true = visiting with infants/senior citizens → last date only
+    var selectedTime = null;
+    var familyCount = 0;
+    var submitting = false;
+
+    // Per-location model. When the event has locations the customer picks one,
+    // and slots / fee / custom fields are all scoped to that location. Legacy
+    // events with no locations fall back to the event-level slots + fee.
+    var locations = [];
+    var selectedLocationId = null;
+    var currentSlots = [];
+    var currentFee = 0;
+    var currentFields = [];
+    var fieldEls = {};
+
+    function $(id) { return document.getElementById(id); }
+
+    function escapeHtml(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+    function showLoading() { $("loadingOverlay").classList.remove("hidden"); }
+    function hideLoading() { $("loadingOverlay").classList.add("hidden"); }
+
+    var toastTimer = null;
+    function toast(msg, isError) {
+      var el = $("toast");
+      el.textContent = msg;
+      el.className = "toast show" + (isError ? " error" : "");
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { el.className = "toast"; }, 3600);
+    }
+
+    function formatFee(paise) {
+      return "\u20B9" + (paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+    }
+
+    function formatDateRange(startIso, endIso) {
+      try {
+        var opts = { day: "numeric", month: "short", year: "numeric" };
+        var bcp47 = currentLangMeta().bcp47;
+        var s = new Date(startIso).toLocaleDateString(bcp47, opts);
+        var e = new Date(endIso).toLocaleDateString(bcp47, opts);
+        return s === e ? s : s + " \u2013 " + e;
+      } catch (err) { return ""; }
+    }
+
+    function loadScript(src) {
+      return new Promise(function (resolve, reject) {
+        if (document.querySelector('script[src="' + src + '"]')) return resolve();
+        var s = document.createElement("script");
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    async function init() {
+      applyI18n();
+      if (!branchId) { showEmpty(); return; }
+      try {
+        showLoading();
+        var res = await fetch(apiEventBase);
+        if (res.status === 404) { hideLoading(); showEmpty(); return; }
+        if (!res.ok) throw new Error("Failed to load");
+        data = await res.json();
+        razorpayKeyId = data.razorpayKeyId;
+        render();
+        hideLoading();
+        // Preload the Razorpay checkout script as soon as we know this is a
+        // paid event, instead of waiting until the customer taps "submit".
+        // Loading it lazily inside startPayment() meant the very first
+        // registration attempt after a page load always paid the full
+        // script-download latency right before opening the payment modal;
+        // any slowness or hiccup there left a "registration_started" row
+        // with no completed payment, and the customer's retry (script now
+        // cached) went smoothly — the classic "first submission never
+        // generates a ticket" pattern. Warming it up here removes that gap
+        // for every attempt, including the first.
+        if (data.event && (data.event.registrationFee || 0) > 0) {
+          loadScript("https://checkout.razorpay.com/v1/checkout.js").catch(function () {});
+        }
+      } catch (err) {
+        hideLoading();
+        showEmpty();
+      }
+    }
+
+    function showEmpty() {
+      $("mainContent").classList.add("hidden");
+      $("emptyState").classList.remove("hidden");
+    }
+
+    function hexToRgbStr(hex) {
+      var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex || "").trim());
+      if (!m) return null;
+      return parseInt(m[1], 16) + ", " + parseInt(m[2], 16) + ", " + parseInt(m[3], 16);
+    }
+
+    function shadeColor(hex, percent) {
+      var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex || "").trim());
+      if (!m) return hex;
+      var r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
+      var t = percent < 0 ? 0 : 255;
+      var p = Math.abs(percent);
+      r = Math.round((t - r) * p) + r;
+      g = Math.round((t - g) * p) + g;
+      b = Math.round((t - b) * p) + b;
+      return "#" + [r, g, b].map(function (v) {
+        return Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0");
+      }).join("");
+    }
+
+    function applyBranding(ev) {
+      var root = document.documentElement.style;
+
+      var primary = /^#[0-9a-f]{6}$/i.test(ev.brandPrimaryColor || "") ? ev.brandPrimaryColor : null;
+      if (primary) {
+        root.setProperty("--brand-primary", primary);
+        root.setProperty("--brand-primary-dark", shadeColor(primary, -0.25));
+        root.setProperty("--brand-primary-light", shadeColor(primary, 0.2));
+        var rgb = hexToRgbStr(primary);
+        if (rgb) root.setProperty("--brand-rgb", rgb);
+      }
+
+      var buttonColor = /^#[0-9a-f]{6}$/i.test(ev.brandButtonColor || "") ? ev.brandButtonColor : primary;
+      if (buttonColor) {
+        root.setProperty("--brand-button", buttonColor);
+        root.setProperty("--brand-button-dark", shadeColor(buttonColor, -0.25));
+      }
+
+      if (ev.brandFontFamily && String(ev.brandFontFamily).trim()) {
+        root.setProperty("--brand-font", ev.brandFontFamily + ", 'Noto Sans Tamil', sans-serif");
+      }
+    }
+
+    function render() {
+      var ev = data.event;
+      $("mainContent").classList.remove("hidden");
+
+      applyBranding(ev);
+
+      // Paused events stay visible but can't take new registrations.
+      if (ev.status === "paused") {
+        $("regFlow").classList.add("hidden");
+        $("pausedBanner").classList.remove("hidden");
+      } else {
+        $("regFlow").classList.remove("hidden");
+        $("pausedBanner").classList.add("hidden");
+      }
+
+      // Hero
+      if (ev.bannerUrl) {
+        $("hero").style.backgroundImage = "url('" + ev.bannerUrl.replace(/'/g, "%27") + "')";
+      }
+      if (ev.logoUrl) {
+        var lg = $("heroLogo");
+        lg.src = ev.logoUrl;
+        lg.classList.remove("hidden");
+      }
+      $("heroTitle").textContent = ev.name || "Event";
+
+      var range = formatDateRange(ev.startDate, ev.endDate);
+      if (range) {
+        $("heroDate").textContent = range;
+        $("heroDateRow").classList.remove("hidden");
+      }
+      if (ev.venue) {
+        $("heroVenue").textContent = ev.venue;
+        $("heroVenueRow").classList.remove("hidden");
+        if (ev.googleMapsLink) {
+          var ml = $("heroMapsLink");
+          ml.href = ev.googleMapsLink;
+          ml.classList.remove("hidden");
+        }
+      }
+
+      // Description / Gallery / Venue map live inside the details modal;
+      // only show the trigger link if there's actually something to show.
+      var hasDetails = false;
+
+      if (ev.description) {
+        $("descText").textContent = ev.description;
+        $("descSection").classList.remove("hidden");
+        hasDetails = true;
+      }
+
+      if (Array.isArray(ev.galleryUrls) && ev.galleryUrls.length) {
+        var gs = $("galleryScroll");
+        var galleryUrls = ev.galleryUrls.filter(Boolean);
+        galleryUrls.forEach(function (url, idx) {
+          var img = document.createElement("img");
+          img.className = "gallery-img";
+          img.src = url;
+          img.alt = "";
+          img.loading = "lazy";
+          img.addEventListener("click", function () { openLightbox(galleryUrls, idx); });
+          gs.appendChild(img);
+        });
+        $("gallerySection").classList.remove("hidden");
+        hasDetails = true;
+      }
+
+      if (ev.venueMapUrl) {
+        $("venueMapImg").src = ev.venueMapUrl;
+        $("venueMapSection").classList.remove("hidden");
+        hasDetails = true;
+      }
+
+      if (hasDetails) {
+        $("detailsLinkRow").classList.remove("hidden");
+      }
+
+      // FAQs
+      if (Array.isArray(ev.faqs) && ev.faqs.length) {
+        var fl = $("faqList");
+        ev.faqs.forEach(function (f) {
+          if (!f || !f.question) return;
+          var item = document.createElement("div");
+          item.className = "faq-item";
+          var q = document.createElement("div");
+          q.className = "faq-q";
+          var span = document.createElement("span");
+          span.textContent = f.question;
+          q.appendChild(span);
+          var svg = document.createElement("span");
+          svg.className = "faq-chevron";
+          svg.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+          q.appendChild(svg);
+          var aWrap = document.createElement("div");
+          aWrap.className = "faq-a-wrap";
+          var aInner = document.createElement("div");
+          aInner.className = "faq-a-inner";
+          var a = document.createElement("div");
+          a.className = "faq-a";
+          a.textContent = f.answer || "";
+          aInner.appendChild(a);
+          aWrap.appendChild(aInner);
+          q.addEventListener("click", function () { item.classList.toggle("open"); });
+          item.appendChild(q);
+          item.appendChild(aWrap);
+          fl.appendChild(item);
+        });
+        $("faqSection").classList.remove("hidden");
+      }
+
+      // Terms
+      if (ev.termsAndConditions) {
+        $("termsBodyInner").textContent = ev.termsAndConditions;
+        $("termsSection").classList.remove("hidden");
+        $("termsToggle").addEventListener("click", function () {
+          $("termsCollapsible").classList.toggle("open");
+        });
+      }
+
+      // Support
+      if (ev.supportContact) {
+        var sc = $("supportContact");
+        sc.textContent = ev.supportContact;
+        var digits = String(ev.supportContact).replace(/[^0-9+]/g, "");
+        sc.href = digits.length >= 6 ? "tel:" + digits : "#";
+        $("supportSection").classList.remove("hidden");
+      }
+
+      // Registration
+      locations = Array.isArray(data.locations) ? data.locations : [];
+      bindRegHandlers();
+      bindDetailsModal();
+      bindLightbox();
+      updateRegSubtitle();
+
+      if (locations.length > 0) {
+        // Location-scoped flow: pick a location first, then slots/fee/fields.
+        $("slotBlock").classList.add("hidden");
+        renderLocationChips();
+      } else {
+        // Back-compat: no locations -> event-level slots/fee, no custom fields.
+        $("locationBlock").classList.add("hidden");
+        $("slotBlock").classList.remove("hidden");
+        selectedLocationId = null;
+        currentSlots = data.slots || [];
+        currentFee = data.event.registrationFee || 0;
+        currentFields = [];
+        renderCustomFields();
+        renderDateChips();
+        renderFee();
+      }
+      goToStep(1);
+      updateSubmitState();
+    }
+
+    function renderLocationChips() {
+      $("locationBlock").classList.remove("hidden");
+      var wrap = $("locationChips");
+      wrap.innerHTML = "";
+      locations.forEach(function (loc) {
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip";
+        chip.textContent = loc.name || "Location";
+        chip.addEventListener("click", function () {
+          Array.prototype.forEach.call(wrap.children, function (c) { c.classList.remove("selected"); });
+          chip.classList.add("selected");
+          selectLocation(loc.id);
+        });
+        wrap.appendChild(chip);
+      });
+      // Auto-select when there is only one location.
+      if (wrap.children.length === 1) {
+        wrap.children[0].click();
+      }
+    }
+
+    function selectLocation(id) {
+      selectedLocationId = id;
+      var loc = locations.find(function (l) { return l.id === id; });
+      currentSlots = (loc && Array.isArray(loc.slots)) ? loc.slots : [];
+      currentFee = (loc && loc.registrationFee) || 0;
+      currentFields = (loc && Array.isArray(loc.inputFields)) ? loc.inputFields : [];
+      selectedDate = null;
+      selectedTime = null;
+      $("slotBlock").classList.remove("hidden");
+      renderCustomFields();
+      renderDateChips();
+      renderFee();
+          updateSubmitState();
+    }
+
+    function bindFloatValue(el) {
+      function sync() { el.classList.toggle("has-value", !!(el.value && String(el.value).trim() !== "")); }
+      el.addEventListener("input", sync);
+      el.addEventListener("change", sync);
+      el.addEventListener("blur", sync);
+      sync();
+    }
+
+    function renderCustomFields() {
+      var wrap = $("customFields");
+      wrap.innerHTML = "";
+      fieldEls = {};
+      (currentFields || []).forEach(function (f) {
+        if (!f) return;
+        var fid = String(f.id || f.label || "");
+        if (!fid) return;
+        var type = f.type || "text";
+        var group = document.createElement("div");
+        group.className = "form-group";
+
+        var input;
+        if (type === "checkbox") {
+          group.className = "form-group";
+          var row = document.createElement("label");
+          row.className = "toggle-row";
+          var labelSpan = document.createElement("span");
+          labelSpan.className = "toggle-label";
+          labelSpan.innerHTML = escapeHtml(f.label || fid) + (f.required ? ' <span class="required">*</span>' : "");
+          row.appendChild(labelSpan);
+          var switchWrap = document.createElement("span");
+          switchWrap.className = "toggle-switch";
+          input = document.createElement("input");
+          input.type = "checkbox";
+          var thumb = document.createElement("span");
+          thumb.className = "toggle-thumb";
+          switchWrap.appendChild(input);
+          switchWrap.appendChild(thumb);
+          row.appendChild(switchWrap);
+          group.appendChild(row);
+        } else {
+          group.className = "form-group field-float";
+
+          if (type === "select") {
+            input = document.createElement("select");
+            var ph = document.createElement("option");
+            ph.value = "";
+            ph.textContent = t("reg.selectPlaceholder");
+            input.appendChild(ph);
+            (Array.isArray(f.options) ? f.options : []).forEach(function (opt) {
+              var o = document.createElement("option");
+              o.value = String(opt);
+              o.textContent = String(opt);
+              input.appendChild(o);
+            });
+          } else if (type === "textarea") {
+            input = document.createElement("textarea");
+          } else {
+            input = document.createElement("input");
+            input.type = type === "phone" ? "tel" : (type === "number" ? "number" : (type === "email" ? "email" : (type === "date" ? "date" : "text")));
+            input.placeholder = " ";
+          }
+          input.id = "cf_" + fid;
+          group.appendChild(input);
+
+          var label = document.createElement("label");
+          label.setAttribute("for", "cf_" + fid);
+          label.innerHTML = escapeHtml(f.label || fid) + (f.required ? ' <span class="required-mark">*</span>' : "");
+          group.appendChild(label);
+
+          bindFloatValue(input);
+        }
+
+        var evt = (type === "select" || type === "checkbox") ? "change" : "input";
+        input.addEventListener(evt, updateSubmitState);
+        fieldEls[fid] = { el: input, field: f, type: type };
+        wrap.appendChild(group);
+      });
+    }
+
+    function customFieldValue(entry) {
+      if (!entry || !entry.el) return "";
+      if (entry.type === "checkbox") return entry.el.checked ? "Yes" : "";
+      return (entry.el.value || "").trim();
+    }
+
+    function customFieldsValid() {
+      var ok = true;
+      Object.keys(fieldEls).forEach(function (fid) {
+        var entry = fieldEls[fid];
+        // Checkbox-type custom fields are informational toggles, not gating
+        // requirements — their checked state should never block Continue.
+        if (entry.type === "checkbox") return;
+        if (entry.field && entry.field.required && !customFieldValue(entry)) ok = false;
+      });
+      return ok;
+    }
+
+    function firstMissingField() {
+      var missing = null;
+      var order = (currentFields || []);
+      for (var i = 0; i < order.length; i++) {
+        var f = order[i];
+        var fid = String((f && (f.id || f.label)) || "");
+        var entry = fieldEls[fid];
+        if (entry && entry.type === "checkbox") continue;
+        if (entry && entry.field && entry.field.required && !customFieldValue(entry)) {
+          missing = entry.field.label || fid;
+          break;
+        }
+      }
+      return missing;
+    }
+
+    function collectFormData() {
+      var out = {};
+      Object.keys(fieldEls).forEach(function (fid) {
+        var val = customFieldValue(fieldEls[fid]);
+        if (val !== "") out[fid] = val;
+      });
+      return out;
+    }
+
+    function renderDateChips() {
+      var sel = $("dateSelect");
+      if (!sel) return;
+      var prevDate = selectedDate;
+      sel.innerHTML = '<option value="">— Select a date —</option>';
+      selectedDate = null;
+      selectedTime = null;
+      $("slotGroups").innerHTML = "";
+      $("noSlotsMsg").classList.add("hidden");
+      var bcp47 = currentLangMeta().bcp47;
+      // Only dates with at least one bookable (not past, not fully booked) slot
+      var allAvailDays = (currentSlots || []).filter(function (day) {
+        return (day.times || []).some(function (slot) { return !slot.past && slot.available > 0; });
+      });
+      var visibleDays;
+      if (isSpecialNeeds) {
+        // Infants / senior citizens: LAST available date only
+        visibleDays = allAvailDays.length > 0 ? [allAvailDays[allAvailDays.length - 1]] : [];
+      } else {
+        // Regular visitors: all dates EXCEPT the last available date
+        visibleDays = allAvailDays.length > 1 ? allAvailDays.slice(0, -1) : allAvailDays;
+      }
+      if (!visibleDays.length) {
+        $("noSlotsMsg").classList.remove("hidden");
+        $("noSlotsMsg").textContent = t("reg.noSlots");
+        return;
+      }
+      visibleDays.forEach(function (day) {
+        var parsed = null;
+        try { parsed = new Date(day.date + "T00:00:00"); if (isNaN(parsed.getTime())) parsed = null; } catch (e) { parsed = null; }
+        var label = parsed
+          ? parsed.toLocaleDateString(bcp47, { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+          : (day.label || day.date);
+        var opt = document.createElement("option");
+        opt.value = day.date;
+        opt.textContent = label;
+        sel.appendChild(opt);
+      });
+      // Restore previous selection if still available; auto-select when only one option
+      if (prevDate && sel.querySelector('option[value="' + CSS.escape(prevDate) + '"]')) {
+        sel.value = prevDate;
+        handleDateSelectChange(prevDate);
+      } else if (sel.options.length === 2) {
+        sel.selectedIndex = 1;
+        handleDateSelectChange(sel.options[1].value);
+      }
+    }
+
+    function handleDateSelectChange(value) {
+      selectedDate = value || null;
+      selectedTime = null;
+      $("slotGroups").innerHTML = "";
+      $("noSlotsMsg").classList.add("hidden");
+      if (selectedDate) renderSlots();
+      updateSubmitState();
+    }
+
+    function handleSpecialNeedsChange(checked) {
+      isSpecialNeeds = !!checked;
+      renderDateChips();
+    }
+
+    var SLOT_PERIOD_ICONS = {
+      morning: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>',
+      afternoon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><path d="M12 3v1M12 20v1M4.2 4.2l.7.7M19.1 19.1l.7.7M3 12h1M20 12h1M4.2 19.8l.7-.7M19.1 4.9l.7-.7"></path></svg>',
+      evening: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>'
+    };
+
+    function slotPeriod(timeStr) {
+      var hour = parseInt(String(timeStr).split(":")[0], 10) || 0;
+      if (hour < 12) return "morning";
+      if (hour < 17) return "afternoon";
+      return "evening";
+    }
+
+    function renderSlots() {
+      var wrap = $("slotGroups");
+      wrap.innerHTML = "";
+      var day = (currentSlots || []).find(function (d) { return d.date === selectedDate; });
+      var times = day ? day.times : [];
+      if (!times.length) {
+        $("noSlotsMsg").classList.remove("hidden");
+        $("noSlotsMsg").textContent = t("reg.noSlots");
+        return;
+      }
+      var visibleTimes = times.filter(function (slot) { return !slot.past && slot.available > 0; });
+      if (!visibleTimes.length) {
+        $("noSlotsMsg").classList.remove("hidden");
+        $("noSlotsMsg").textContent = t("reg.noSlotsAlt");
+        return;
+      }
+      $("noSlotsMsg").classList.add("hidden");
+
+      var buckets = { morning: [], afternoon: [], evening: [] };
+      visibleTimes.forEach(function (slot) { buckets[slotPeriod(slot.time)].push(slot); });
+
+      var allSlotEls = [];
+      ["morning", "afternoon", "evening"].forEach(function (period) {
+        var slots = buckets[period];
+        if (!slots.length) return;
+        var group = document.createElement("div");
+        group.className = "slot-group";
+        var title = document.createElement("div");
+        title.className = "slot-group-title";
+        title.innerHTML = SLOT_PERIOD_ICONS[period] + '<span>' + t("reg.period." + period) + '</span>';
+        group.appendChild(title);
+        var grid = document.createElement("div");
+        grid.className = "slot-grid";
+        slots.forEach(function (slot) {
+          var el = document.createElement("div");
+          el.className = "slot";
+          var timeEl = document.createElement("div");
+          timeEl.className = "slot-time";
+          timeEl.textContent = slot.label;
+          el.appendChild(timeEl);
+          // Only surface a scarcity badge once the slot is getting tight
+          // (< 15 left) so plentiful slots stay visually uncluttered.
+          if (slot.available < 15) {
+            var left = document.createElement("div");
+            left.className = "slot-left" + (slot.available <= 5 ? " low" : "");
+            left.textContent = slot.available + " " + t("reg.left");
+            el.appendChild(left);
+          }
+          el.addEventListener("click", function () {
+            selectedTime = slot.time;
+            allSlotEls.forEach(function (c) { c.classList.remove("selected"); });
+            el.classList.add("selected");
+          updateSubmitState();
+          });
+          allSlotEls.push(el);
+          grid.appendChild(el);
+        });
+        group.appendChild(grid);
+        wrap.appendChild(group);
+      });
+    }
+
+    function maxFamilyCount() {
+      var maxGuests = (data && data.event && data.event.maxGuestsPerRegistration) || 10;
+      return Math.max(0, maxGuests - 1);
+    }
+
+    function renderFee() {
+      var fee = currentFee || 0;
+      var guests = 1 + familyCount;
+      $("totalGuests").textContent = String(guests);
+      $("famValue").textContent = String(familyCount);
+      $("famMinus").disabled = familyCount <= 0;
+      $("famPlus").disabled = familyCount >= maxFamilyCount();
+      var feeText = fee > 0 ? formatFee(fee) : t("summary.free");
+      $("feeValue").textContent = feeText;
+      if (fee > 0) {
+        var note = $("advanceNote");
+        note.textContent = t("summary.advanceNote", { fee: formatFee(fee) });
+        note.classList.remove("hidden");
+      } else {
+        $("advanceNote").classList.add("hidden");
+      }
+    }
+
+    function bindDetailsModal() {
+      var overlay = $("detailsModal");
+      var open = function () { overlay.classList.remove("hidden"); document.body.style.overflow = "hidden"; };
+      var close = function () { overlay.classList.add("hidden"); document.body.style.overflow = ""; };
+      $("detailsLinkBtn").addEventListener("click", open);
+      $("detailsModalClose").addEventListener("click", close);
+      overlay.addEventListener("click", function (e) {
+        if (e.target === overlay) close();
+      });
+    }
+
+    var lightboxImages = [];
+    var lightboxIndex = 0;
+
+    function renderLightbox() {
+      var total = lightboxImages.length;
+      $("lightboxImg").src = lightboxImages[lightboxIndex] || "";
+      $("lightboxCounter").textContent = (lightboxIndex + 1) + " / " + total;
+      var multi = total > 1;
+      $("lightboxPrev").classList.toggle("hidden", !multi);
+      $("lightboxNext").classList.toggle("hidden", !multi);
+    }
+
+    function openLightbox(urls, index) {
+      lightboxImages = urls;
+      lightboxIndex = index;
+      renderLightbox();
+      $("lightboxOverlay").classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeLightbox() {
+      $("lightboxOverlay").classList.add("hidden");
+      document.body.style.overflow = "";
+    }
+
+    function lightboxStep(delta) {
+      var total = lightboxImages.length;
+      if (!total) return;
+      lightboxIndex = (lightboxIndex + delta + total) % total;
+      renderLightbox();
+    }
+
+    function bindLightbox() {
+      var overlay = $("lightboxOverlay");
+      $("lightboxClose").addEventListener("click", closeLightbox);
+      $("lightboxPrev").addEventListener("click", function () { lightboxStep(-1); });
+      $("lightboxNext").addEventListener("click", function () { lightboxStep(1); });
+      overlay.addEventListener("click", function (e) {
+        if (e.target === overlay) closeLightbox();
+      });
+      document.addEventListener("keydown", function (e) {
+        if (overlay.classList.contains("hidden")) return;
+        if (e.key === "Escape") closeLightbox();
+        else if (e.key === "ArrowLeft") lightboxStep(-1);
+        else if (e.key === "ArrowRight") lightboxStep(1);
+      });
+    }
+
+    var regHandlersBound = false;
+    var currentStep = 1;
+    var TOTAL_STEPS = 3;
+
+    // ── OTP verification state ──────────────────────────────────────────────
+    var phoneVerified = false;
+    var verifiedPhone = null;          // which phone number was verified
+    var phoneVerificationToken = null; // token returned by /verify-phone-otp
+    var inOtpStep = false;             // currently showing the OTP sub-step
+    var otpSent = false;
+    var otpResendCooldown = 0;
+    var otpResendTimer = null;
+    var STEP_IDS = { 1: "stepDetails", 2: "stepSchedule", 3: "stepReview" };
+
+    function bindRegHandlers() {
+      if (regHandlersBound) return;
+      regHandlersBound = true;
+
+      bindFloatValue($("fullName"));
+      bindFloatValue($("phone"));
+      bindFloatValue($("email"));
+
+      $("famMinus").addEventListener("click", function () {
+        if (familyCount > 0) { familyCount--; bumpStepper(); renderFee(); updateSubmitState(); }
+      });
+      $("famPlus").addEventListener("click", function () {
+        if (familyCount < maxFamilyCount()) { familyCount++; bumpStepper(); renderFee(); updateSubmitState(); }
+      });
+      $("fullName").addEventListener("input", updateSubmitState);
+      $("fullName").addEventListener("blur", function () {
+        var name = this.value.trim();
+        var invalid = name.length > 0 && name.length < 2;
+        this.classList.toggle("field-invalid", invalid);
+        this.classList.toggle("field-valid", name.length >= 2);
+        $("fullNameError").classList.toggle("show", invalid);
+      });
+      $("phone").addEventListener("input", function () {
+        this.value = this.value.replace(/[^0-9]/g, "").slice(0, 10);
+        this.classList.remove("field-invalid", "field-valid");
+        $("phoneError").classList.remove("show");
+          updateSubmitState();
+      });
+      $("phone").addEventListener("blur", function () {
+        var phone = this.value.trim();
+        var invalid = phone.length > 0 && !validPhone(phone);
+        this.classList.toggle("field-invalid", invalid);
+        this.classList.toggle("field-valid", validPhone(phone));
+        $("phoneError").classList.toggle("show", invalid);
+        if (validPhone(phone)) fetchLanguageHint(phone);
+      });
+      $("backBtn").addEventListener("click", function () {
+        if (inOtpStep) { hideOtpPanel(); return; }
+        if (currentStep > 1) goToStep(currentStep - 1);
+      });
+      $("nextBtn").addEventListener("click", onNextClick);
+
+      // OTP sub-step listeners
+      $("otpInput").addEventListener("input", function () {
+        this.value = this.value.replace(/[^0-9]/g, "").slice(0, 6);
+        $("verifyOtpBtn").disabled = this.value.length < 6;
+      });
+      $("verifyOtpBtn").addEventListener("click", verifyPhoneOtp);
+      $("resendOtpBtn").addEventListener("click", function () {
+        if (otpResendCooldown > 0) return;
+        var phone = $("phone").value.trim();
+        otpSent = false;
+        sendPhoneOtp(phone);
+        startOtpResendCooldown();
+      });
+      $("retryOtpBtn").addEventListener("click", function () {
+        sendPhoneOtp($("phone").value.trim());
+      });
+      document.querySelectorAll("[data-goto-step]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          goToStep(parseInt(btn.getAttribute("data-goto-step"), 10));
+        });
+      });
+    }
+
+    function bumpStepper() {
+      var val = $("famValue");
+      val.classList.remove("bump");
+      void val.offsetWidth;
+      val.classList.add("bump");
+    }
+
+    function validPhone(p) {
+      return /^[6-9][0-9]{9}$/.test(p);
+    }
+
+    function setStepState(n, state) {
+      var el = $("step" + n);
+      if (!el) return;
+      el.classList.remove("active", "done");
+      if (state) el.classList.add(state);
+    }
+
+    function detailsStepValid() {
+      var name = $("fullName").value.trim();
+      var phone = $("phone").value.trim();
+      var locOk = locations.length === 0 || !!selectedLocationId;
+      return locOk && name.length >= 2 && validPhone(phone) && customFieldsValid();
+    }
+
+    function scheduleStepValid() {
+      return !!(selectedDate && selectedTime);
+    }
+
+    // ── OTP verification sub-step functions ─────────────────────────────────
+
+    function showOtpPanel(phone) {
+      inOtpStep = true;
+      otpSent = false;
+      otpResendCooldown = 0;
+      if (otpResendTimer) { clearInterval(otpResendTimer); otpResendTimer = null; }
+      $("otpInput").value = "";
+      $("otpInputError").classList.add("hidden");
+      $("otpSentState").classList.add("hidden");
+      $("otpSendFailState").classList.add("hidden");
+      $("otpSendingState").classList.add("hidden");
+      $("stepDetails").classList.add("hidden");
+      $("stepOtp").classList.remove("hidden");
+      $("backBtn").classList.remove("hidden");
+      $("nextBtn").classList.add("hidden");
+      var phoneDisplay = "+91\u00a0" + phone.slice(-10);
+      $("otpSubtitleText").textContent = t("otp.subtitle").replace("{{phone}}", phoneDisplay);
+      sendPhoneOtp(phone);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function hideOtpPanel() {
+      inOtpStep = false;
+      otpSent = false;
+      if (otpResendTimer) { clearInterval(otpResendTimer); otpResendTimer = null; }
+      $("stepOtp").classList.add("hidden");
+      $("stepDetails").classList.remove("hidden");
+      $("nextBtn").classList.remove("hidden");
+      updateSubmitState();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function sendPhoneOtp(phone) {
+      $("otpSendingState").classList.remove("hidden");
+      $("otpSentState").classList.add("hidden");
+      $("otpSendFailState").classList.add("hidden");
+      try {
+        var res = await fetch(apiEventBase + "/send-phone-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: phone })
+        });
+        if (!res.ok) {
+          var errData = null;
+          try { errData = await res.json(); } catch (e2) {}
+          $("otpSendingState").classList.add("hidden");
+          $("otpSendFailMsg").textContent = (errData && errData.error) || t("otp.sendError");
+          $("otpSendFailState").classList.remove("hidden");
+          return;
+        }
+        otpSent = true;
+        $("otpSendingState").classList.add("hidden");
+        $("otpSentState").classList.remove("hidden");
+        $("otpInput").focus();
+        startOtpResendCooldown();
+      } catch (err) {
+        $("otpSendingState").classList.add("hidden");
+        $("otpSendFailMsg").textContent = t("toast.networkError");
+        $("otpSendFailState").classList.remove("hidden");
+      }
+    }
+
+    function startOtpResendCooldown() {
+      otpResendCooldown = 60;
+      updateResendBtn();
+      if (otpResendTimer) clearInterval(otpResendTimer);
+      otpResendTimer = setInterval(function () {
+        otpResendCooldown--;
+        updateResendBtn();
+        if (otpResendCooldown <= 0) { clearInterval(otpResendTimer); otpResendTimer = null; }
+      }, 1000);
+    }
+
+    function updateResendBtn() {
+      var btn = $("resendOtpBtn");
+      if (!btn) return;
+      if (otpResendCooldown > 0) {
+        btn.disabled = true;
+        btn.textContent = t("otp.resendCooldown").replace("{{s}}", String(otpResendCooldown));
+      } else {
+        btn.disabled = false;
+        btn.textContent = t("otp.resend");
+      }
+    }
+
+    async function verifyPhoneOtp() {
+      var phone = $("phone").value.trim();
+      var code = ($("otpInput").value || "").trim();
+      if (code.length < 6) return;
+      $("verifyOtpBtn").disabled = true;
+      $("verifyOtpBtn").textContent = t("otp.verifying");
+      $("otpInputError").classList.add("hidden");
+      try {
+        var res = await fetch(apiEventBase + "/verify-phone-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: phone, otp: code })
+        });
+        var data = await res.json();
+        if (!res.ok) {
+          $("otpInputError").textContent = data.error || t("otp.wrongCode");
+          $("otpInputError").classList.remove("hidden");
+          $("otpInput").value = "";
+          $("verifyOtpBtn").disabled = true;
+          $("verifyOtpBtn").textContent = t("otp.verify");
+          return;
+        }
+        // Verified — store token and proceed to schedule step
+        phoneVerified = true;
+        verifiedPhone = phone;
+        phoneVerificationToken = data.verificationToken;
+        if (otpResendTimer) { clearInterval(otpResendTimer); otpResendTimer = null; }
+        inOtpStep = false;
+        $("stepOtp").classList.add("hidden");
+        $("nextBtn").classList.remove("hidden");
+        goToStep(2);
+      } catch (err) {
+        $("otpInputError").textContent = t("toast.networkError");
+        $("otpInputError").classList.remove("hidden");
+        $("verifyOtpBtn").disabled = false;
+        $("verifyOtpBtn").textContent = t("otp.verify");
+      }
+    }
+
+    function goToStep(n) {
+      if (n < 1 || n > TOTAL_STEPS) return;
+      if (n === 2 && !detailsStepValid()) return;
+      if (n === 3 && !scheduleStepValid()) return;
+      currentStep = n;
+      Object.keys(STEP_IDS).forEach(function (key) {
+        var panel = $(STEP_IDS[key]);
+        if (panel) panel.classList.toggle("hidden", parseInt(key, 10) !== n);
+      });
+      if (n === 3) updateReviewSummary();
+      $("backBtn").classList.toggle("hidden", n === 1);
+      $("stepPillText").textContent = t("reg.stepOf", { current: n, total: TOTAL_STEPS });
+          updateSubmitState();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function updateReviewSummary() {
+      $("reviewName").textContent = $("fullName").value.trim() || "--";
+      var day = (currentSlots || []).find(function (d) { return d.date === selectedDate; });
+      var dateLabel = day ? day.label : (selectedDate || "--");
+      var timeLabel = selectedTime || "--";
+      if (day && selectedTime) {
+        var slot = day.times.find(function (s) { return s.time === selectedTime; });
+        if (slot) timeLabel = slot.label;
+      }
+      $("reviewSlot").textContent = selectedTime ? (dateLabel + " \u2022 " + timeLabel) : "--";
+      $("reviewGuests").textContent = String(1 + familyCount);
+    }
+
+    function onNextClick() {
+      if (currentStep === 1) {
+        var missing = firstMissingField();
+        if (!detailsStepValid()) {
+          if (missing) { toast(t("toast.fieldRequired", { field: missing }), true); }
+          return;
+        }
+        // Check if the entered WhatsApp number has already been verified this session
+        var currentPhone = $("phone").value.trim();
+        if (phoneVerified && verifiedPhone === currentPhone) {
+          goToStep(2); // already verified, skip OTP
+        } else {
+          // Reset any prior verification for a different number and enter OTP step
+          phoneVerified = false;
+          phoneVerificationToken = null;
+          verifiedPhone = null;
+          showOtpPanel(currentPhone);
+        }
+        return;
+      } else if (currentStep === 2) {
+        if (!scheduleStepValid()) { toast(t("toast.slot"), true); return; }
+        goToStep(3);
+      } else {
+        submitRegistration();
+      }
+    }
+
+    function updateSubmitState() {
+      if (inOtpStep) return; // OTP sub-step manages its own buttons
+      var slotDone = scheduleStepValid();
+      var detailsDone = detailsStepValid();
+      setStepState(1, currentStep > 1 ? "done" : "active");
+      setStepState(2, currentStep > 2 ? "done" : (currentStep === 2 ? "active" : ""));
+      setStepState(3, currentStep === 3 ? "active" : "");
+      $("line1").classList.toggle("filled", currentStep > 1);
+      $("line2").classList.toggle("filled", currentStep > 2);
+
+      var nextBtn = $("nextBtn");
+      if (currentStep === 1) {
+        nextBtn.textContent = t("reg.continue");
+        nextBtn.disabled = !detailsDone;
+      } else if (currentStep === 2) {
+        nextBtn.textContent = t("reg.continue");
+        nextBtn.disabled = !slotDone;
+      } else {
+        nextBtn.textContent = (currentFee > 0) ? t("reg.payNow", { fee: formatFee(currentFee) }) : t("reg.submit");
+        nextBtn.disabled = submitting;
+      }
+    }
+
+    async function refreshSlots() {
+      try {
+        var res = await fetch(apiEventBase);
+        if (res.ok) {
+          var fresh = await res.json();
+          data = fresh;
+          locations = Array.isArray(fresh.locations) ? fresh.locations : [];
+          if (selectedLocationId) {
+            var loc = locations.find(function (l) { return l.id === selectedLocationId; });
+            currentSlots = (loc && Array.isArray(loc.slots)) ? loc.slots : [];
+          } else {
+            currentSlots = fresh.slots || [];
+          }
+          renderSlots();
+          selectedTime = null;
+          updateSubmitState();
+        }
+      } catch (err) {}
+    }
+
+    async function submitRegistration() {
+      if (submitting) return;
+      var name = $("fullName").value.trim();
+      var phone = $("phone").value.trim();
+      var email = $("email").value.trim();
+      if (name.length < 2) { toast(t("toast.name"), true); return; }
+      if (!validPhone(phone)) { toast(t("toast.phone"), true); return; }
+      if (locations.length > 0 && !selectedLocationId) { toast(t("toast.location"), true); return; }
+      if (!selectedDate || !selectedTime) { toast(t("toast.slot"), true); return; }
+      var missing = firstMissingField();
+      if (missing) { toast(t("toast.fieldRequired", { field: missing }), true); return; }
+
+      submitting = true;
+      $("nextBtn").disabled = true;
+      $("nextBtn").textContent = t("reg.submitting");
+
+      try {
+        var res = await fetch(apiEventBase + "/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: name,
+            customerPhone: phone,
+            customerEmail: email || null,
+            preferredLanguage: currentLang,
+            familyMembersCount: familyCount,
+            priorityAccess: isSpecialNeeds,
+            locationId: selectedLocationId || null,
+            slotDate: selectedDate,
+            slotTime: selectedTime,
+            formData: collectFormData(),
+            verificationToken: phoneVerificationToken
+          })
+        });
+
+        if (res.status === 409) {
+          submitting = false;
+          toast(t("toast.slotFilled"), true);
+          await refreshSlots();
+          return;
+        }
+        if (!res.ok) {
+          var errData = null;
+          try { errData = await res.json(); } catch (e) {}
+          submitting = false;
+          updateSubmitState();
+          toast((errData && errData.error) || t("toast.genericError"), true);
+          return;
+        }
+
+        var out = await res.json();
+        if (out.payment === null || !out.payment) {
+          redirectToTicket(out.registration);
+          return;
+        }
+        await startPayment(out.registration, out.payment, name, phone, email);
+      } catch (err) {
+        submitting = false;
+          updateSubmitState();
+        toast(t("toast.networkError"), true);
+      }
+    }
+
+    async function startPayment(registration, payment, name, phone, email) {
+      try {
+        await loadScript("https://checkout.razorpay.com/v1/checkout.js");
+      } catch (err) {
+        submitting = false;
+          updateSubmitState();
+        toast(t("toast.paymentLoadFail"), true);
+        return;
+      }
+
+      var options = {
+        key: payment.keyId || razorpayKeyId,
+        amount: payment.amount,
+        currency: payment.currency || "INR",
+        order_id: payment.orderId,
+        name: data.event.name || "Event",
+        description: "Advance registration",
+        prefill: { name: name, contact: phone, email: email || "" },
+        theme: { color: getComputedStyle(document.documentElement).getPropertyValue("--brand-button").trim() || "#760157" },
+        handler: function (response) { verifyPayment(registration, response); },
+        modal: {
+          ondismiss: function () {
+            submitting = false;
+          updateSubmitState();
+            toast(t("toast.paymentCancelled"), true);
+          }
+        }
+      };
+      try {
+        var rzp = new Razorpay(options);
+        rzp.on("payment.failed", function () {
+          submitting = false;
+          updateSubmitState();
+          toast(t("toast.paymentFailed"), true);
+        });
+        rzp.open();
+      } catch (err) {
+        submitting = false;
+          updateSubmitState();
+        toast(t("toast.paymentStartFail"), true);
+      }
+    }
+
+    async function verifyPayment(registration, response, attempt) {
+      attempt = attempt || 0;
+      showLoading();
+      try {
+        var res = await fetch("/api/event/verify-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            registrationId: registration.id,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature
+          })
+        });
+        var out = await res.json().catch(function () { return {}; });
+        hideLoading();
+        if (!res.ok) {
+          if (out.retryable && attempt < 3) {
+            setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, 1200);
+            return;
+          }
+          submitting = false;
+          updateSubmitState();
+          toast(out.error || t("toast.verifyFailed"), true);
+          return;
+        }
+        if (!out.registration || !out.registration.bookingId || !out.registration.qrToken) {
+          submitting = false;
+          updateSubmitState();
+          toast(t("toast.verifyFailed"), true);
+          return;
+        }
+        redirectToTicket(out.registration);
+      } catch (err) {
+        hideLoading();
+        submitting = false;
+          updateSubmitState();
+        toast(t("toast.verifyFailed"), true);
+      }
+    }
+
+    // A completed registration is now always handed off to the durable
+    // boarding-pass page. `replace` also prevents Back from returning the
+    // customer to the payment form and accidentally submitting it again.
+    function redirectToTicket(reg) {
+      if (!reg || !reg.bookingId || !reg.qrToken) {
+        submitting = false;
+        updateSubmitState();
+        toast(t("toast.verifyFailed"), true);
+        return;
+      }
+      window.location.replace("/event-ticket/" + encodeURIComponent(reg.qrToken));
+    }
+
+    function showSuccess(reg) {
+      submitting = false;
+      var day = (currentSlots || []).find(function (d) { return d.date === reg.slotDate; });
+      var dateLabel = day ? day.label : reg.slotDate;
+      var timeLabel = reg.slotTime;
+      if (day) {
+        var slot = day.times.find(function (t) { return t.time === reg.slotTime; });
+        if (slot) timeLabel = slot.label;
+      }
+      $("successBookingId").textContent = reg.bookingId || "--";
+      $("successDate").textContent = dateLabel;
+      $("successTime").textContent = timeLabel;
+      $("successGuests").textContent = String(1 + (reg.familyMembersCount || 0));
+      if (reg.qrToken) {
+        var ticketImage = $("successTicketImage");
+        ticketImage.src = reg.ticketImageUrl || ("/event-ticket-image/" + reg.qrToken + ".png");
+        ticketImage.alt = (data.event && data.event.name ? data.event.name + " — " : "") + t("success.viewTicket");
+        ticketImage.classList.remove("hidden");
+        $("viewTicketBtn").href = "/event-ticket/" + reg.qrToken;
+        $("viewTicketBtn").classList.remove("hidden");
+      } else {
+        $("successTicketImage").classList.add("hidden");
+        $("viewTicketBtn").classList.add("hidden");
+      }
+      $("regFlow").classList.add("hidden");
+      $("successScreen").classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,941 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Make a Reservation - TIQKETS</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  
+  <!-- PWA / App Clip Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TIQKETS" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#8c1867" />
+  <meta name="application-name" content="TIQKETS" />
+  <meta name="format-detection" content="telephone=no" />
+  
+  <!-- iOS Splash Screens -->
+  <meta name="apple-touch-fullscreen" content="yes" />
+  <link rel="apple-touch-icon" href="/assets/icon-180.png" />
+  
+  <!-- Android Chrome -->
+  <link rel="manifest" href="/manifest.json" />
+  
+  <!-- Open Graph for link previews -->
+  <meta property="og:title" content="Make a Reservation - TIQKETS" />
+  <meta property="og:description" content="Book your table in seconds" />
+  <meta property="og:type" content="website" />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --brand-primary: #8c1867;
+      --brand-primary-dark: #6a1250;
+      --brand-secondary: #1d499b;
+      --brand-accent: #ffd700;
+      --brand-accent-dark: #e6c200;
+      --white: #ffffff;
+      --light-gray: #f2f2f2;
+      --dark-gray: #272626;
+      --success: #10B981;
+      --error: #EF4444;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      min-height: 100vh;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 20px;
+      min-height: 100vh;
+      padding-top: env(safe-area-inset-top, 20px);
+      padding-bottom: env(safe-area-inset-bottom, 20px);
+    }
+    
+    .header {
+      text-align: center;
+      padding: 24px 0;
+      color: white;
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      animation: fadeInUp 0.4s ease-out forwards;
+    }
+    
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+    }
+    
+    .logo-text {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    
+    .org-name {
+      font-size: 16px;
+      opacity: 0.9;
+      margin-top: 8px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+      animation: scaleIn 0.3s ease-out forwards;
+    }
+    
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    
+    .step-indicator {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    
+    .step {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+      background: #f8e6f2;
+      color: var(--brand-primary);
+      transition: all 0.3s ease;
+    }
+    
+    .step.active {
+      background: var(--brand-primary);
+      color: white;
+    }
+    
+    .step.completed {
+      background: var(--success);
+      color: white;
+    }
+    
+    .step-line {
+      width: 40px;
+      height: 2px;
+      background: #E0E0E0;
+      align-self: center;
+      transition: background 0.3s ease;
+    }
+    
+    .step-line.completed {
+      background: var(--success);
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 8px;
+    }
+    
+    label .required {
+      color: var(--error);
+    }
+    
+    input, select, textarea {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #E0E0E0;
+      border-radius: 12px;
+      font-size: 16px;
+      font-family: inherit;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
+      background: white;
+    }
+    
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 4px rgba(140, 24, 103, 0.1);
+    }
+    
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 20px;
+      padding-right: 44px;
+    }
+    
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    
+    .date-picker {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .date-option {
+      flex-shrink: 0;
+      padding: 12px 16px;
+      border: 2px solid #E0E0E0;
+      border-radius: 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 70px;
+    }
+    
+    .date-option:hover {
+      border-color: var(--brand-primary);
+      background: #fdf6fb;
+    }
+    
+    .date-option.selected {
+      border-color: var(--brand-primary);
+      background: var(--brand-primary);
+      color: white;
+    }
+    
+    .date-option .day {
+      font-size: 12px;
+      text-transform: uppercase;
+      opacity: 0.8;
+    }
+    
+    .date-option .date {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    
+    .time-slots {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    
+    .time-slot {
+      padding: 12px;
+      border: 2px solid #E0E0E0;
+      border-radius: 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 600;
+    }
+    
+    .time-slot:hover:not(.unavailable) {
+      border-color: var(--brand-primary);
+      background: #fdf6fb;
+    }
+    
+    .time-slot.selected {
+      border-color: var(--brand-primary);
+      background: var(--brand-primary);
+      color: white;
+    }
+    
+    .time-slot.unavailable {
+      opacity: 0.4;
+      cursor: not-allowed;
+      text-decoration: line-through;
+    }
+    
+    .time-slot .spots {
+      font-size: 11px;
+      font-weight: 400;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+    
+    .party-size {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+    
+    .party-btn {
+      width: 48px;
+      height: 48px;
+      border: 2px solid #E0E0E0;
+      border-radius: 50%;
+      background: white;
+      font-size: 24px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    
+    .party-btn:hover {
+      border-color: var(--brand-primary);
+      color: var(--brand-primary);
+    }
+    
+    .party-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    
+    .party-count {
+      font-size: 32px;
+      font-weight: 700;
+      min-width: 60px;
+      text-align: center;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(140, 24, 103, 0.4);
+    }
+    
+    .btn-primary:disabled {
+      background: #CCC;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .btn-secondary {
+      background: var(--light-gray);
+      color: #333;
+    }
+    
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    
+    .btn-group .btn {
+      flex: 1;
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+    
+    .success-screen {
+      text-align: center;
+      padding: 20px 0;
+    }
+    
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+    }
+    
+    .success-icon svg {
+      width: 40px;
+      height: 40px;
+      color: white;
+    }
+    
+    .confirmation-number {
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--brand-primary);
+      line-height: 1;
+    }
+    
+    .confirmation-label {
+      font-size: 14px;
+      color: #666;
+      margin-top: 8px;
+    }
+    
+    .reservation-details {
+      background: var(--light-gray);
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 24px;
+    }
+    
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 14px;
+    }
+    
+    .detail-row:not(:last-child) {
+      border-bottom: 1px solid #E0E0E0;
+    }
+    
+    .detail-label {
+      color: #666;
+    }
+    
+    .detail-value {
+      font-weight: 600;
+      color: #111;
+    }
+    
+    .download-prompt {
+      margin-top: 32px;
+      padding: 20px;
+      background: #f8e6f2;
+      border-radius: 12px;
+      text-align: center;
+    }
+    
+    .download-prompt p {
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 12px;
+    }
+    
+    .app-badges {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+    
+    .app-badge {
+      height: 40px;
+    }
+    
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #E0E0E0;
+      border-top-color: var(--brand-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    @keyframes scaleIn {
+      from {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+    
+    .success-icon svg path {
+      stroke-dasharray: 24;
+      stroke-dashoffset: 24;
+      animation: checkmark 0.5s ease-out 0.3s forwards;
+    }
+    
+    @keyframes checkmark {
+      0% { stroke-dashoffset: 24; }
+      100% { stroke-dashoffset: 0; }
+    }
+    
+    .error-message {
+      background: #FDEDED;
+      color: #C62828;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="45" fill="white" fill-opacity="0.2"/>
+          <path d="M30 35 L50 25 L70 35 L70 65 L50 75 L30 65 Z" fill="white"/>
+          <path d="M50 45 L50 55 M45 50 L55 50" stroke="#8c1867" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <span class="logo-text">TIQKETS</span>
+      </div>
+      <div class="org-name" id="orgName">Loading...</div>
+    </div>
+    
+    <div class="card">
+      <div class="step-indicator">
+        <div class="step active" id="step1">1</div>
+        <div class="step-line" id="line1"></div>
+        <div class="step" id="step2">2</div>
+        <div class="step-line" id="line2"></div>
+        <div class="step" id="step3">3</div>
+        <div class="step-line" id="line3"></div>
+        <div class="step" id="step4">4</div>
+      </div>
+      
+      <!-- Step 1: Date & Party Size -->
+      <div id="screen1">
+        <h2 class="card-title">Choose Date & Party Size</h2>
+        
+        <div class="form-group">
+          <label>Select Date</label>
+          <div class="date-picker" id="datePicker"></div>
+        </div>
+        
+        <div class="form-group">
+          <label>Number of Guests</label>
+          <div class="party-size">
+            <button class="party-btn" id="decreaseParty" type="button">-</button>
+            <span class="party-count" id="partyCount">2</span>
+            <button class="party-btn" id="increaseParty" type="button">+</button>
+          </div>
+        </div>
+        
+        <div class="btn-group">
+          <button class="btn btn-primary" id="nextBtn1">Continue</button>
+        </div>
+      </div>
+      
+      <!-- Step 2: Time Selection -->
+      <div id="screen2" class="hidden">
+        <h2 class="card-title">Select Time</h2>
+        <div class="time-slots" id="timeSlots"></div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="backBtn2">Back</button>
+          <button class="btn btn-primary" id="nextBtn2" disabled>Continue</button>
+        </div>
+      </div>
+      
+      <!-- Step 3: Contact Details -->
+      <div id="screen3" class="hidden">
+        <h2 class="card-title">Your Details</h2>
+        <div id="errorMessage" class="error-message hidden"></div>
+        <form id="detailsForm">
+          <div class="form-group">
+            <label for="name">Full Name <span class="required">*</span></label>
+            <input type="text" id="name" name="name" required placeholder="Enter your name">
+          </div>
+          <div class="form-group">
+            <label for="phone">Phone Number <span class="required">*</span></label>
+            <input type="tel" id="phone" name="phone" required placeholder="Enter your phone number">
+          </div>
+          <div class="form-group">
+            <label for="email">Email (optional)</label>
+            <input type="email" id="email" name="email" placeholder="Enter your email">
+          </div>
+          <div class="form-group">
+            <label for="specialRequests">Special Requests (optional)</label>
+            <textarea id="specialRequests" name="specialRequests" placeholder="Any dietary requirements, allergies, or special occasions?"></textarea>
+          </div>
+        </form>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="backBtn3">Back</button>
+          <button class="btn btn-primary" id="nextBtn3">Confirm Reservation</button>
+        </div>
+      </div>
+      
+      <!-- Step 4: Confirmation -->
+      <div id="screen4" class="hidden">
+        <div class="success-screen">
+          <div class="success-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div class="confirmation-label">Confirmation Number</div>
+          <div class="confirmation-number" id="confirmationNumber">--</div>
+          <div class="reservation-details">
+            <div class="detail-row">
+              <span class="detail-label">Date</span>
+              <span class="detail-value" id="confirmedDate">--</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Time</span>
+              <span class="detail-value" id="confirmedTime">--</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Party Size</span>
+              <span class="detail-value" id="confirmedParty">--</span>
+            </div>
+          </div>
+          <div class="download-prompt">
+            <p>Download our app to manage your reservation, get reminders, and more!</p>
+            <div class="app-badges">
+              <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on App Store" class="app-badge" />
+              <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Get it on Google Play" class="app-badge" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="loading-overlay hidden" id="loadingOverlay">
+    <div class="spinner"></div>
+  </div>
+  
+  <script>
+    const branchId = window.location.pathname.split('/').pop();
+    let branchData = null;
+    let selectedDate = null;
+    let selectedTime = null;
+    let partySize = 2;
+    let currentStep = 1;
+    let timeSlots = [];
+    
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+    
+    function renderBranchInactive(reason) {
+      const card = document.querySelector('.card');
+      if (!card) return;
+      var headline = 'This branch is not active on TIQKETS';
+      var body = 'The business that runs this branch does not have an active TIQKETS subscription right now, so reservations aren\u2019t available.';
+      if (reason === 'trial_expired') {
+        body = 'The business that runs this branch is no longer on an active TIQKETS plan, so reservations are paused. Please contact the venue directly to book.';
+      } else if (reason === 'period_expired' || reason === 'expired') {
+        body = 'The TIQKETS subscription for this branch has expired, so online reservations are unavailable. Please contact the venue directly to book.';
+      } else if (reason === 'cancelled') {
+        body = 'The TIQKETS subscription for this branch has been cancelled, so online reservations are unavailable. Please contact the venue directly.';
+      } else if (reason === 'no_subscription') {
+        body = 'This branch hasn\u2019t set up an active TIQKETS subscription yet, so online reservations aren\u2019t available. Please contact the venue directly.';
+      }
+      card.innerHTML =
+        '<div style="text-align:center;padding:24px 8px 8px;">' +
+          '<div style="width:72px;height:72px;border-radius:50%;background:#F3F4F6;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">' +
+            '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<circle cx="12" cy="12" r="10"></circle>' +
+              '<line x1="12" y1="8" x2="12" y2="12"></line>' +
+              '<line x1="12" y1="16" x2="12.01" y2="16"></line>' +
+            '</svg>' +
+          '</div>' +
+          '<h2 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 12px;line-height:1.3;">' + headline + '</h2>' +
+          '<p style="font-size:14px;color:#6B7280;line-height:1.6;margin:0 0 24px;max-width:320px;margin-left:auto;margin-right:auto;">' + body + '</p>' +
+          '<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:16px;text-align:left;">' +
+            '<div style="font-size:12px;font-weight:600;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">What you can do</div>' +
+            '<ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.7;">' +
+              '<li>Contact the venue directly to make a reservation.</li>' +
+              '<li>Check back later \u2014 bookings may reopen once the business renews.</li>' +
+            '</ul>' +
+          '</div>' +
+          '<div style="margin-top:24px;font-size:12px;color:#9CA3AF;">' +
+            'Powered by <strong style="color:#8c1867;">TIQKETS</strong>' +
+          '</div>' +
+        '</div>';
+    }
+
+    async function init() {
+      try {
+        showLoading();
+        
+        // Get today's date
+        const today = new Date();
+        selectedDate = formatDateForApi(today);
+        
+        // Fetch branch data
+        const response = await fetch(`/api/reserve/${branchId}?date=${selectedDate}`);
+        if (!response.ok) throw new Error('Branch not found');
+        
+        branchData = await response.json();
+        document.getElementById('orgName').textContent = branchData.organizationName + ' - ' + branchData.branchName;
+
+        // Subscription gate: render a clean "branch not active on
+        // TIQKETS" screen instead of the booking form when the org has
+        // no active plan. Skips date/time pickers so the customer never
+        // enters details only to be 402'd at submit.
+        if (branchData.subscriptionInactive) {
+          renderBranchInactive(branchData.subscriptionReason);
+          hideLoading();
+          return;
+        }
+
+        renderDatePicker();
+        hideLoading();
+      } catch (error) {
+        document.getElementById('orgName').textContent = 'Error loading branch';
+        hideLoading();
+        alert('Unable to load branch information. Please try scanning the QR code again.');
+      }
+    }
+    
+    function formatDateForApi(date) {
+      return date.toISOString().split('T')[0];
+    }
+    
+    function formatDateForDisplay(date) {
+      const options = { weekday: 'short', month: 'short', day: 'numeric' };
+      return date.toLocaleDateString('en-US', options);
+    }
+    
+    function renderDatePicker() {
+      const container = document.getElementById('datePicker');
+      container.innerHTML = '';
+      
+      const today = new Date();
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      
+      for (let i = 0; i < 14; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + i);
+        
+        const dateStr = formatDateForApi(date);
+        const isSelected = dateStr === selectedDate;
+        
+        const div = document.createElement('div');
+        div.className = `date-option${isSelected ? ' selected' : ''}`;
+        div.innerHTML = `
+          <div class="day">${dayNames[date.getDay()]}</div>
+          <div class="date">${date.getDate()}</div>
+        `;
+        div.addEventListener('click', () => selectDate(dateStr, div));
+        container.appendChild(div);
+      }
+    }
+    
+    function selectDate(dateStr, element) {
+      document.querySelectorAll('.date-option').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+      selectedDate = dateStr;
+    }
+    
+    async function loadTimeSlots() {
+      showLoading();
+      try {
+        const response = await fetch(`/api/reserve/${branchId}?date=${selectedDate}`);
+        const data = await response.json();
+        timeSlots = data.slots;
+        renderTimeSlots();
+      } catch (error) {
+        console.error('Error loading time slots:', error);
+      }
+      hideLoading();
+    }
+    
+    function renderTimeSlots() {
+      const container = document.getElementById('timeSlots');
+      container.innerHTML = '';
+      
+      timeSlots.forEach(slot => {
+        const div = document.createElement('div');
+        div.className = `time-slot${!slot.available ? ' unavailable' : ''}${slot.time === selectedTime ? ' selected' : ''}`;
+        
+        const hour = parseInt(slot.time.split(':')[0]);
+        const displayTime = hour > 12 ? `${hour - 12}:${slot.time.split(':')[1]} PM` : `${hour}:${slot.time.split(':')[1]} AM`;
+        
+        div.innerHTML = `
+          ${displayTime}
+          <div class="spots">${slot.available ? `${slot.spotsLeft} left` : 'Full'}</div>
+        `;
+        
+        if (slot.available) {
+          div.addEventListener('click', () => selectTime(slot.time, div));
+        }
+        
+        container.appendChild(div);
+      });
+    }
+    
+    function selectTime(time, element) {
+      document.querySelectorAll('.time-slot').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+      selectedTime = time;
+      document.getElementById('nextBtn2').disabled = false;
+    }
+    
+    function updatePartySize(delta) {
+      partySize = Math.max(1, Math.min(20, partySize + delta));
+      document.getElementById('partyCount').textContent = partySize;
+      document.getElementById('decreaseParty').disabled = partySize <= 1;
+      document.getElementById('increaseParty').disabled = partySize >= 20;
+    }
+    
+    function goToStep(step) {
+      currentStep = step;
+      
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById(`screen${i}`).classList.toggle('hidden', i !== step);
+        
+        const stepEl = document.getElementById(`step${i}`);
+        stepEl.classList.remove('active', 'completed');
+        if (i < step) stepEl.classList.add('completed');
+        if (i === step) stepEl.classList.add('active');
+        
+        if (i < 4) {
+          const lineEl = document.getElementById(`line${i}`);
+          lineEl.classList.toggle('completed', i < step);
+        }
+      }
+      
+      if (step === 2) {
+        loadTimeSlots();
+      }
+    }
+    
+    async function submitReservation() {
+      const form = document.getElementById('detailsForm');
+      const name = form.querySelector('#name').value.trim();
+      const phone = form.querySelector('#phone').value.trim();
+      const email = form.querySelector('#email').value.trim();
+      const specialRequests = form.querySelector('#specialRequests').value.trim();
+      
+      if (!name || !phone) {
+        showError('Please fill in all required fields');
+        return;
+      }
+      
+      try {
+        showLoading();
+        const response = await fetch(`/api/reserve/${branchId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerName: name,
+            customerPhone: phone,
+            customerEmail: email,
+            partySize,
+            date: selectedDate,
+            time: selectedTime,
+            specialRequests
+          })
+        });
+        
+        if (!response.ok) throw new Error('Failed to create reservation');
+        
+        const result = await response.json();
+        
+        // Format date for display
+        const dateObj = new Date(selectedDate + 'T12:00:00');
+        const displayDate = formatDateForDisplay(dateObj);
+        
+        // Format time for display
+        const hour = parseInt(selectedTime.split(':')[0]);
+        const displayTime = hour > 12 ? `${hour - 12}:${selectedTime.split(':')[1]} PM` : `${hour}:${selectedTime.split(':')[1]} AM`;
+        
+        document.getElementById('confirmationNumber').textContent = result.confirmationNumber;
+        document.getElementById('confirmedDate').textContent = displayDate;
+        document.getElementById('confirmedTime').textContent = displayTime;
+        document.getElementById('confirmedParty').textContent = `${partySize} ${partySize === 1 ? 'Guest' : 'Guests'}`;
+        
+        hideLoading();
+        goToStep(4);
+      } catch (error) {
+        hideLoading();
+        showError('Failed to create reservation. Please try again.');
+      }
+    }
+    
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      errorEl.textContent = message;
+      errorEl.classList.remove('hidden');
+    }
+    
+    function hideError() {
+      document.getElementById('errorMessage').classList.add('hidden');
+    }
+    
+    function showLoading() {
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+    }
+    
+    function hideLoading() {
+      document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+    
+    // Event listeners
+    document.getElementById('nextBtn1').addEventListener('click', () => goToStep(2));
+    document.getElementById('backBtn2').addEventListener('click', () => goToStep(1));
+    document.getElementById('nextBtn2').addEventListener('click', () => goToStep(3));
+    document.getElementById('backBtn3').addEventListener('click', () => goToStep(2));
+    document.getElementById('nextBtn3').addEventListener('click', () => {
+      hideError();
+      submitReservation();
+    });
+    
+    document.getElementById('decreaseParty').addEventListener('click', () => updatePartySize(-1));
+    document.getElementById('increaseParty').addEventListener('click', () => updatePartySize(1));
+    
+    // Initialize
+    init();
+  </script>
+</body>
+</html>
