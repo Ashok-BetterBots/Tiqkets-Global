@@ -6,12 +6,14 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { getApiUrl } from "@/lib/query-client";
 
 const BRAND = "#8c1867";
 
@@ -24,6 +26,14 @@ export interface ScanResponseData {
   eventName?: string;
   guests?: number;
   formLabels?: Record<string, string>;
+  checkoutAlert?: {
+    title: string;
+    message: string;
+    iconUrl: string;
+    maxDurationMinutes: number;
+    elapsedMinutes: number;
+    capturedAt: string;
+  } | null;
   registration?: {
     eventId?: string;
     bookingId?: string;
@@ -251,6 +261,23 @@ export function TicketScanResultModal({
               </View>
             ) : null}
 
+            {action === "exit" && mode === "result" && data.checkoutAlert ? (
+              <View style={[styles.checkoutAlert, { backgroundColor: BRAND + "0D", borderColor: BRAND + "35" }]} testID="checkout-duration-alert">
+                <Image
+                  source={{ uri: new URL(data.checkoutAlert.iconUrl, getApiUrl()).toString() }}
+                  style={styles.checkoutAlertIcon}
+                  resizeMode="cover"
+                />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <ThemedText style={[styles.checkoutAlertTitle, { color: BRAND }]}>{data.checkoutAlert.title}</ThemedText>
+                  <ThemedText style={[styles.checkoutAlertMessage, { color: theme.text }]}>{data.checkoutAlert.message}</ThemedText>
+                  <ThemedText style={[styles.checkoutAlertMeta, { color: theme.textSecondary }]}>
+                    {fmtDuration(data.checkoutAlert.elapsedMinutes)} since check-in · limit {fmtDuration(data.checkoutAlert.maxDurationMinutes)}
+                  </ThemedText>
+                </View>
+              </View>
+            ) : null}
+
             {/* ── 2. Time summary chip ── */}
             {timeSummary && !suppressValidBanner ? (
               <View style={[styles.timeSummaryRow, { backgroundColor: timeSummary.bg }]}>
@@ -376,7 +403,7 @@ export function TicketScanResultModal({
             ) : null}
 
             {/* Footer buttons */}
-            {suppressValidBanner ? null : mode === "preview" && onConfirm ? (
+            {suppressValidBanner && !data.checkoutAlert ? null : mode === "preview" && onConfirm ? (
               <View style={styles.btnRow}>
                 <Pressable
                   onPress={onClose}
@@ -493,6 +520,19 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   /* ── Time summary ── */
+  checkoutAlert: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    marginBottom: Spacing.md,
+  },
+  checkoutAlertIcon: { width: 60, height: 60, borderRadius: 16, flexShrink: 0 },
+  checkoutAlertTitle: { fontSize: 17, lineHeight: 22, fontWeight: "800", marginBottom: 3 },
+  checkoutAlertMessage: { fontSize: 14, lineHeight: 19, fontWeight: "500" },
+  checkoutAlertMeta: { fontSize: 11, lineHeight: 16, fontWeight: "600", marginTop: 5 },
   timeSummaryRow: {
     flexDirection: "row",
     alignItems: "center",

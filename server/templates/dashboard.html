@@ -2141,6 +2141,20 @@
                               <p>Status: <span class="font-bold" x-text="eventsScanResult.reg.status.replace(/_/g,' ')"></span></p>
                             </div>
                           </template>
+                          <template x-if="eventsScanResult.ok && eventsScanResult.alert">
+                            <div class="mt-3 rounded-xl border border-brand/20 bg-white/80 p-3 flex items-center gap-3" data-testid="web-checkout-duration-alert">
+                              <img :src="eventsScanResult.alert.iconUrl" class="w-14 h-14 rounded-xl object-cover border border-brand/10" alt="Checkout message icon">
+                              <div class="min-w-0 flex-1">
+                                <p class="text-sm font-extrabold text-brand" x-text="eventsScanResult.alert.title"></p>
+                                <p class="text-xs text-gray-700 mt-1 whitespace-pre-wrap" x-text="eventsScanResult.alert.message"></p>
+                                <p class="text-[10px] text-gray-400 font-semibold mt-1.5">
+                                  <span x-text="eventsScanResult.alert.elapsedMinutes + ' min since check-in'"></span>
+                                  <span> · </span>
+                                  <span x-text="'limit ' + eventsScanResult.alert.maxDurationMinutes + ' min'"></span>
+                                </p>
+                              </div>
+                            </div>
+                          </template>
                           <template x-if="eventsScanResult.paused">
                             <p class="mt-2 text-[11px] font-bold text-amber-600"><i class="fa-solid fa-circle-pause mr-1"></i>Event is paused — existing tickets remain valid, new registrations are blocked.</p>
                           </template>
@@ -2401,6 +2415,38 @@
                       </span>
                       <input type="checkbox" x-model="eventForm.parkingEnabled" class="w-5 h-5 accent-brand">
                     </label>
+                    <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 mt-2">
+                      <span>
+                        <span class="block text-sm font-bold text-gray-700">Show checkout message for short visits</span>
+                        <span class="block text-xs text-gray-400 mt-0.5">Display a custom staff alert when checkout is within the configured duration.</span>
+                      </span>
+                      <input type="checkbox" x-model="eventForm.checkoutAlertEnabled" class="w-5 h-5 accent-brand">
+                    </label>
+                    <div x-show="eventForm.checkoutAlertEnabled" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 rounded-xl border border-brand/15 bg-brand/5 p-4">
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Maximum duration (minutes)</label>
+                        <input type="number" min="1" max="10080" x-model="eventForm.checkoutAlertMaxDurationMinutes" class="input-field mt-1">
+                      </div>
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Image icon</label>
+                        <div class="flex items-center gap-3 mt-1">
+                          <img x-show="eventForm.checkoutAlertIconUrl" :src="eventForm.checkoutAlertIconUrl" class="w-12 h-12 object-cover rounded-xl border border-gray-200">
+                          <label class="text-xs text-brand font-bold cursor-pointer">
+                            <span x-text="eventForm.checkoutAlertIconUrl ? 'Replace icon' : 'Upload icon'"></span>
+                            <input type="file" accept="image/*" class="hidden" @change="uploadEventImage('checkoutAlertIconUrl', $event)">
+                          </label>
+                          <button x-show="eventForm.checkoutAlertIconUrl" type="button" @click="eventForm.checkoutAlertIconUrl = ''" class="text-xs text-red-500 font-bold">Remove</button>
+                        </div>
+                      </div>
+                      <div class="md:col-span-2">
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Checkout title</label>
+                        <input maxlength="120" x-model="eventForm.checkoutAlertTitle" class="input-field mt-1" placeholder="Thank you for visiting">
+                      </div>
+                      <div class="md:col-span-2">
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Checkout message</label>
+                        <textarea maxlength="1000" rows="3" x-model="eventForm.checkoutAlertMessage" class="input-field mt-1" placeholder="Message shown to checkout staff"></textarea>
+                      </div>
+                    </div>
                     <p class="text-[11px] font-bold text-gray-400 uppercase mt-4 mb-2">WhatsApp messages</p>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <template x-for="item in [
@@ -7352,6 +7398,11 @@
           galleryUrls: [],
           messageTemplates: {},
           parkingEnabled: true,
+          checkoutAlertEnabled: false,
+          checkoutAlertMaxDurationMinutes: 60,
+          checkoutAlertTitle: '',
+          checkoutAlertMessage: '',
+          checkoutAlertIconUrl: '',
           whatsappTriggers: { reminder_day: true, reminder_hour: true, checked_in: true, billing: true, thank_you_feedback: true },
         },
         eventFaqDraft: { question: '', answer: '' },
@@ -13077,6 +13128,11 @@
               registrationFeeRupees: ((ev.registrationFee || 0) / 100) || 0,
               parkingTotalSpaces: ev.parkingTotalSpaces || 0,
               parkingEnabled: ev.parkingEnabled !== false,
+              checkoutAlertEnabled: ev.checkoutAlert?.enabled === true,
+              checkoutAlertMaxDurationMinutes: ev.checkoutAlert?.maxDurationMinutes || 60,
+              checkoutAlertTitle: ev.checkoutAlert?.title || '',
+              checkoutAlertMessage: ev.checkoutAlert?.message || '',
+              checkoutAlertIconUrl: ev.checkoutAlert?.iconUrl || '',
               whatsappTriggers: {
                 reminder_day: true,
                 reminder_hour: true,
@@ -13103,6 +13159,8 @@
               startDate: '', endDate: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00',
               slotDurationMinutes: 30, maxCapacityPerSlot: 50, maxGuestsPerRegistration: 10, registrationFeeRupees: 0,
               parkingTotalSpaces: 0, parkingEnabled: true,
+              checkoutAlertEnabled: false, checkoutAlertMaxDurationMinutes: 60,
+              checkoutAlertTitle: '', checkoutAlertMessage: '', checkoutAlertIconUrl: '',
               whatsappTriggers: { reminder_day: true, reminder_hour: true, checked_in: true, billing: true, thank_you_feedback: true },
               supportContact: '', termsAndConditions: '',
               bannerUrl: '', logoUrl: '', venueMapUrl: '', galleryUrls: [], faqs: [], messageTemplates: {},
@@ -13139,6 +13197,13 @@
           const f = this.eventForm;
           if (!f.name || !f.startDate || !f.endDate) { this.showToast('Name, start date and end date are required', 'error'); return; }
           if (new Date(f.endDate) < new Date(f.startDate)) { this.showToast('End date must be after start date', 'error'); return; }
+          const checkoutDuration = parseInt(f.checkoutAlertMaxDurationMinutes, 10);
+          if (f.checkoutAlertEnabled && (!checkoutDuration || checkoutDuration < 1 || checkoutDuration > 10080)) {
+            this.showToast('Checkout alert duration must be between 1 and 10,080 minutes', 'error'); return;
+          }
+          if (f.checkoutAlertEnabled && (!(f.checkoutAlertTitle || '').trim() || !(f.checkoutAlertMessage || '').trim() || !f.checkoutAlertIconUrl)) {
+            this.showToast('Add a checkout title, message and image icon', 'error'); return;
+          }
           this.eventSaving = true;
           try {
             const templates = {};
@@ -13161,6 +13226,13 @@
               parkingTotalSpaces: parseInt(f.parkingTotalSpaces, 10) || 0,
               parkingEnabled: f.parkingEnabled !== false,
               whatsappTriggers: { ...(f.whatsappTriggers || {}) },
+              checkoutAlert: {
+                enabled: f.checkoutAlertEnabled === true,
+                maxDurationMinutes: checkoutDuration || 60,
+                title: (f.checkoutAlertTitle || '').trim(),
+                message: (f.checkoutAlertMessage || '').trim(),
+                iconUrl: f.checkoutAlertIconUrl || '',
+              },
               supportContact: f.supportContact,
               termsAndConditions: f.termsAndConditions,
               bannerUrl: f.bannerUrl,
@@ -13279,7 +13351,13 @@
           try {
             const data = await api('/api/dashboard/events/scan', { method: 'POST', body: JSON.stringify({ value, action: this.eventsScanAction }) });
             const labels = { checkin: 'Checked in', exit: 'Exit recorded' };
-            this.eventsScanResult = { ok: true, title: `${labels[this.eventsScanAction]} — ${data.guests} guest${data.guests > 1 ? 's' : ''}`, reg: data.registration, paused: !!data.eventPaused };
+            this.eventsScanResult = {
+              ok: true,
+              title: `${labels[this.eventsScanAction]} — ${data.guests} guest${data.guests > 1 ? 's' : ''}`,
+              reg: data.registration,
+              paused: !!data.eventPaused,
+              alert: this.eventsScanAction === 'exit' ? (data.checkoutAlert || null) : null,
+            };
             this.eventsScanValue = '';
             this.loadEventStats(true);
           } catch (e) {

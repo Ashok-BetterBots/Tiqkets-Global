@@ -159,10 +159,22 @@ function ExitScanPanel() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSuccessTone();
       setRecentRefreshKey((k) => k + 1);
-      // Valid exits show no banner/info — close the modal right away.
-      setModalVisible(false);
       setPendingValue("");
-      setModalData(null);
+      if (data.checkoutAlert) {
+        setModalData({
+          success: true,
+          registration: data.registration,
+          eventName: data.eventName,
+          guests: data.guests,
+          checkoutAlert: data.checkoutAlert,
+        });
+        setModalMode("result");
+        setModalVisible(true);
+      } else {
+        // Normal exits without a configured duration alert stay fast and quiet.
+        setModalVisible(false);
+        setModalData(null);
+      }
     } catch (e: any) {
       if (selectionGeneration !== selectionGenerationRef.current) return;
       const apiErr = e instanceof ApiError ? e : null;

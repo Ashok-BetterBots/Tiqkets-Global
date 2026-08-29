@@ -15,7 +15,10 @@ import {
   useWindowDimensions,
   Keyboard,
   Switch,
+  Image,
+  Alert,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -26,7 +29,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { BottomSheetModal } from "@/components/BottomSheetModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { apiRequest, queryClient, getErrorMessage } from "@/lib/query-client";
+import { apiRequest, queryClient, getErrorMessage, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius, BrandColors, headingFont } from "@/constants/theme";
 
 const BRAND = BrandColors.primary;
@@ -92,7 +95,16 @@ interface EventRow {
   parkingEnabled?: boolean;
   whatsappTriggers?: EventWhatsappTriggers | null;
   messageTemplates?: Record<string, string> | null;
+  checkoutAlert?: CheckoutAlertConfig | null;
 }
+
+type CheckoutAlertConfig = {
+  enabled: boolean;
+  maxDurationMinutes: number;
+  title: string;
+  message: string;
+  iconUrl: string;
+};
 
 type EventWhatsappTriggers = {
   reminder_day: boolean;
@@ -125,6 +137,13 @@ interface EventForm {
   parkingTotalSpaces: string;
   parkingEnabled: boolean;
   whatsappTriggers: EventWhatsappTriggers;
+  checkoutAlert: {
+    enabled: boolean;
+    maxDurationMinutes: string;
+    title: string;
+    message: string;
+    iconUrl: string;
+  };
 }
 
 const EMPTY_FORM: EventForm = {
@@ -142,6 +161,7 @@ const EMPTY_FORM: EventForm = {
   parkingTotalSpaces: "0",
   parkingEnabled: true,
   whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS },
+  checkoutAlert: { enabled: false, maxDurationMinutes: "60", title: "", message: "", iconUrl: "" },
 };
 
 function toDateInput(iso?: string | null): string {
@@ -180,6 +200,7 @@ export default function OrgEventManageScreen() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<EventForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [checkoutIconUploading, setCheckoutIconUploading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   // ── Danger-zone confirmation ─────────────────────────────────────────────
@@ -233,7 +254,11 @@ export default function OrgEventManageScreen() {
   // ── Handlers ─────────────────────────────────────────────────────────────
   const openCreate = () => {
     setEditing(null);
-    setForm({ ...EMPTY_FORM, whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS } });
+    setForm({
+      ...EMPTY_FORM,
+      whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS },
+      checkoutAlert: { ...EMPTY_FORM.checkoutAlert },
+    });
     setFormError(null);
     setShowForm(true);
   };
@@ -255,6 +280,13 @@ export default function OrgEventManageScreen() {
       parkingTotalSpaces: String(ev.parkingTotalSpaces ?? 0),
       parkingEnabled: ev.parkingEnabled !== false,
       whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS, ...(ev.whatsappTriggers || {}) },
+      checkoutAlert: {
+        enabled: ev.checkoutAlert?.enabled === true,
+        maxDurationMinutes: String(ev.checkoutAlert?.maxDurationMinutes ?? 60),
+        title: ev.checkoutAlert?.title ?? "",
+        message: ev.checkoutAlert?.message ?? "",
+        iconUrl: ev.checkoutAlert?.iconUrl ?? "",
+      },
     });
     setFormError(null);
     setShowForm(true);
@@ -329,6 +361,13 @@ export default function OrgEventManageScreen() {
       setFormError("Please enter start and end dates (YYYY-MM-DD)"); return;
     }
     if (!activeBranchId || !organization?.id) { setFormError("No branch selected"); return; }
+    const checkoutMinutes = parseInt(form.checkoutAlert.maxDurationMinutes, 10);
+    if (form.checkoutAlert.enabled && (!Number.isFinite(checkoutMinutes) || checkoutMinutes < 1 || checkoutMinutes > 10080)) {
+      setFormError("Checkout alert duration must be between 1 and 10,080 minutes"); return;
+    }
+    if (form.checkoutAlert.enabled && (!form.checkoutAlert.title.trim() || !form.checkoutAlert.message.trim() || !form.checkoutAlert.iconUrl)) {
+      setFormError("Add a checkout title, message, and image icon"); return;
+    }
     setSaving(true); setFormError(null);
     try {
       const payload: Record<string, unknown> = {
@@ -346,6 +385,13 @@ export default function OrgEventManageScreen() {
         parkingTotalSpaces: parseInt(form.parkingTotalSpaces, 10) || 0,
         parkingEnabled: form.parkingEnabled,
         whatsappTriggers: form.whatsappTriggers,
+        checkoutAlert: {
+          enabled: form.checkoutAlert.enabled,
+          maxDurationMinutes: checkoutMinutes || 60,
+          title: form.checkoutAlert.title.trim(),
+          message: form.checkoutAlert.message.trim(),
+          iconUrl: form.checkoutAlert.iconUrl,
+        },
       };
       if (editing) {
         await apiRequest("PUT", `/api/dashboard/events/${editing.id}`, payload);
@@ -359,6 +405,36 @@ export default function OrgEventManageScreen() {
     } catch (e) {
       setFormError(getErrorMessage(e, "Failed to save event"));
     } finally { setSaving(false); }
+  };
+
+  const pickCheckoutIcon = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission required", "Allow photo access to upload a checkout icon.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+      const asset = result.canceled ? null : result.assets[0];
+      if (!asset?.base64) return;
+      setCheckoutIconUploading(true);
+      const mime = asset.mimeType || "image/jpeg";
+      const response = await apiRequest("POST", "/api/dashboard/events/upload-image", {
+        image: `data:${mime};base64,${asset.base64}`,
+      });
+      const uploaded = await response.json();
+      setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, iconUrl: uploaded.url } }));
+    } catch (e) {
+      setFormError(getErrorMessage(e, "Failed to upload checkout icon"));
+    } finally {
+      setCheckoutIconUploading(false);
+    }
   };
 
   const openConfirm = (event: EventRow, kind: ConfirmKind) => {
@@ -517,6 +593,41 @@ export default function OrgEventManageScreen() {
           onValueChange={(value) => setForm((f) => ({ ...f, parkingEnabled: value }))}
           testID="switch-event-parking-enabled"
         />
+        <ThemedText type="small" style={{ fontWeight: "800", marginTop: Spacing.sm, marginBottom: Spacing.xs }}>
+          Checkout alert
+        </ThemedText>
+        <SettingsToggle
+          label="Show message for short visits"
+          description="Show staff a custom message when checkout is within the duration below."
+          value={form.checkoutAlert.enabled}
+          onValueChange={(enabled) => setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, enabled } }))}
+          testID="switch-event-checkout-alert"
+        />
+        {form.checkoutAlert.enabled ? (
+          <>
+            <Field label="Maximum duration (minutes)" value={form.checkoutAlert.maxDurationMinutes} onChangeText={(maxDurationMinutes) => setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, maxDurationMinutes } }))} keyboardType="number-pad" testID="input-event-checkout-duration" />
+            <Field label="Checkout title" value={form.checkoutAlert.title} onChangeText={(title) => setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, title } }))} placeholder="Thank you for visiting" testID="input-event-checkout-title" />
+            <Field label="Checkout message" value={form.checkoutAlert.message} onChangeText={(message) => setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, message } }))} placeholder="Custom message for staff" multiline testID="input-event-checkout-message" />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.md, marginBottom: Spacing.md }}>
+              {form.checkoutAlert.iconUrl ? (
+                <Image source={{ uri: new URL(form.checkoutAlert.iconUrl, getApiUrl()).toString() }} style={{ width: 64, height: 64, borderRadius: 14 }} />
+              ) : (
+                <View style={{ width: 64, height: 64, borderRadius: 14, backgroundColor: theme.backgroundRoot, alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="image" size={24} color={theme.textSecondary} />
+                </View>
+              )}
+              <Pressable onPress={pickCheckoutIcon} disabled={checkoutIconUploading} style={[styles.smallButton, { borderColor: theme.border }]}>
+                {checkoutIconUploading ? <ActivityIndicator size="small" color={BRAND} /> : <Feather name="upload" size={15} color={BRAND} />}
+                <ThemedText type="small" style={{ color: BRAND, fontWeight: "700" }}>{form.checkoutAlert.iconUrl ? "Replace icon" : "Upload icon"}</ThemedText>
+              </Pressable>
+              {form.checkoutAlert.iconUrl ? (
+                <Pressable onPress={() => setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, iconUrl: "" } }))}>
+                  <Feather name="trash-2" size={18} color={theme.error} />
+                </Pressable>
+              ) : null}
+            </View>
+          </>
+        ) : null}
         <ThemedText type="small" style={{ fontWeight: "800", marginTop: Spacing.sm, marginBottom: Spacing.xs }}>
           WhatsApp messages
         </ThemedText>
@@ -970,6 +1081,15 @@ function SettingsToggle({ label, description, value, onValueChange, testID }: {
 }
 
 const styles = StyleSheet.create({
+  smallButton: {
+    minHeight: 40,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
   container: { flex: 1 },
   content: { padding: Spacing.lg, gap: Spacing.md },
   center: { paddingVertical: Spacing["4xl"], alignItems: "center" },

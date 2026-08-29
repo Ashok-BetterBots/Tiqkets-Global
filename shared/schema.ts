@@ -1432,6 +1432,31 @@ export const DEFAULT_EVENT_WHATSAPP_TRIGGERS: EventWhatsAppTriggers = {
   thank_you_feedback: true,
 };
 
+export type EventCheckoutAlertConfig = {
+  enabled: boolean;
+  maxDurationMinutes: number;
+  title: string;
+  message: string;
+  iconUrl: string;
+};
+
+export type EventCheckoutAlertSnapshot = {
+  title: string;
+  message: string;
+  iconUrl: string;
+  maxDurationMinutes: number;
+  elapsedMinutes: number;
+  capturedAt: string;
+};
+
+export const DEFAULT_EVENT_CHECKOUT_ALERT: EventCheckoutAlertConfig = {
+  enabled: false,
+  maxDurationMinutes: 60,
+  title: "",
+  message: "",
+  iconUrl: "",
+};
+
 export const events = pgTable("events", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
@@ -1491,6 +1516,7 @@ export const events = pgTable("events", {
   // Parking staff dashboard requirement.
   parkingTotalSpaces: integer("parking_total_spaces").default(0).notNull(),
   parkingOccupied: integer("parking_occupied").default(0).notNull(),
+  checkoutAlert: jsonb("checkout_alert").$type<EventCheckoutAlertConfig>().default(DEFAULT_EVENT_CHECKOUT_ALERT).notNull(),
   // Per-slot capacity overrides keyed "YYYY-MM-DD|HH:MM" → capacity. A slot
   // without an entry falls back to maxCapacityPerSlot. Organizers edit these
   // from the event setup page; the public registration flow resolves the
@@ -1555,6 +1581,7 @@ export const eventRegistrations = pgTable("event_registrations", {
   checkedInAt: timestamp("checked_in_at"),
   exitedAt: timestamp("exited_at"),
   visitDurationMinutes: integer("visit_duration_minutes"),
+  checkoutAlertSnapshot: jsonb("checkout_alert_snapshot").$type<EventCheckoutAlertSnapshot>(),
   invalidScanAttempts: integer("invalid_scan_attempts").default(0).notNull(),
   duplicateEntryAttempts: integer("duplicate_entry_attempts").default(0).notNull(),
   // One-shot flags so the reminder scheduler never double-sends.

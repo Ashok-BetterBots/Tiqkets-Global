@@ -933,9 +933,80 @@ function regShape(r: EventRegistration) {
     checkedInAt: r.checkedInAt,
     exitedAt: r.exitedAt,
     visitDurationMinutes: r.visitDurationMinutes,
+    checkoutAlertSnapshot: r.checkoutAlertSnapshot,
     invalidScanAttempts: r.invalidScanAttempts,
     duplicateEntryAttempts: r.duplicateEntryAttempts,
     createdAt: r.createdAt,
+  };
+}
+
+type CheckoutAlert = {
+  enabled: boolean;
+  maxDurationMinutes: number;
+  title: string;
+  message: string;
+  iconUrl: string;
+};
+
+export function normalizeCheckoutAlert(raw: unknown, fallback?: unknown): CheckoutAlert {
+  const source = raw && typeof raw === "object" && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : fallback && typeof fallback === "object" && !Array.isArray(fallback)
+      ? fallback as Record<string, unknown>
+      : {};
+  const enabled = source.enabled === true;
+  const rawDuration = source.maxDurationMinutes ?? 60;
+  if (
+    (typeof rawDuration !== "number" && typeof rawDuration !== "string") ||
+    !/^\d+$/.test(String(rawDuration).trim())
+  ) {
+    throw new Error("Checkout alert duration must be a whole number of minutes");
+  }
+  const maxDurationMinutes = Number(rawDuration);
+  const title = String(source.title ?? "").trim();
+  const message = String(source.message ?? "").trim();
+  const iconUrl = String(source.iconUrl ?? "").trim();
+  if (!Number.isFinite(maxDurationMinutes) || maxDurationMinutes < 1 || maxDurationMinutes > 10080) {
+    throw new Error("Checkout alert duration must be between 1 and 10,080 minutes");
+  }
+  if (title.length > 120) throw new Error("Checkout alert title must be 120 characters or fewer");
+  if (message.length > 1000) throw new Error("Checkout alert message must be 1,000 characters or fewer");
+  if (iconUrl && !/^\/public-objects\/[A-Za-z0-9._~:/-]+$/.test(iconUrl)) {
+    throw new Error("Checkout alert icon must be an uploaded image");
+  }
+  if (enabled && (!title || !message || !iconUrl)) {
+    throw new Error("Checkout alert title, message, and uploaded icon are required when enabled");
+  }
+  return { enabled, maxDurationMinutes, title, message, iconUrl };
+}
+
+export function checkoutAlertFor(
+  ev: Pick<Event, "checkoutAlert">,
+  reg: {
+    checkedInAt: EventRegistration["checkedInAt"];
+    checkoutAlertSnapshot?: EventRegistration["checkoutAlertSnapshot"];
+  },
+  at: Date,
+) {
+  if (reg.checkoutAlertSnapshot) return reg.checkoutAlertSnapshot;
+  if (!reg.checkedInAt) return null;
+  let config: CheckoutAlert;
+  try {
+    config = normalizeCheckoutAlert(ev.checkoutAlert);
+  } catch {
+    return null;
+  }
+  if (!config.enabled) return null;
+  const elapsedMs = Math.max(0, at.getTime() - new Date(reg.checkedInAt).getTime());
+  if (elapsedMs > config.maxDurationMinutes * 60000) return null;
+  const elapsedMinutes = Math.round(elapsedMs / 60000);
+  return {
+    title: config.title,
+    message: config.message,
+    iconUrl: config.iconUrl,
+    maxDurationMinutes: config.maxDurationMinutes,
+    elapsedMinutes,
+    capturedAt: at.toISOString(),
   };
 }
 
@@ -2814,9 +2885,11 @@ export function registerEventsRoutes(app: Express) {
       }
       let whatsappTriggers: EventWhatsAppTriggers;
       let parkingEnabled: boolean;
+      let checkoutAlert: CheckoutAlert;
       try {
         whatsappTriggers = normalizeEventWhatsappTriggers(b.whatsappTriggers);
         parkingEnabled = normalizeEventParkingEnabled(b.parkingEnabled);
+        checkoutAlert = normalizeCheckoutAlert(b.checkoutAlert);
       } catch (e) {
         return res.status(400).json({ error: (e as Error).message });
       }
@@ -2848,6 +2921,7 @@ export function registerEventsRoutes(app: Express) {
         messageTemplates: b.messageTemplates && typeof b.messageTemplates === "object" ? b.messageTemplates : {},
         whatsappTriggers,
         parkingEnabled,
+        checkoutAlert,
         parkingTotalSpaces: Math.max(0, parseInt(String(b.parkingTotalSpaces || 0), 10) || 0),
         status: "draft",
       }).returning();
@@ -2888,6 +2962,13 @@ export function registerEventsRoutes(app: Express) {
       if (b.parkingEnabled !== undefined) {
         try {
           patch.parkingEnabled = normalizeEventParkingEnabled(b.parkingEnabled, ev.parkingEnabled);
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
+      if (b.checkoutAlert !== undefined) {
+        try {
+          patch.checkoutAlert = normalizeCheckoutAlert(b.checkoutAlert, ev.checkoutAlert);
         } catch (e) {
           return res.status(400).json({ error: (e as Error).message });
         }
@@ -3562,6 +3643,7 @@ export function registerEventsRoutes(app: Express) {
             status: "exited",
             exitedAt: now,
             visitDurationMinutes: r.checkedInAt ? Math.max(0, Math.round((now.getTime() - new Date(r.checkedInAt).getTime()) / 60000)) : null,
+            checkoutAlertSnapshot: checkoutAlertFor(ev, r, now),
             updatedAt: now,
           }),
           stage: "exited",
@@ -3602,7 +3684,10 @@ export function registerEventsRoutes(app: Express) {
 
       await logStage(reg.id, t.stage, {
         by: getRequestUserId(req),
-        ...(action === "exit" ? { durationMin: updated.visitDurationMinutes } : {}),
+        ...(action === "exit" ? {
+          durationMin: updated.visitDurationMinutes,
+          checkoutAlert: updated.checkoutAlertSnapshot || undefined,
+        } : {}),
       });
       try {
         await sendEventTrigger(ev, updated, t.waTrigger);
@@ -3610,7 +3695,7 @@ export function registerEventsRoutes(app: Express) {
       // Paused events still admit already-ticketed guests, but the console
       // shows a clear notice so staff know registrations are paused.
       const formLabels = await buildFormLabels(reg.locationId);
-      return res.json({ success: true, action, registration: regShape(updated), eventName: ev.name, guests: g, formLabels, ...(ev.status === "paused" ? { eventPaused: true } : {}) });
+      return res.json({ success: true, action, registration: regShape(updated), eventName: ev.name, guests: g, formLabels, checkoutAlert: updated.checkoutAlertSnapshot, ...(ev.status === "paused" ? { eventPaused: true } : {}) });
     } catch (e) {
       console.error("[events] scan failed:", e);
       res.status(500).json({ error: "Internal server error" });

@@ -78,6 +78,20 @@
       "when": 1788000000000,
       "tag": "0010_event_registration_source",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788100000000,
+      "tag": "0011_announcer_user_id_capacity",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788200000000,
+      "tag": "0012_event_checkout_alert",
+      "breakpoints": true
     }
   ]
 }
