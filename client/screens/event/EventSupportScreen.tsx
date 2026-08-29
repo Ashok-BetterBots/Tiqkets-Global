@@ -45,6 +45,14 @@ interface RegResult {
   amountPaid: number;
   eventName?: string;
   qrToken?: string;
+  checkoutAlertSnapshot?: {
+    title: string;
+    message: string;
+    iconUrl: string;
+    maxDurationMinutes: number;
+    elapsedMinutes: number;
+    capturedAt: string;
+  } | null;
 }
 
 interface StageLogRow {
@@ -875,6 +883,28 @@ export default function EventSupportScreen() {
               <InfoRow label="Guests" value={String(1 + (selected.familyMembersCount || 0))} />
               <InfoRow label="Advance Paid" value={fmtPaise(selected.amountPaid)} />
             </View>
+
+            {/* Current status */}
+            {selected.checkoutAlertSnapshot ? (
+              <View style={[styles.card, { backgroundColor: BRAND + "0D", borderColor: BRAND + "35" }]} testID="support-checkout-alert">
+                <View style={[styles.sectionHeader, { marginBottom: Spacing.md }]}>
+                  <Image
+                    source={{ uri: new URL(selected.checkoutAlertSnapshot.iconUrl, getApiUrl()).toString() }}
+                    style={{ width: 52, height: 52, borderRadius: 14, marginRight: Spacing.md }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <ThemedText type="h4" style={{ color: BRAND }}>{selected.checkoutAlertSnapshot.title}</ThemedText>
+                    <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                      Checkout message shown {fmtTs(selected.checkoutAlertSnapshot.capturedAt)}
+                    </ThemedText>
+                  </View>
+                </View>
+                <ThemedText type="body">{selected.checkoutAlertSnapshot.message}</ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+                  {selected.checkoutAlertSnapshot.elapsedMinutes} min since check-in · {selected.checkoutAlertSnapshot.maxDurationMinutes} min limit
+                </ThemedText>
+              </View>
+            ) : null}
 
             {/* Current status */}
             <View style={[styles.stageCard, {
