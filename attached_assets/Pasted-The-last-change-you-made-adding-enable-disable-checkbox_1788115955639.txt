@@ -1,0 +1,20 @@
+The last change you made (adding enable/disable checkboxes for Billing OTP and Registration OTP in event settings) has broken two things that must be fixed immediately:
+
+No WhatsApp messages are being sent at all, for any trigger, not just OTPs.
+Customer registration is broken — after a successful registration, the ticket is not being displayed to the customer.
+
+Do NOT make further feature changes. Your only job right now is root-cause analysis and regression fix.
+
+Steps:
+
+Show me a diff of every file you changed in the last commit/update (the OTP toggle change). I want to see exactly what was touched.
+Check whether the OTP enable/disable logic is wrapping or gating the WhatsApp sending function itself (e.g., a shared sendWhatsAppMessage() or sendMessage() utility), instead of being scoped only to the billing OTP and registration OTP message types. If the toggle check was inserted upstream of the general send function, or if a default value/flag is evaluating to "disabled" for all message types, that is the bug — fix it so the enable/disable check applies ONLY to billing OTP and registration OTP messages, and every other WhatsApp trigger (queue updates, ticket confirmation, dine-in, take-away, check-in, etc.) sends unconditionally as before.
+Check the registration flow end-to-end: does registration still complete and save to the database? Does the ticket generation function still get called after successful registration? Does the ticket display/redirect logic depend on a WhatsApp send (e.g., "send OTP then show ticket") that is now silently failing because the OTP toggle logic broke that step? If so, decouple ticket display from OTP delivery status — the ticket should display regardless of whether the registration OTP was sent or suppressed.
+Confirm the "disable Billing OTP = treat like in-store registration" logic. Re-check exactly how in-store registration bypasses billing OTP today, and confirm you replicated that exact code path rather than adding a new conditional that could short-circuit other logic.
+After fixing, test these specific paths and report back on each:
+Registration with both OTPs enabled (baseline, should be unchanged)
+Registration with Registration OTP disabled → ticket should still display
+Registration with Billing OTP disabled → billing should behave exactly like in-store registration
+A non-OTP WhatsApp trigger (e.g., ticket ready / queue update notification) → should send normally
+
+Do not touch any WhatsApp message templates, trigger logic unrelated to OTP, or any other settings. Report the exact root cause you found before describing the fix.

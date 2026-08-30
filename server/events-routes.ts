@@ -734,7 +734,7 @@ export async function issueTicket(
       });
     } catch (txErr) {
       console.error("[events] issueTicket transaction failed — registration state unchanged:", txErr);
-      return reg; // Return original reg; caller can retry.
+      throw txErr;
     }
 
     if (isReissue) {
@@ -748,7 +748,13 @@ export async function issueTicket(
     // error 130472 "Image not available" and the entire template send fails.
     // Rendering first and caching the PNG ensures the endpoint serves the image
     // instantly when Meta checks it.
-    dispatch(ev, reg, base);
+    try {
+      dispatch(ev, reg, base);
+    } catch (dispatchErr) {
+      // Ticket issuance is already committed. Delivery is an independent
+      // best-effort side effect and must never suppress the customer ticket.
+      console.error(`[events] ticket dispatch failed for reg ${reg.id}:`, dispatchErr);
+    }
   }
   return reg;
 }
@@ -2784,7 +2790,11 @@ export function registerEventsRoutes(app: Express) {
       return finishTicketIssuance(paid);
     } catch (e) {
       console.error("[events] verify payment failed:", e);
-      res.status(500).json({ error: "Internal server error" });
+      res.status(503).json({
+        error: "Payment is confirmed, but your ticket is still being prepared. Please try again.",
+        pending: true,
+        retryable: true,
+      });
     }
   });
 
