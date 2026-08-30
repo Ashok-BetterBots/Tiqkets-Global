@@ -1642,8 +1642,9 @@
                 <select id="dateSelect" onchange="handleDateSelectChange(this.value)"
                         style="width:100%;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;color:#1a1a2e;background:#fff;margin-bottom:16px;cursor:pointer;outline:none;"></select>
 
-                <label class="field-label"><span data-i18n="reg.selectTime">Select a time slot</span> <span class="required">*</span></label>
-                <div id="slotGroups"></div>
+                 <label class="field-label"><span data-i18n="reg.selectTime">Select a time slot</span> <span class="required">*</span></label>
+                 <select id="timeSelect" onchange="handleTimeSelectChange(this.value)"
+                         style="width:100%;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;color:#1a1a2e;background:#fff;margin-bottom:16px;cursor:pointer;outline:none;"></select>
                 <div id="noSlotsMsg" class="desc-text hidden" style="margin-bottom:16px;" data-i18n="reg.noSlots">No slots available for this date.</div>
               </div>
             </div>
@@ -2575,7 +2576,7 @@
       sel.innerHTML = '<option value="">— Select a date —</option>';
       selectedDate = null;
       selectedTime = null;
-      $("slotGroups").innerHTML = "";
+       $("timeSelect").innerHTML = '<option value="">— Select a time slot —</option>';
       $("noSlotsMsg").classList.add("hidden");
       var bcp47 = currentLangMeta().bcp47;
       // Only dates with at least one bookable (not past, not fully booked) slot
@@ -2619,11 +2620,16 @@
     function handleDateSelectChange(value) {
       selectedDate = value || null;
       selectedTime = null;
-      $("slotGroups").innerHTML = "";
+       $("timeSelect").innerHTML = '<option value="">— Select a time slot —</option>';
       $("noSlotsMsg").classList.add("hidden");
       if (selectedDate) renderSlots();
       updateSubmitState();
     }
+
+     function handleTimeSelectChange(value) {
+       selectedTime = value || null;
+       updateSubmitState();
+     }
 
     function handleSpecialNeedsChange(checked) {
       isSpecialNeeds = !!checked;
@@ -2644,8 +2650,8 @@
     }
 
     function renderSlots() {
-      var wrap = $("slotGroups");
-      wrap.innerHTML = "";
+       var select = $("timeSelect");
+       select.innerHTML = '<option value="">— Select a time slot —</option>';
       var day = (currentSlots || []).find(function (d) { return d.date === selectedDate; });
       var times = day ? day.times : [];
       if (!times.length) {
@@ -2660,49 +2666,12 @@
         return;
       }
       $("noSlotsMsg").classList.add("hidden");
-
-      var buckets = { morning: [], afternoon: [], evening: [] };
-      visibleTimes.forEach(function (slot) { buckets[slotPeriod(slot.time)].push(slot); });
-
-      var allSlotEls = [];
-      ["morning", "afternoon", "evening"].forEach(function (period) {
-        var slots = buckets[period];
-        if (!slots.length) return;
-        var group = document.createElement("div");
-        group.className = "slot-group";
-        var title = document.createElement("div");
-        title.className = "slot-group-title";
-        title.innerHTML = SLOT_PERIOD_ICONS[period] + '<span>' + t("reg.period." + period) + '</span>';
-        group.appendChild(title);
-        var grid = document.createElement("div");
-        grid.className = "slot-grid";
-        slots.forEach(function (slot) {
-          var el = document.createElement("div");
-          el.className = "slot";
-          var timeEl = document.createElement("div");
-          timeEl.className = "slot-time";
-          timeEl.textContent = slot.label;
-          el.appendChild(timeEl);
-          // Only surface a scarcity badge once the slot is getting tight
-          // (< 15 left) so plentiful slots stay visually uncluttered.
-          if (slot.available < 15) {
-            var left = document.createElement("div");
-            left.className = "slot-left" + (slot.available <= 5 ? " low" : "");
-            left.textContent = slot.available + " " + t("reg.left");
-            el.appendChild(left);
-          }
-          el.addEventListener("click", function () {
-            selectedTime = slot.time;
-            allSlotEls.forEach(function (c) { c.classList.remove("selected"); });
-            el.classList.add("selected");
-          updateSubmitState();
-          });
-          allSlotEls.push(el);
-          grid.appendChild(el);
-        });
-        group.appendChild(grid);
-        wrap.appendChild(group);
-      });
+       visibleTimes.forEach(function (slot) {
+         var option = document.createElement("option");
+         option.value = slot.time;
+         option.textContent = (slot.rangeLabel || slot.label) + " (" + slot.available + " " + t("reg.left") + ")";
+         select.appendChild(option);
+       });
     }
 
     function maxFamilyCount() {
@@ -3068,7 +3037,7 @@
       var timeLabel = selectedTime || "--";
       if (day && selectedTime) {
         var slot = day.times.find(function (s) { return s.time === selectedTime; });
-        if (slot) timeLabel = slot.label;
+        if (slot) timeLabel = slot.rangeLabel || slot.label;
       }
       $("reviewSlot").textContent = selectedTime ? (dateLabel + " \u2022 " + timeLabel) : "--";
       $("reviewGuests").textContent = String(1 + familyCount);
@@ -3322,7 +3291,7 @@
       var timeLabel = reg.slotTime;
       if (day) {
         var slot = day.times.find(function (t) { return t.time === reg.slotTime; });
-        if (slot) timeLabel = slot.label;
+        if (slot) timeLabel = slot.rangeLabel || slot.label;
       }
       $("successBookingId").textContent = reg.bookingId || "--";
       $("successDate").textContent = dateLabel;
