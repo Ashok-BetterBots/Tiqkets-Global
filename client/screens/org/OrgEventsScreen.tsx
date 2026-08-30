@@ -513,9 +513,15 @@ function BillingSection({ bg }: { bg: string }) {
     setBusy(true);
     setMessage(null);
     try {
-      await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
+      const response = await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
         registrationId: result.registration.id,
       });
+      const data = await response.json();
+      if (data.otpRequired === false) {
+        setResult((prev: any) => prev ? { ...prev, otpRequired: false, billingOtpEnabled: false } : prev);
+        setOtpSent(false);
+        return;
+      }
       setOtpSent(true);
       setMessage({ ok: true, text: "OTP sent on WhatsApp" });
     } catch (e: any) {
@@ -534,10 +540,17 @@ function BillingSection({ bg }: { bg: string }) {
     setBusy(true);
     setMessage(null);
     try {
-      await apiRequest("POST", "/api/dashboard/events/billing/verify-otp", {
+      const response = await apiRequest("POST", "/api/dashboard/events/billing/verify-otp", {
         registrationId: result.registration.id,
         code: otpCode.trim(),
       });
+      const data = await response.json();
+      if (data.otpRequired === false) {
+        setResult((prev: any) => prev ? { ...prev, otpRequired: false, billingOtpEnabled: false } : prev);
+        setOtpSent(false);
+        setOtpCode("");
+        return;
+      }
       setResult((prev: any) => (prev ? { ...prev, otpVerified: true } : prev));
       setMessage({ ok: true, text: "OTP verified" });
     } catch (e: any) {
@@ -613,6 +626,11 @@ function BillingSection({ bg }: { bg: string }) {
           <ThemedText type="body" style={{ marginTop: Spacing.xs }}>
             Advance available: {fmtPaise(result.advanceAvailable)}
           </ThemedText>
+          {!result.redemption && result.billingOtpEnabled === false ? (
+            <ThemedText type="small" style={{ color: theme.success, marginTop: Spacing.xs }}>
+              Billing OTP is disabled for this event. Proceed directly to the invoice.
+            </ThemedText>
+          ) : null}
           {result.redemption ? (
             <ThemedText type="small" style={{ color: theme.error }}>
               Already redeemed {fmtPaise(result.redemption.advanceRedeemed)}

@@ -96,7 +96,13 @@ interface EventRow {
   whatsappTriggers?: EventWhatsappTriggers | null;
   messageTemplates?: Record<string, string> | null;
   checkoutAlert?: CheckoutAlertConfig | null;
+  otpSettings?: EventOtpSettings | null;
 }
+
+type EventOtpSettings = {
+  registration: boolean;
+  billing: boolean;
+};
 
 type CheckoutAlertConfig = {
   enabled: boolean;
@@ -136,6 +142,7 @@ interface EventForm {
   supportContact: string;
   parkingTotalSpaces: string;
   parkingEnabled: boolean;
+  otpSettings: EventOtpSettings;
   whatsappTriggers: EventWhatsappTriggers;
   checkoutAlert: {
     enabled: boolean;
@@ -160,6 +167,7 @@ const EMPTY_FORM: EventForm = {
   supportContact: "",
   parkingTotalSpaces: "0",
   parkingEnabled: true,
+  otpSettings: { registration: true, billing: true },
   whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS },
   checkoutAlert: { enabled: false, maxDurationMinutes: "60", title: "", message: "", iconUrl: "" },
 };
@@ -256,6 +264,7 @@ export default function OrgEventManageScreen() {
     setEditing(null);
     setForm({
       ...EMPTY_FORM,
+      otpSettings: { ...EMPTY_FORM.otpSettings },
       whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS },
       checkoutAlert: { ...EMPTY_FORM.checkoutAlert },
     });
@@ -279,6 +288,10 @@ export default function OrgEventManageScreen() {
       supportContact: ev.supportContact ?? "",
       parkingTotalSpaces: String(ev.parkingTotalSpaces ?? 0),
       parkingEnabled: ev.parkingEnabled !== false,
+      otpSettings: {
+        registration: ev.otpSettings?.registration !== false,
+        billing: ev.otpSettings?.billing !== false,
+      },
       whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS, ...(ev.whatsappTriggers || {}) },
       checkoutAlert: {
         enabled: ev.checkoutAlert?.enabled === true,
@@ -384,6 +397,7 @@ export default function OrgEventManageScreen() {
         supportContact: form.supportContact.trim() || null,
         parkingTotalSpaces: parseInt(form.parkingTotalSpaces, 10) || 0,
         parkingEnabled: form.parkingEnabled,
+        otpSettings: form.otpSettings,
         whatsappTriggers: form.whatsappTriggers,
         checkoutAlert: {
           enabled: form.checkoutAlert.enabled,
@@ -592,6 +606,23 @@ export default function OrgEventManageScreen() {
           value={form.parkingEnabled}
           onValueChange={(value) => setForm((f) => ({ ...f, parkingEnabled: value }))}
           testID="switch-event-parking-enabled"
+        />
+        <ThemedText type="small" style={{ fontWeight: "800", marginTop: Spacing.sm, marginBottom: Spacing.xs }}>
+          OTP verification
+        </ThemedText>
+        <SettingsToggle
+          label="Registration OTP"
+          description="Require customers to verify their WhatsApp number before completing registration."
+          value={form.otpSettings.registration}
+          onValueChange={(registration) => setForm((f) => ({ ...f, otpSettings: { ...f.otpSettings, registration } }))}
+          testID="switch-event-registration-otp"
+        />
+        <SettingsToggle
+          label="Billing OTP"
+          description="Require an OTP before redeeming a customer's advance. When off, billing proceeds directly to the invoice like a store registration."
+          value={form.otpSettings.billing}
+          onValueChange={(billing) => setForm((f) => ({ ...f, otpSettings: { ...f.otpSettings, billing } }))}
+          testID="switch-event-billing-otp"
         />
         <ThemedText type="small" style={{ fontWeight: "800", marginTop: Spacing.sm, marginBottom: Spacing.xs }}>
           Checkout alert

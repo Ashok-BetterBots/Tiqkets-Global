@@ -2195,12 +2195,12 @@
                             <p class="mt-1">Invoice <span x-text="fmtPaise(eventsBillData.redemption.invoiceAmount)"></span> · Advance used <span x-text="fmtPaise(eventsBillData.redemption.advanceRedeemed)"></span> · Final due <span class="font-bold" x-text="fmtPaise(eventsBillData.redemption.finalAmountDue)"></span></p>
                           </div>
                         </template>
-                        <template x-if="eventsBillData.cashPaidAtCounter && !eventsBillData.redemption">
+                        <template x-if="(eventsBillData.cashPaidAtCounter || eventsBillData.billingOtpEnabled === false) && !eventsBillData.redemption">
                           <div class="mt-3 rounded-xl bg-emerald-50 border border-emerald-200 p-3 flex items-start gap-2">
                             <i class="fa-solid fa-hand-holding-dollar text-emerald-600 mt-0.5 shrink-0"></i>
                             <div>
-                              <p class="text-xs font-bold text-emerald-700">Paid at Counter</p>
-                              <p class="text-[11px] text-emerald-600 mt-0.5">Cash collected at registration — OTP verification not required. Proceed directly to invoice.</p>
+                              <p class="text-xs font-bold text-emerald-700" x-text="eventsBillData.cashPaidAtCounter ? 'Paid at Counter' : 'Billing OTP Disabled'"></p>
+                              <p class="text-[11px] text-emerald-600 mt-0.5" x-text="eventsBillData.cashPaidAtCounter ? 'Cash collected at registration — OTP verification not required. Proceed directly to invoice.' : 'OTP verification is disabled for this event. Proceed directly to invoice.'"></p>
                             </div>
                           </div>
                         </template>
@@ -2415,6 +2415,23 @@
                       </span>
                       <input type="checkbox" x-model="eventForm.parkingEnabled" class="w-5 h-5 accent-brand">
                     </label>
+                    <p class="text-[11px] font-bold text-gray-400 uppercase mt-4 mb-2">OTP verification</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                        <span>
+                          <span class="block text-sm font-bold text-gray-700">Registration OTP</span>
+                          <span class="block text-xs text-gray-400 mt-0.5">Verify the customer's WhatsApp number before registration.</span>
+                        </span>
+                        <input type="checkbox" x-model="eventForm.registrationOtpEnabled" class="w-5 h-5 accent-brand">
+                      </label>
+                      <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                        <span>
+                          <span class="block text-sm font-bold text-gray-700">Billing OTP</span>
+                          <span class="block text-xs text-gray-400 mt-0.5">When off, billing proceeds directly like a store registration.</span>
+                        </span>
+                        <input type="checkbox" x-model="eventForm.billingOtpEnabled" class="w-5 h-5 accent-brand">
+                      </label>
+                    </div>
                     <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 mt-2">
                       <span>
                         <span class="block text-sm font-bold text-gray-700">Show checkout message for short visits</span>
@@ -7398,6 +7415,8 @@
           galleryUrls: [],
           messageTemplates: {},
           parkingEnabled: true,
+          registrationOtpEnabled: true,
+          billingOtpEnabled: true,
           checkoutAlertEnabled: false,
           checkoutAlertMaxDurationMinutes: 60,
           checkoutAlertTitle: '',
@@ -13128,6 +13147,8 @@
               registrationFeeRupees: ((ev.registrationFee || 0) / 100) || 0,
               parkingTotalSpaces: ev.parkingTotalSpaces || 0,
               parkingEnabled: ev.parkingEnabled !== false,
+              registrationOtpEnabled: ev.otpSettings?.registration !== false,
+              billingOtpEnabled: ev.otpSettings?.billing !== false,
               checkoutAlertEnabled: ev.checkoutAlert?.enabled === true,
               checkoutAlertMaxDurationMinutes: ev.checkoutAlert?.maxDurationMinutes || 60,
               checkoutAlertTitle: ev.checkoutAlert?.title || '',
@@ -13159,6 +13180,7 @@
               startDate: '', endDate: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00',
               slotDurationMinutes: 30, maxCapacityPerSlot: 50, maxGuestsPerRegistration: 10, registrationFeeRupees: 0,
               parkingTotalSpaces: 0, parkingEnabled: true,
+              registrationOtpEnabled: true, billingOtpEnabled: true,
               checkoutAlertEnabled: false, checkoutAlertMaxDurationMinutes: 60,
               checkoutAlertTitle: '', checkoutAlertMessage: '', checkoutAlertIconUrl: '',
               whatsappTriggers: { reminder_day: true, reminder_hour: true, checked_in: true, billing: true, thank_you_feedback: true },
@@ -13225,6 +13247,10 @@
               registrationFee: Math.max(0, Math.round(parseFloat(f.registrationFeeRupees || '0') * 100) || 0),
               parkingTotalSpaces: parseInt(f.parkingTotalSpaces, 10) || 0,
               parkingEnabled: f.parkingEnabled !== false,
+              otpSettings: {
+                registration: f.registrationOtpEnabled !== false,
+                billing: f.billingOtpEnabled !== false,
+              },
               whatsappTriggers: { ...(f.whatsappTriggers || {}) },
               checkoutAlert: {
                 enabled: f.checkoutAlertEnabled === true,
@@ -13382,10 +13408,18 @@
           if (!this.eventsBillData) return;
           this.eventsBillBusy = true;
           try {
-            await api('/api/dashboard/events/billing/send-otp', {
+            const result = await api('/api/dashboard/events/billing/send-otp', {
               method: 'POST',
               body: JSON.stringify({ registrationId: this.eventsBillData.registration.id }),
             });
+            if (result.otpRequired === false) {
+              this.eventsBillData.otpRequired = false;
+              this.eventsBillData.billingOtpEnabled = false;
+              this.eventsBillOtpSent = false;
+              this.eventsBillBusy = false;
+              this.showToast('Billing OTP was disabled — proceed to invoice', 'success');
+              return;
+            }
             this.eventsBillOtpSent = true;
             this.showToast('OTP sent on WhatsApp', 'success');
           } catch (e) { this.showToast(e.message || 'Failed to send OTP', 'error'); }
@@ -13397,10 +13431,19 @@
           if (!code) { this.showToast('Enter the OTP', 'error'); return; }
           this.eventsBillBusy = true;
           try {
-            await api('/api/dashboard/events/billing/verify-otp', {
+            const result = await api('/api/dashboard/events/billing/verify-otp', {
               method: 'POST',
               body: JSON.stringify({ registrationId: this.eventsBillData.registration.id, code }),
             });
+            if (result.otpRequired === false) {
+              this.eventsBillData.otpRequired = false;
+              this.eventsBillData.billingOtpEnabled = false;
+              this.eventsBillOtpSent = false;
+              this.eventsBillOtpCode = '';
+              this.eventsBillBusy = false;
+              this.showToast('Billing OTP was disabled — proceed to invoice', 'success');
+              return;
+            }
             this.eventsBillData.otpVerified = true;
             this.showToast('OTP verified', 'success');
           } catch (e) { this.showToast(e.message || 'Incorrect OTP', 'error'); }

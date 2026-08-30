@@ -1432,6 +1432,16 @@ export const DEFAULT_EVENT_WHATSAPP_TRIGGERS: EventWhatsAppTriggers = {
   thank_you_feedback: true,
 };
 
+export type EventOtpSettings = {
+  registration: boolean;
+  billing: boolean;
+};
+
+export const DEFAULT_EVENT_OTP_SETTINGS: EventOtpSettings = {
+  registration: true,
+  billing: true,
+};
+
 export type EventCheckoutAlertConfig = {
   enabled: boolean;
   maxDurationMinutes: number;
@@ -1511,6 +1521,7 @@ export const events = pgTable("events", {
   // "thank_you_feedback"). Falls back to shared/wa-templates.ts defaults.
   messageTemplates: jsonb("message_templates").$type<Record<string, string>>().default({}).notNull(),
   whatsappTriggers: jsonb("whatsapp_triggers").$type<EventWhatsAppTriggers>().default(DEFAULT_EVENT_WHATSAPP_TRIGGERS).notNull(),
+  otpSettings: jsonb("otp_settings").$type<EventOtpSettings>().default(DEFAULT_EVENT_OTP_SETTINGS).notNull(),
   parkingEnabled: boolean("parking_enabled").default(true).notNull(),
   // Manual parking capacity counter (no vehicle-level tracking) per the
   // Parking staff dashboard requirement.

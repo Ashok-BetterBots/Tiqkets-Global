@@ -92,6 +92,13 @@
       "when": 1788200000000,
       "tag": "0012_event_checkout_alert",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788300000000,
+      "tag": "0013_event_otp_settings",
+      "breakpoints": true
     }
   ]
 }
