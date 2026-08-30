@@ -19,6 +19,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { getApiUrl } from "@/lib/query-client";
 import { BrandColors, Spacing, BorderRadius } from "@/constants/theme";
+import { formatEventSlotRange } from "@shared/eventSlots";
 
 const BRAND = BrandColors.primary;
 
@@ -30,17 +31,18 @@ interface InputField {
   options?: string[];
 }
 
-interface SlotTime { time: string; label: string; available: number; past: boolean; }
+interface SlotTime { time: string; label: string; rangeLabel?: string; available: number; past: boolean; }
 interface SlotDay { date: string; label: string; times: SlotTime[]; }
 interface EventLocation {
   id: string;
   name: string;
   registrationFee: number;
+  slotDurationMinutes?: number;
   inputFields: InputField[];
   slots: SlotDay[];
 }
 interface LandingData {
-  event?: { registrationFee?: number | null };
+  event?: { registrationFee?: number | null; slotDurationMinutes?: number | null };
   locations: EventLocation[];
   slots: SlotDay[];
 }
@@ -146,6 +148,8 @@ export function EventManualRegModal({
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState<Registration | null>(null);
   const [showDateDropdown, setShowDateDropdown] = useState(false);
+  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
+  const [eventSlotDurationMinutes, setEventSlotDurationMinutes] = useState(30);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraScanned, setCameraScanned] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -167,9 +171,11 @@ export function EventManualRegModal({
     });
     setLoadError(null);
     setShowDateDropdown(false);
+    setShowTimeDropdown(false);
     setCameraOpen(false);
     setCameraScanned(false);
     setCameraError(null);
+    setEventSlotDurationMinutes(30);
   }, []);
 
   useEffect(() => {
@@ -182,6 +188,7 @@ export function EventManualRegModal({
     fetchJson(`/api/event/${branchId}/${eventId}?t=${Date.now()}`)
       .then((data: LandingData) => {
         const eventFee = Number(data.event?.registrationFee ?? 0);
+        setEventSlotDurationMinutes(Math.max(5, Number(data.event?.slotDurationMinutes) || 30));
         const locs = (data.locations && data.locations.length > 0)
           ? data.locations.map((location) => ({
             ...location,
@@ -242,6 +249,11 @@ export function EventManualRegModal({
       return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
     } catch { return dateStr; }
   };
+  const formatSlotOption = useCallback((slot: SlotTime): string => {
+    const duration = selectedLocation?.slotDurationMinutes ?? eventSlotDurationMinutes;
+    const range = slot.rangeLabel || formatEventSlotRange(slot.time, duration);
+    return `${range} (${slot.available} left)`;
+  }, [eventSlotDurationMinutes, selectedLocation]);
 
   const amountDue = Number(selectedLocation?.registrationFee || 0) / 100;
   const amountCollectedNum = Number(form.amountCollected) || 0;
@@ -422,7 +434,10 @@ export function EventManualRegModal({
                           return (
                             <Pressable
                               key={l.id}
-                              onPress={() => setField({ locationId: l.id, slotDate: "", slotTime: "", amountCollected: String(Number(l.registrationFee || 0) / 100) })}
+                               onPress={() => {
+                                 setField({ locationId: l.id, slotDate: "", slotTime: "", amountCollected: String(Number(l.registrationFee || 0) / 100) });
+                                 setShowTimeDropdown(false);
+                               }}
                               style={[styles.chip, { borderColor: sel ? BRAND : border, backgroundColor: sel ? BRAND + "15" : "transparent" }]}
                               testID={`chip-location-${l.id}`}
                             >
@@ -503,7 +518,11 @@ export function EventManualRegModal({
                               return (
                                 <Pressable
                                   key={d.date}
-                                  onPress={() => { setField({ slotDate: d.date, slotTime: "" }); setShowDateDropdown(false); }}
+                                   onPress={() => {
+                                     setField({ slotDate: d.date, slotTime: "" });
+                                     setShowDateDropdown(false);
+                                     setShowTimeDropdown(false);
+                                   }}
                                   style={[{ paddingHorizontal: Spacing.md, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: Spacing.sm, backgroundColor: sel ? BRAND + "15" : surface }, idx > 0 ? { borderTopWidth: 1, borderTopColor: border } : {}]}
                                 >
                                   <ThemedText style={{ color: sel ? BRAND : text, fontWeight: sel ? "700" : "500", flex: 1 }}>{formatDropdownDate(d.date)}</ThemedText>
@@ -522,23 +541,47 @@ export function EventManualRegModal({
                       {bookableTimes.length === 0 ? (
                         <ThemedText style={{ color: textSecondary, fontSize: 13 }}>No available times for this date</ThemedText>
                       ) : (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.xs }}>
-                          {bookableTimes.map((t) => {
-                            const sel = t.time === form.slotTime;
-                            return (
-                              <Pressable
-                                key={t.time}
-                                onPress={() => setField({ slotTime: t.time })}
-                                style={[styles.chip, { borderColor: sel ? BRAND : border, backgroundColor: sel ? BRAND + "15" : "transparent" }]}
-                                testID={`chip-time-${t.time}`}
-                              >
-                                <ThemedText style={{ fontSize: 13, fontWeight: sel ? "700" : "500", color: sel ? BRAND : text }}>
-                                  {t.label}
-                                </ThemedText>
-                              </Pressable>
-                            );
-                          })}
-                        </ScrollView>
+                        <>
+                          <Pressable
+                            onPress={() => setShowTimeDropdown((v) => !v)}
+                            style={[styles.input, { borderColor: showTimeDropdown ? BRAND : border, flexDirection: "row", alignItems: "center", gap: Spacing.sm }]}
+                            testID="button-manual-reg-time"
+                          >
+                            <Feather name="clock" size={15} color={BRAND} />
+                            <ThemedText style={{ color: form.slotTime ? text : textSecondary, flex: 1 }}>
+                              {form.slotTime
+                                ? formatSlotOption(bookableTimes.find((t) => t.time === form.slotTime) || bookableTimes[0])
+                                : "Select a time slot"}
+                            </ThemedText>
+                            <Feather name={showTimeDropdown ? "chevron-up" : "chevron-down"} size={15} color={textSecondary} />
+                          </Pressable>
+                          {showTimeDropdown && (
+                            <View style={{ borderWidth: 1, borderColor: border, borderRadius: 10, marginTop: 4, overflow: "hidden" }}>
+                              {bookableTimes.map((t, idx) => {
+                                const sel = t.time === form.slotTime;
+                                return (
+                                  <Pressable
+                                    key={t.time}
+                                    onPress={() => {
+                                      setField({ slotTime: t.time });
+                                      setShowTimeDropdown(false);
+                                    }}
+                                    style={[
+                                      { paddingHorizontal: Spacing.md, paddingVertical: 11, flexDirection: "row", alignItems: "center", gap: Spacing.sm, backgroundColor: sel ? BRAND + "15" : surface },
+                                      idx > 0 ? { borderTopWidth: 1, borderTopColor: border } : {},
+                                    ]}
+                                    testID={`option-manual-reg-time-${t.time}`}
+                                  >
+                                    <ThemedText style={{ color: sel ? BRAND : text, fontWeight: sel ? "700" : "500", flex: 1 }}>
+                                      {formatSlotOption(t)}
+                                    </ThemedText>
+                                    {sel && <Feather name="check" size={14} color={BRAND} />}
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
+                          )}
+                        </>
                       )}
                     </Field>
                   ) : null}

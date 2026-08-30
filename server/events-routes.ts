@@ -59,6 +59,7 @@ import {
 } from "@shared/schema";
 import { createRouteOrder, isRazorpayTestMode, isRouteProfileActive, mapWithConcurrency } from "./route-payouts";
 import { isValidRazorpayProviderId } from "./razorpay-route-contract";
+import { formatEventSlotRange, formatEventTime } from "@shared/eventSlots";
 import {
   requirePermission,
   publicRoute,
@@ -252,14 +253,7 @@ function formatSlotDate(dateStr: string): string {
 }
 
 function formatSlotTime(timeStr: string): string {
-  try {
-    const [h, m] = timeStr.split(":").map(Number);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const hh = h % 12 === 0 ? 12 : h % 12;
-    return `${hh}:${String(m).padStart(2, "0")} ${ampm}`;
-  } catch {
-    return timeStr;
-  }
+  return formatEventTime(timeStr);
 }
 
 // Convert a wall-clock date+time in an IANA timezone to a UTC Date.
@@ -1567,6 +1561,7 @@ export function registerEventsRoutes(app: Express) {
             return {
               time,
               label: formatSlotTime(time),
+              rangeLabel: formatEventSlotRange(time, cfg.slotDurationMinutes),
               capacity,
               used,
               available: Math.max(0, capacity - used),
@@ -1596,6 +1591,7 @@ export function registerEventsRoutes(app: Express) {
           name: svc.name,
           description: svc.description || "",
           registrationFee: cfg.registrationFee,
+           slotDurationMinutes: cfg.slotDurationMinutes,
           inputFields: Array.isArray(svc.inputFields) ? svc.inputFields : [],
           slots: buildSlots(cfg, usage),
         };
