@@ -2877,6 +2877,10 @@
       return /^[6-9][0-9]{9}$/.test(p);
     }
 
+    function registrationOtpEnabled() {
+      return !data || !data.event || !data.event.otpSettings || data.event.otpSettings.registration !== false;
+    }
+
     function setStepState(n, state) {
       var el = $("step" + n);
       if (!el) return;
@@ -2938,12 +2942,22 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone: phone })
         });
+        var responseData = null;
+        try { responseData = await res.json(); } catch (e2) {}
         if (!res.ok) {
-          var errData = null;
-          try { errData = await res.json(); } catch (e2) {}
           $("otpSendingState").classList.add("hidden");
-          $("otpSendFailMsg").textContent = (errData && errData.error) || t("otp.sendError");
+          $("otpSendFailMsg").textContent = (responseData && responseData.error) || t("otp.sendError");
           $("otpSendFailState").classList.remove("hidden");
+          return;
+        }
+        if (responseData && responseData.otpRequired === false) {
+          phoneVerified = false;
+          verifiedPhone = null;
+          phoneVerificationToken = null;
+          inOtpStep = false;
+          $("stepOtp").classList.add("hidden");
+          $("nextBtn").classList.remove("hidden");
+          goToStep(2);
           return;
         }
         otpSent = true;
@@ -3003,6 +3017,17 @@
           $("verifyOtpBtn").textContent = t("otp.verify");
           return;
         }
+        if (data.otpRequired === false) {
+          phoneVerified = false;
+          verifiedPhone = null;
+          phoneVerificationToken = null;
+          if (otpResendTimer) { clearInterval(otpResendTimer); otpResendTimer = null; }
+          inOtpStep = false;
+          $("stepOtp").classList.add("hidden");
+          $("nextBtn").classList.remove("hidden");
+          goToStep(2);
+          return;
+        }
         // Verified — store token and proceed to schedule step
         phoneVerified = true;
         verifiedPhone = phone;
@@ -3054,6 +3079,13 @@
         var missing = firstMissingField();
         if (!detailsStepValid()) {
           if (missing) { toast(t("toast.fieldRequired", { field: missing }), true); }
+          return;
+        }
+        if (!registrationOtpEnabled()) {
+          phoneVerified = false;
+          phoneVerificationToken = null;
+          verifiedPhone = null;
+          goToStep(2);
           return;
         }
         // Check if the entered WhatsApp number has already been verified this session

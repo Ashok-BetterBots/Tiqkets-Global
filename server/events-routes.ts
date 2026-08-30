@@ -27,8 +27,10 @@ import QRCode from "qrcode";
 import { db, pool } from "./db";
 import { and, desc, eq, gte, ilike, inArray, isNull, isNotNull, lt, ne, or, sql as dsql } from "drizzle-orm";
 import {
+  DEFAULT_EVENT_OTP_SETTINGS,
   DEFAULT_EVENT_WHATSAPP_TRIGGERS,
   EVENT_WHATSAPP_TRIGGER_KEYS,
+  type EventOtpSettings,
   type EventWhatsAppTriggers,
   events,
   eventRegistrations,
@@ -502,6 +504,42 @@ export function normalizeEventWhatsappTriggers(raw: unknown): EventWhatsAppTrigg
   return normalized;
 }
 
+export function normalizeEventOtpSettings(raw: unknown, fallback?: unknown): EventOtpSettings {
+  const base = fallback && typeof fallback === "object" && !Array.isArray(fallback)
+    ? { ...DEFAULT_EVENT_OTP_SETTINGS, ...(fallback as Partial<EventOtpSettings>) }
+    : { ...DEFAULT_EVENT_OTP_SETTINGS };
+  if (raw === undefined || raw === null) return base;
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("otpSettings must be an object map");
+  }
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (key !== "registration" && key !== "billing") {
+      throw new Error(`Unknown OTP setting "${key}"`);
+    }
+    if (typeof value !== "boolean") {
+      throw new Error(`OTP setting "${key}" must be a boolean`);
+    }
+    base[key] = value;
+  }
+  return base;
+}
+
+export function isEventRegistrationOtpEnabled(
+  ev: Pick<Event, "otpSettings">,
+): boolean {
+  return normalizeEventOtpSettings(ev.otpSettings).registration;
+}
+
+export function isEventBillingOtpRequired(
+  ev: Pick<Event, "otpSettings">,
+  feeExists: boolean,
+  cashPaidAtCounter: boolean,
+): boolean {
+  return feeExists &&
+    normalizeEventOtpSettings(ev.otpSettings).billing &&
+    !cashPaidAtCounter;
+}
+
 export function normalizeEventParkingEnabled(raw: unknown, fallback = true): boolean {
   if (raw === undefined || raw === null) return fallback;
   if (typeof raw !== "boolean") throw new Error("parkingEnabled must be a boolean");
@@ -763,6 +801,7 @@ function publicEventShape(ev: Event) {
     brandPrimaryColor: ev.brandPrimaryColor,
     brandButtonColor: ev.brandButtonColor,
     brandFontFamily: ev.brandFontFamily,
+    otpSettings: normalizeEventOtpSettings(ev.otpSettings),
     status: ev.status,
   };
 }
@@ -1624,6 +1663,11 @@ export function registerEventsRoutes(app: Express) {
 
   const handleSendPhoneOtp = async (req: Request, res: Response, eventId: string) => {
     try {
+      const ev = await loadEventById(eventId, { publishedOnly: true });
+      if (!ev) return res.status(404).json({ error: "No active event" });
+      if (!isEventRegistrationOtpEnabled(ev)) {
+        return res.json({ sent: false, otpRequired: false });
+      }
       const rawPhone = String(req.body?.phone || "");
       const phone = normalizeIndianPhone(rawPhone);
       if (!phone || phone.replace(/\D/g, "").length < 10) {
@@ -1678,6 +1722,11 @@ export function registerEventsRoutes(app: Express) {
 
   const handleVerifyPhoneOtp = async (req: Request, res: Response, eventId: string) => {
     try {
+      const ev = await loadEventById(eventId, { publishedOnly: true });
+      if (!ev) return res.status(404).json({ error: "No active event" });
+      if (!isEventRegistrationOtpEnabled(ev)) {
+        return res.json({ verified: true, otpRequired: false, verificationToken: null });
+      }
       const rawPhone = String(req.body?.phone || "");
       const code = String(req.body?.otp || "").trim();
       const phone = normalizeIndianPhone(rawPhone);
@@ -1769,28 +1818,30 @@ export function registerEventsRoutes(app: Express) {
       // Customers must verify their WhatsApp number before completing online
       // registration. The verification token is issued by /verify-phone-otp and
       // is valid for 30 minutes from the moment they completed the OTP check.
-      const verificationToken = String(req.body?.verificationToken || "").trim();
-      if (!verificationToken) {
-        return res.status(400).json({
-          error: "WhatsApp verification required. Please verify your number before registering.",
-          requiresVerification: true,
-        });
-      }
-      const verificationCutoff = new Date(Date.now() - 30 * 60_000);
-      const [phoneVerif] = await db.select()
-        .from(eventPhoneVerifications)
-        .where(and(
-          eq(eventPhoneVerifications.eventId, ev.id),
-          eq(eventPhoneVerifications.phone, phone),
-          eq(eventPhoneVerifications.verificationToken, verificationToken),
-          gte(eventPhoneVerifications.verifiedAt, verificationCutoff)
-        ))
-        .limit(1);
-      if (!phoneVerif) {
-        return res.status(400).json({
-          error: "WhatsApp verification expired or invalid. Please verify your number again.",
-          requiresVerification: true,
-        });
+      if (isEventRegistrationOtpEnabled(ev)) {
+        const verificationToken = String(req.body?.verificationToken || "").trim();
+        if (!verificationToken) {
+          return res.status(400).json({
+            error: "WhatsApp verification required. Please verify your number before registering.",
+            requiresVerification: true,
+          });
+        }
+        const verificationCutoff = new Date(Date.now() - 30 * 60_000);
+        const [phoneVerif] = await db.select()
+          .from(eventPhoneVerifications)
+          .where(and(
+            eq(eventPhoneVerifications.eventId, ev.id),
+            eq(eventPhoneVerifications.phone, phone),
+            eq(eventPhoneVerifications.verificationToken, verificationToken),
+            gte(eventPhoneVerifications.verifiedAt, verificationCutoff)
+          ))
+          .limit(1);
+        if (!phoneVerif) {
+          return res.status(400).json({
+            error: "WhatsApp verification expired or invalid. Please verify your number again.",
+            requiresVerification: true,
+          });
+        }
       }
 
       // Resolve the chosen Location (service). When the event has locations the
@@ -2884,10 +2935,12 @@ export function registerEventsRoutes(app: Express) {
         return res.status(400).json({ error: "Branch does not belong to this organization" });
       }
       let whatsappTriggers: EventWhatsAppTriggers;
+      let otpSettings: EventOtpSettings;
       let parkingEnabled: boolean;
       let checkoutAlert: CheckoutAlert;
       try {
         whatsappTriggers = normalizeEventWhatsappTriggers(b.whatsappTriggers);
+        otpSettings = normalizeEventOtpSettings(b.otpSettings);
         parkingEnabled = normalizeEventParkingEnabled(b.parkingEnabled);
         checkoutAlert = normalizeCheckoutAlert(b.checkoutAlert);
       } catch (e) {
@@ -2920,6 +2973,7 @@ export function registerEventsRoutes(app: Express) {
         brandFontFamily: b.brandFontFamily || null,
         messageTemplates: b.messageTemplates && typeof b.messageTemplates === "object" ? b.messageTemplates : {},
         whatsappTriggers,
+        otpSettings,
         parkingEnabled,
         checkoutAlert,
         parkingTotalSpaces: Math.max(0, parseInt(String(b.parkingTotalSpaces || 0), 10) || 0),
@@ -2955,6 +3009,13 @@ export function registerEventsRoutes(app: Express) {
       if (b.whatsappTriggers !== undefined) {
         try {
           patch.whatsappTriggers = normalizeEventWhatsappTriggers(b.whatsappTriggers);
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
+      if (b.otpSettings !== undefined) {
+        try {
+          patch.otpSettings = normalizeEventOtpSettings(b.otpSettings, ev.otpSettings);
         } catch (e) {
           return res.status(400).json({ error: (e as Error).message });
         }
@@ -3722,7 +3783,8 @@ export function registerEventsRoutes(app: Express) {
       }
 
       const feeExists = (ev.registrationFee || 0) > 0;
-      const otpRequired = feeExists && !cashPaidAtCounter;
+      const billingOtpEnabled = normalizeEventOtpSettings(ev.otpSettings).billing;
+      const otpRequired = isEventBillingOtpRequired(ev, feeExists, cashPaidAtCounter);
       let otpVerified = false;
       if (otpRequired && !redemption) {
         const [otpRow] = await db.select().from(eventBillingOtps)
@@ -3738,6 +3800,7 @@ export function registerEventsRoutes(app: Express) {
         otpRequired,
         otpVerified,
         cashPaidAtCounter,
+        billingOtpEnabled,
       });
     } catch (e) {
       console.error("[events] billing lookup failed:", e);
@@ -3756,6 +3819,9 @@ export function registerEventsRoutes(app: Express) {
       const scoped = await findOrgRegistration(req, String(registrationId));
       if (!scoped) return res.status(404).json({ error: "Registration not found" });
       const { reg, ev } = scoped;
+      if (!normalizeEventOtpSettings(ev.otpSettings).billing) {
+        return res.json({ sent: false, otpRequired: false });
+      }
       if ((ev.registrationFee || 0) <= 0) {
         return res.status(400).json({ error: "This event has no registration fee configured — OTP verification is not required" });
       }
@@ -3792,7 +3858,10 @@ export function registerEventsRoutes(app: Express) {
       if (!registrationId || !code) return res.status(400).json({ error: "registrationId and code are required" });
       const scoped = await findOrgRegistration(req, String(registrationId));
       if (!scoped) return res.status(404).json({ error: "Registration not found" });
-      const { reg } = scoped;
+      const { reg, ev } = scoped;
+      if (!normalizeEventOtpSettings(ev.otpSettings).billing) {
+        return res.json({ verified: true, otpRequired: false });
+      }
       const [otpRow] = await db.select().from(eventBillingOtps)
         .where(and(eq(eventBillingOtps.registrationId, reg.id), eq(eventBillingOtps.verified, false), gte(eventBillingOtps.expiresAt, new Date())))
         .orderBy(desc(eventBillingOtps.createdAt)).limit(1);
@@ -3835,7 +3904,7 @@ export function registerEventsRoutes(app: Express) {
             .from(payments).where(eq(payments.id, reg.paymentId)).limit(1);
           cashPaidAtCounter = pmtRow?.paymentMethod === "manual";
         }
-        if (!cashPaidAtCounter) {
+        if (isEventBillingOtpRequired(ev, true, cashPaidAtCounter)) {
           const [otpRow] = await db.select().from(eventBillingOtps)
             .where(and(eq(eventBillingOtps.registrationId, reg.id), eq(eventBillingOtps.verified, true)))
             .limit(1);

@@ -136,6 +136,7 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
   const [otpCode, setOtpCode] = useState("");
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpVerified, setOtpVerified] = useState(otpAlreadyVerified);
+  const [otpBypassed, setOtpBypassed] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [invoiceRupees, setInvoiceRupees] = useState("");
   const [redeeming, setRedeeming] = useState(false);
@@ -181,9 +182,16 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     setOtpSending(true);
     setError(null);
     try {
-      await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
+      const response = await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
         registrationId: lookup.registration.id,
       });
+      const result = await response.json();
+      if (result.otpRequired === false) {
+        setOtpBypassed(true);
+        setOtpSent(false);
+        setStep("invoice");
+        return;
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setOtpSent(true);
       setResendCooldown(60);
@@ -250,9 +258,16 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     setError(null);
     setOtpSending(true);
     try {
-      await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
+      const response = await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
         registrationId: lookup.registration.id,
       });
+      const result = await response.json();
+      if (result.otpRequired === false) {
+        setOtpBypassed(true);
+        setOtpSent(false);
+        setStep("invoice");
+        return;
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setOtpSent(true);
       setResendCooldown(60);
@@ -269,10 +284,18 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     setOtpVerifying(true);
     setError(null);
     try {
-      await apiRequest("POST", "/api/dashboard/events/billing/verify-otp", {
+      const response = await apiRequest("POST", "/api/dashboard/events/billing/verify-otp", {
         registrationId: lookup.registration.id,
         code: otpCode.trim(),
       });
+      const result = await response.json();
+      if (result.otpRequired === false) {
+        setOtpBypassed(true);
+        setOtpSent(false);
+        setOtpCode("");
+        setStep("invoice");
+        return;
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setOtpVerified(true);
       setOtpCode("");
@@ -346,7 +369,7 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
             <View style={[styles.handle, { backgroundColor: theme.border }]} />
 
             {/* Step indicator */}
-            <StepIndicator step={step} otpRequired={lookup.otpRequired && !otpAlreadyVerified} cashPaidAtCounter={lookup.cashPaidAtCounter} />
+            <StepIndicator step={step} otpRequired={lookup.otpRequired && !otpAlreadyVerified && !otpBypassed} cashPaidAtCounter={lookup.cashPaidAtCounter} />
 
             <ScrollView
               keyboardShouldPersistTaps="handled"
