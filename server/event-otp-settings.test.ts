@@ -34,6 +34,15 @@ test("billing OTP bypass matches store registration behavior when disabled", () 
   assert.equal(isEventBillingOtpRequired(enabled, false, false), false);
 });
 
+test("billing-disabled and store registrations use the same no-OTP result", () => {
+  const enabled = { otpSettings: { registration: true, billing: true } };
+  const disabled = { otpSettings: { registration: true, billing: false } };
+  const inStoreOtpRequired = isEventBillingOtpRequired(enabled, true, true);
+  const disabledOtpRequired = isEventBillingOtpRequired(disabled, true, false);
+  assert.equal(inStoreOtpRequired, false);
+  assert.equal(disabledOtpRequired, inStoreOtpRequired);
+});
+
 test("public registration UI skips OTP only when the event setting is disabled", () => {
   const landing = readFileSync(
     new URL("./templates/event-landing.html", import.meta.url),

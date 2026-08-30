@@ -68,3 +68,4 @@
 - [Mobile event live refresh](mobile-event-live-refresh.md) — Expo AppState null/unknown is visible; transaction activity refresh must use the registration’s event ID, not the first active event.
 - [Mobile event selection scope](mobile-event-selection-scope.md) — Event tabs share one session selection; selected data is scoped, ticket lookup stays global, and late async work must be discarded after a switch.
 - [Checkout alerts are write-once snapshots](event-checkout-alert-snapshots.md) — preserve the first server-confirmed alert even if Support reopens an exited booking; current event settings must not rewrite history.
+- [Event ticket completion boundaries](event-ticket-completion-boundaries.md) — payment finalization must retry; ticket success requires QR persistence, while WhatsApp dispatch remains independent.

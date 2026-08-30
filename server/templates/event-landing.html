@@ -3292,8 +3292,12 @@
         redirectToTicket(out.registration);
       } catch (err) {
         hideLoading();
+        if (attempt < 3) {
+          setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, 1200);
+          return;
+        }
         submitting = false;
-          updateSubmitState();
+        updateSubmitState();
         toast(t("toast.verifyFailed"), true);
       }
     }

@@ -255,6 +255,31 @@ describe("Scenario H: payment-completed ticket retry", () => {
     assert.equal(retried.qrToken, persisted.qrToken);
     assert.equal(retried.bookingId, persisted.bookingId);
   });
+
+  test("ticket remains displayable when dispatch startup throws", async () => {
+    const [paid] = await db.insert(eventRegistrations).values({
+      eventId,
+      customerName: `Dispatch Failure ${uniqueSuffix}`,
+      customerPhone: "919933333333",
+      slotDate: todayStr,
+      slotTime: "13:30",
+      status: "payment_completed",
+      amountPaid: 5000,
+    }).returning();
+    const dispatchFailure = () => {
+      throw new Error("simulated dispatch startup failure");
+    };
+
+    try {
+      const issued = await issueTicket(eventRow, paid, dispatchFailure);
+      assert.equal(issued.status, "ticket_generated");
+      assert.ok(issued.bookingId);
+      assert.ok(issued.qrToken);
+      assert.ok(await hasPendingLog(paid.id));
+    } finally {
+      await cleanup(paid.id);
+    }
+  });
 });
 
 // ──────────────────────────────────────────────────────────
