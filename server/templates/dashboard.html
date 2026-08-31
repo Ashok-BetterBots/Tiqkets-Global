@@ -2395,6 +2395,18 @@
                       <input type="number" min="0" step="0.01" x-model="eventForm.registrationFeeRupees" class="input-field mt-1">
                       <p class="text-[10px] text-gray-400 mt-1">Collected as a redeemable advance via Razorpay</p>
                     </div>
+                     <div>
+                       <label class="text-[11px] font-bold text-gray-400 uppercase">Refundable</label>
+                       <select x-model="eventForm.refundable" class="input-field mt-1">
+                         <option :value="false">No</option>
+                         <option :value="true">Yes</option>
+                       </select>
+                       <p class="text-[10px] text-gray-400 mt-1">Customer guidance only; payment behavior is unchanged.</p>
+                     </div>
+                     <div class="md:col-span-2">
+                       <label class="text-[11px] font-bold text-gray-400 uppercase">Refund message shown to customers</label>
+                       <textarea maxlength="1000" rows="2" x-model="eventForm.refundMessage" class="input-field mt-1" placeholder="e.g. Refunds are available up to 24 hours before your visit."></textarea>
+                     </div>
                     <div>
                       <label class="text-[11px] font-bold text-gray-400 uppercase">Parking spaces (0 = no parking)</label>
                       <input type="number" min="0" x-model="eventForm.parkingTotalSpaces" class="input-field mt-1">
@@ -3422,6 +3434,19 @@
                       </template>
                     </select>
                     <p class="text-xs text-gray-400 mt-1">Guests opening this event's link see only its linked locations.</p>
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Refundable</label>
+                    <select x-model="locationForm.refundable" class="input-field">
+                      <option :value="false">No</option>
+                      <option :value="true">Yes</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Refund message shown to customers</label>
+                    <textarea maxlength="1000" rows="2" x-model="locationForm.refundMessage" class="input-field" placeholder="Optional customer guidance"></textarea>
                   </div>
                 </div>
 
@@ -7395,7 +7420,7 @@
         eventLocationGuests: {},
         // ===== Event Locations (3-level IA) state =====
         locationModalOpen: false,
-        locationForm: { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', inputFields: [], slotCapacityOverrides: {} },
+        locationForm: { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', refundable: false, refundMessage: '', inputFields: [], slotCapacityOverrides: {} },
         locationApplyAll: false,
         locationSaving: false,
         showLocationFieldForm: false,
@@ -7422,6 +7447,8 @@
           checkoutAlertTitle: '',
           checkoutAlertMessage: '',
           checkoutAlertIconUrl: '',
+          refundable: false,
+          refundMessage: '',
           whatsappTriggers: { reminder_day: true, reminder_hour: true, checked_in: true, billing: true, thank_you_feedback: true },
         },
         eventFaqDraft: { question: '', answer: '' },
@@ -12771,12 +12798,14 @@
               slotDurationMinutes: cfg.slotDurationMinutes,
               maxCapacityPerSlot: cfg.maxCapacityPerSlot,
               registrationFeeRupees: String((cfg.registrationFee || 0) / 100),
+              refundable: cfg.refundable === true,
+              refundMessage: typeof cfg.refundMessage === 'string' ? cfg.refundMessage : '',
               inputFields: loc.inputFields ? JSON.parse(JSON.stringify(loc.inputFields)) : [],
               slotCapacityOverrides: cfg.slotCapacityOverrides || {},
               eventId: (loc.serviceSettings && loc.serviceSettings.event && loc.serviceSettings.event.eventId) || '',
             };
           } else {
-            this.locationForm = { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', inputFields: [], slotCapacityOverrides: {}, eventId: this.eventsSelectedId || (this.eventsList[0] && this.eventsList[0].id) || '' };
+            this.locationForm = { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', refundable: false, refundMessage: '', inputFields: [], slotCapacityOverrides: {}, eventId: this.eventsSelectedId || (this.eventsList[0] && this.eventsList[0].id) || '' };
           }
           this.locationModalOpen = true;
         },
@@ -12843,6 +12872,8 @@
               slotDurationMinutes: Math.max(5, parseInt(this.locationForm.slotDurationMinutes, 10) || 30),
               maxCapacityPerSlot: Math.max(0, parseInt(this.locationForm.maxCapacityPerSlot, 10) || 0),
               registrationFee,
+              refundable: this.locationForm.refundable === true,
+              refundMessage: String(this.locationForm.refundMessage || '').trim(),
               slotCapacityOverrides: this.locationForm.slotCapacityOverrides || {},
               eventId: this.locationForm.eventId || '',
             };
@@ -13145,6 +13176,8 @@
               maxCapacityPerSlot: ev.maxCapacityPerSlot || 50,
               maxGuestsPerRegistration: ev.maxGuestsPerRegistration || 10,
               registrationFeeRupees: ((ev.registrationFee || 0) / 100) || 0,
+              refundable: ev.refundable === true,
+              refundMessage: typeof ev.refundMessage === 'string' ? ev.refundMessage : '',
               parkingTotalSpaces: ev.parkingTotalSpaces || 0,
               parkingEnabled: ev.parkingEnabled !== false,
               registrationOtpEnabled: ev.otpSettings?.registration !== false,
@@ -13179,6 +13212,7 @@
               name: '', description: '', venue: '', googleMapsLink: '',
               startDate: '', endDate: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00',
               slotDurationMinutes: 30, maxCapacityPerSlot: 50, maxGuestsPerRegistration: 10, registrationFeeRupees: 0,
+              refundable: false, refundMessage: '',
               parkingTotalSpaces: 0, parkingEnabled: true,
               registrationOtpEnabled: true, billingOtpEnabled: true,
               checkoutAlertEnabled: false, checkoutAlertMaxDurationMinutes: 60,
@@ -13245,6 +13279,8 @@
               maxCapacityPerSlot: parseInt(f.maxCapacityPerSlot, 10) || 50,
               maxGuestsPerRegistration: parseInt(f.maxGuestsPerRegistration, 10) || 10,
               registrationFee: Math.max(0, Math.round(parseFloat(f.registrationFeeRupees || '0') * 100) || 0),
+              refundable: f.refundable === true,
+              refundMessage: String(f.refundMessage || '').trim(),
               parkingTotalSpaces: parseInt(f.parkingTotalSpaces, 10) || 0,
               parkingEnabled: f.parkingEnabled !== false,
               otpSettings: {

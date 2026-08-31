@@ -28,6 +28,7 @@ import { db, pool } from "./db";
 import { and, desc, eq, gte, ilike, inArray, isNull, isNotNull, lt, ne, or, sql as dsql } from "drizzle-orm";
 import {
   DEFAULT_EVENT_OTP_SETTINGS,
+  DEFAULT_EVENT_REFUND_POLICY,
   DEFAULT_EVENT_WHATSAPP_TRIGGERS,
   EVENT_WHATSAPP_TRIGGER_KEYS,
   type EventOtpSettings,
@@ -52,6 +53,7 @@ import {
   routePayoutAllocations,
   type Event,
   type EventRegistration,
+  type EventRefundPolicy,
   type PreprintedBackElement,
   type PreprintedBackElementType,
   type PreprintedBackFontFamily,
@@ -314,6 +316,8 @@ export type LocationEventConfig = {
   maxCapacityPerSlot: number;
   slotCapacityOverrides: Record<string, number>;
   registrationFee: number;
+  refundable: boolean;
+  refundMessage: string;
   // Optional link tying this location to a specific event on the branch.
   // Empty string / undefined means the location is not linked to any event.
   eventId?: string;
@@ -351,6 +355,9 @@ export function resolveLocationConfig(ev: Event, svc: any | null | undefined): L
   const overrides = (s.slotCapacityOverrides && typeof s.slotCapacityOverrides === "object" && !Array.isArray(s.slotCapacityOverrides))
     ? (s.slotCapacityOverrides as Record<string, number>)
     : {};
+  const locationRefundable = typeof s.refundable === "boolean" ? s.refundable : ev.refundable;
+  const hasLocationRefundMessage = typeof s.refundMessage === "string";
+  const locationRefundMessage = hasLocationRefundMessage ? s.refundMessage.trim() : "";
   return {
     operatingHoursStart: s.operatingHoursStart || ev.operatingHoursStart,
     operatingHoursEnd: s.operatingHoursEnd || ev.operatingHoursEnd,
@@ -358,6 +365,8 @@ export function resolveLocationConfig(ev: Event, svc: any | null | undefined): L
     maxCapacityPerSlot: Math.max(0, num(s.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
     slotCapacityOverrides: overrides,
     registrationFee: Math.max(0, num(s.registrationFee, ev.registrationFee)),
+    refundable: locationRefundable,
+    refundMessage: hasLocationRefundMessage ? locationRefundMessage : ev.refundMessage || "",
     eventId: typeof s.eventId === "string" ? s.eventId : "",
   };
 }
@@ -516,6 +525,41 @@ export function normalizeEventOtpSettings(raw: unknown, fallback?: unknown): Eve
     base[key] = value;
   }
   return base;
+}
+
+export function normalizeEventRefundPolicy(raw: unknown, fallback?: unknown): EventRefundPolicy {
+  const fallbackSource = fallback && typeof fallback === "object" && !Array.isArray(fallback)
+    ? fallback as Record<string, unknown>
+    : {};
+  const source = raw === undefined || raw === null
+    ? fallbackSource
+    : raw && typeof raw === "object" && !Array.isArray(raw)
+      ? raw as Record<string, unknown>
+      : (() => { throw new Error("refund policy must be an object map"); })();
+
+  for (const key of Object.keys(source)) {
+    if (key !== "refundable" && key !== "refundMessage") {
+      throw new Error(`Unknown refund policy setting "${key}"`);
+    }
+  }
+  if (source.refundable !== undefined && typeof source.refundable !== "boolean") {
+    throw new Error("Refundable must be a boolean");
+  }
+  if (source.refundMessage !== undefined && typeof source.refundMessage !== "string") {
+    throw new Error("Refund message must be text");
+  }
+  const refundMessage = String(source.refundMessage ?? fallbackSource.refundMessage ?? "").trim();
+  if (refundMessage.length > 1000) {
+    throw new Error("Refund message must be 1,000 characters or fewer");
+  }
+  return {
+    refundable: typeof source.refundable === "boolean"
+      ? source.refundable
+      : typeof fallbackSource.refundable === "boolean"
+        ? fallbackSource.refundable
+        : DEFAULT_EVENT_REFUND_POLICY.refundable,
+    refundMessage,
+  };
 }
 
 export function isEventRegistrationOtpEnabled(
@@ -791,6 +835,8 @@ function publicEventShape(ev: Event) {
     maxCapacityPerSlot: ev.maxCapacityPerSlot,
     maxGuestsPerRegistration: ev.maxGuestsPerRegistration,
     registrationFee: ev.registrationFee,
+    refundable: ev.refundable === true,
+    refundMessage: typeof ev.refundMessage === "string" ? ev.refundMessage : "",
     termsAndConditions: ev.termsAndConditions,
     faqs: ev.faqs,
     supportContact: ev.supportContact,
@@ -1591,7 +1637,9 @@ export function registerEventsRoutes(app: Express) {
           name: svc.name,
           description: svc.description || "",
           registrationFee: cfg.registrationFee,
-           slotDurationMinutes: cfg.slotDurationMinutes,
+          refundable: cfg.refundable,
+          refundMessage: cfg.refundMessage,
+          slotDurationMinutes: cfg.slotDurationMinutes,
           inputFields: Array.isArray(svc.inputFields) ? svc.inputFields : [],
           slots: buildSlots(cfg, usage),
         };
@@ -2942,11 +2990,16 @@ export function registerEventsRoutes(app: Express) {
       }
       let whatsappTriggers: EventWhatsAppTriggers;
       let otpSettings: EventOtpSettings;
+      let refundPolicy: EventRefundPolicy;
       let parkingEnabled: boolean;
       let checkoutAlert: CheckoutAlert;
       try {
         whatsappTriggers = normalizeEventWhatsappTriggers(b.whatsappTriggers);
         otpSettings = normalizeEventOtpSettings(b.otpSettings);
+        refundPolicy = normalizeEventRefundPolicy({
+          refundable: b.refundable,
+          refundMessage: b.refundMessage,
+        });
         parkingEnabled = normalizeEventParkingEnabled(b.parkingEnabled);
         checkoutAlert = normalizeCheckoutAlert(b.checkoutAlert);
       } catch (e) {
@@ -2967,6 +3020,8 @@ export function registerEventsRoutes(app: Express) {
         maxCapacityPerSlot: Math.max(1, parseInt(String(b.maxCapacityPerSlot || 50), 10) || 50),
         maxGuestsPerRegistration: Math.max(1, parseInt(String(b.maxGuestsPerRegistration || 10), 10) || 10),
         registrationFee: Math.max(0, parseInt(String(b.registrationFee || 0), 10) || 0),
+        refundable: refundPolicy.refundable,
+        refundMessage: refundPolicy.refundMessage,
         termsAndConditions: b.termsAndConditions || null,
         faqs: Array.isArray(b.faqs) ? b.faqs : [],
         supportContact: b.supportContact || null,
@@ -3009,6 +3064,18 @@ export function registerEventsRoutes(app: Express) {
       if (b.maxCapacityPerSlot !== undefined) patch.maxCapacityPerSlot = Math.max(1, parseInt(String(b.maxCapacityPerSlot), 10) || 50);
       if (b.maxGuestsPerRegistration !== undefined) patch.maxGuestsPerRegistration = Math.max(1, parseInt(String(b.maxGuestsPerRegistration), 10) || 10);
       if (b.registrationFee !== undefined) patch.registrationFee = Math.max(0, parseInt(String(b.registrationFee), 10) || 0);
+      if ("refundable" in b || "refundMessage" in b) {
+        try {
+          const refundPolicy = normalizeEventRefundPolicy({
+            refundable: b.refundable,
+            refundMessage: b.refundMessage,
+          }, { refundable: ev.refundable, refundMessage: ev.refundMessage });
+          patch.refundable = refundPolicy.refundable;
+          patch.refundMessage = refundPolicy.refundMessage;
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
       if (Array.isArray(b.faqs)) patch.faqs = b.faqs;
       if (Array.isArray(b.galleryUrls)) patch.galleryUrls = b.galleryUrls;
       if (b.messageTemplates && typeof b.messageTemplates === "object") patch.messageTemplates = b.messageTemplates;
@@ -3096,12 +3163,26 @@ export function registerEventsRoutes(app: Express) {
       const b = req.body || {};
       const c = (b.config && typeof b.config === "object") ? b.config : {};
       const timeRe = /^([01]?\d|2[0-3]):[0-5]\d$/;
+      let refundPolicy: EventRefundPolicy;
+      try {
+        refundPolicy = normalizeEventRefundPolicy({
+          refundable: c.refundable,
+          refundMessage: c.refundMessage,
+        }, {
+          refundable: ev.refundable,
+          refundMessage: ev.refundMessage,
+        });
+      } catch (e) {
+        return res.status(400).json({ error: (e as Error).message });
+      }
       const cfg: LocationEventConfig = {
         operatingHoursStart: timeRe.test(String(c.operatingHoursStart)) ? String(c.operatingHoursStart) : ev.operatingHoursStart,
         operatingHoursEnd: timeRe.test(String(c.operatingHoursEnd)) ? String(c.operatingHoursEnd) : ev.operatingHoursEnd,
         slotDurationMinutes: Math.max(5, num(c.slotDurationMinutes, ev.slotDurationMinutes)),
         maxCapacityPerSlot: Math.max(0, num(c.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
         registrationFee: Math.max(0, num(c.registrationFee, ev.registrationFee)),
+        refundable: refundPolicy.refundable,
+        refundMessage: refundPolicy.refundMessage,
         slotCapacityOverrides: {},
         eventId: typeof c.eventId === "string" ? c.eventId : "",
       };
