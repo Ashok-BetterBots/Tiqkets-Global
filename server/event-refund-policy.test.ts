@@ -103,6 +103,8 @@ test("registration fee custom text replaces the hard-coded advance note", () => 
   assert.match(routes, /registrationFeeCustomText:\s*cfg\.registrationFeeCustomText/);
   assert.match(landing, /note\.textContent = currentRegistrationFeeCustomText/);
   assert.match(landing, /note\.classList\.toggle\("hidden", fee <= 0 \|\| !currentRegistrationFeeCustomText\)/);
+  assert.match(landing, /data\.event\.registrationFeeCustomText[\s\S]*data\.event\.refundMessage/);
+  assert.match(landing, /loc\.registrationFeeCustomText[\s\S]*loc\.refundMessage/);
   assert.match(landing, /\.advance-note \{[\s\S]*font-size: 11px;[\s\S]*line-height: 1\.45;[\s\S]*color: var\(--brand-primary\);/);
   assert.doesNotMatch(landing, /fully redeemable at billing/);
 });
