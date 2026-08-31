@@ -121,7 +121,7 @@
         <template x-for="item in navItems" :key="item.id">
           <div>
             <div class="sa-nav" :class="{ 'active': page === item.id || (item.children && item.children.some(c => page === item.id && tab === c.id)) }"
-                 @click="goto(item.id, item.children ? (item.defaultTab || item.children[0].id) : null)">
+                 @click="item.external ? (window.location.href = item.href) : goto(item.id, item.children ? (item.defaultTab || item.children[0].id) : null)">
               <i :class="item.icon"></i>
               <span class="flex-1" x-text="item.label"></span>
               <i x-show="item.children" class="fa-solid fa-chevron-down text-[10px] transition-transform" :class="{ 'rotate-180': openGroup === item.id }"></i>
@@ -1809,6 +1809,7 @@
           { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp' },
           { id: 'notifications', label: 'Notification Settings', icon: 'fa-solid fa-bell' },
           { id: 'system-settings', label: 'System Settings', icon: 'fa-solid fa-sliders' },
+          { id: 'form-builder', label: 'Form Builder', icon: 'fa-solid fa-list-check', external: true, href: '/admin/form-builder' },
           { id: 'master', label: 'Master', icon: 'fa-solid fa-database', defaultTab: 'categories',
             children: [{ id: 'categories', label: 'Categories' }, { id: 'plans', label: 'Plan Types' }, { id: 'currencies', label: 'Currencies' }] },
           { id: 'logs', label: 'Logs', icon: 'fa-solid fa-clipboard-list', defaultTab: 'system',
