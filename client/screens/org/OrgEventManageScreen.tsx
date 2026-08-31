@@ -93,6 +93,8 @@ interface EventRow {
   supportContact?: string | null;
   parkingTotalSpaces: number;
   parkingEnabled?: boolean;
+  refundable?: boolean;
+  refundMessage?: string | null;
   whatsappTriggers?: EventWhatsappTriggers | null;
   messageTemplates?: Record<string, string> | null;
   checkoutAlert?: CheckoutAlertConfig | null;
@@ -139,6 +141,8 @@ interface EventForm {
   slotDurationMinutes: string;
   maxCapacityPerSlot: string;
   registrationFee: string;
+  refundable: boolean;
+  refundMessage: string;
   supportContact: string;
   parkingTotalSpaces: string;
   parkingEnabled: boolean;
@@ -164,6 +168,8 @@ const EMPTY_FORM: EventForm = {
   slotDurationMinutes: "30",
   maxCapacityPerSlot: "50",
   registrationFee: "0",
+  refundable: false,
+  refundMessage: "",
   supportContact: "",
   parkingTotalSpaces: "0",
   parkingEnabled: true,
@@ -285,6 +291,8 @@ export default function OrgEventManageScreen() {
       slotDurationMinutes: String(ev.slotDurationMinutes ?? 30),
       maxCapacityPerSlot: String(ev.maxCapacityPerSlot ?? 50),
       registrationFee: String((ev.registrationFee ?? 0) / 100),
+      refundable: ev.refundable === true,
+      refundMessage: ev.refundMessage ?? "",
       supportContact: ev.supportContact ?? "",
       parkingTotalSpaces: String(ev.parkingTotalSpaces ?? 0),
       parkingEnabled: ev.parkingEnabled !== false,
@@ -394,6 +402,8 @@ export default function OrgEventManageScreen() {
         slotDurationMinutes: parseInt(form.slotDurationMinutes, 10) || 30,
         maxCapacityPerSlot: parseInt(form.maxCapacityPerSlot, 10) || 50,
         registrationFee: Math.max(0, Math.round((parseFloat(form.registrationFee) || 0) * 100)),
+        refundable: form.refundable,
+        refundMessage: form.refundMessage.trim(),
         supportContact: form.supportContact.trim() || null,
         parkingTotalSpaces: parseInt(form.parkingTotalSpaces, 10) || 0,
         parkingEnabled: form.parkingEnabled,
@@ -600,6 +610,38 @@ export default function OrgEventManageScreen() {
           <View style={{ flex: 1 }}><Field label={"Fee (\u20B9)"} value={form.registrationFee} onChangeText={(t) => setForm((f) => ({ ...f, registrationFee: t }))} keyboardType="decimal-pad" testID="input-event-fee" /></View>
           <View style={{ flex: 1 }}><Field label="Parking spaces" value={form.parkingTotalSpaces} onChangeText={(t) => setForm((f) => ({ ...f, parkingTotalSpaces: t }))} keyboardType="number-pad" testID="input-event-parking" /></View>
         </View>
+        <View style={[styles.refundPolicyBox, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="body" style={{ color: theme.text, fontWeight: "700" }}>Registration fee refund policy</ThemedText>
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
+              Customer-facing guidance only; this does not change payment collection or refunds.
+            </ThemedText>
+          </View>
+          <View style={styles.refundToggle}>
+            <Pressable
+              onPress={() => setForm((f) => ({ ...f, refundable: false }))}
+              style={[styles.refundOption, { borderColor: !form.refundable ? BRAND : theme.border, backgroundColor: !form.refundable ? BRAND + "12" : theme.surface }]}
+              testID="button-event-nonrefundable"
+            >
+              <ThemedText type="small" style={{ color: !form.refundable ? BRAND : theme.textSecondary, fontWeight: "700" }}>No</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setForm((f) => ({ ...f, refundable: true }))}
+              style={[styles.refundOption, { borderColor: form.refundable ? BRAND : theme.border, backgroundColor: form.refundable ? BRAND + "12" : theme.surface }]}
+              testID="button-event-refundable"
+            >
+              <ThemedText type="small" style={{ color: form.refundable ? BRAND : theme.textSecondary, fontWeight: "700" }}>Yes</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+        <Field
+          label="Refund message (shown to customers)"
+          value={form.refundMessage}
+          onChangeText={(refundMessage) => setForm((f) => ({ ...f, refundMessage }))}
+          placeholder="e.g. Refunds are available up to 24 hours before your visit."
+          multiline
+          testID="input-event-refund-message"
+        />
         <SettingsToggle
           label="Show Parking page"
           description="Allow parking staff to open and use this event's Parking page."
@@ -1012,7 +1054,7 @@ export default function OrgEventManageScreen() {
                 {
                   color: theme.text,
                   borderColor: confirmMatches ? confirmKindColor(confirm?.kind ?? "end") : theme.border,
-                  backgroundColor: theme.backgroundRoot ?? theme.background,
+                  backgroundColor: theme.backgroundRoot,
                 },
               ]}
               autoCapitalize="none"
@@ -1136,6 +1178,9 @@ const styles = StyleSheet.create({
   actionBtn: { flexDirection: "row", alignItems: "center", gap: Spacing.xs, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1 },
   field: { marginBottom: Spacing.md },
   twoCol: { flexDirection: "row", gap: Spacing.md },
+  refundPolicyBox: { flexDirection: "row", alignItems: "center", gap: Spacing.md, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md },
+  refundToggle: { flexDirection: "row", gap: Spacing.xs },
+  refundOption: { minWidth: 42, alignItems: "center", borderWidth: 1, borderRadius: BorderRadius.sm, paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm },
   input: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: 15 },
   settingsToggle: { flexDirection: "row", alignItems: "center", gap: Spacing.md, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, marginBottom: Spacing.sm },
 

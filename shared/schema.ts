@@ -1459,6 +1459,16 @@ export type EventCheckoutAlertSnapshot = {
   capturedAt: string;
 };
 
+export type EventRefundPolicy = {
+  refundable: boolean;
+  refundMessage: string;
+};
+
+export const DEFAULT_EVENT_REFUND_POLICY: EventRefundPolicy = {
+  refundable: false,
+  refundMessage: "",
+};
+
 export const DEFAULT_EVENT_CHECKOUT_ALERT: EventCheckoutAlertConfig = {
   enabled: false,
   maxDurationMinutes: 60,
@@ -1490,6 +1500,10 @@ export const events = pgTable("events", {
   maxGuestsPerRegistration: integer("max_guests_per_registration").default(10).notNull(),
   // Registration fee (advance amount) in paise, matching payments.amount.
   registrationFee: integer("registration_fee").default(0).notNull(),
+  // Customer-facing refund guidance only. This does not change payment
+  // collection, payouts, or refund execution.
+  refundable: boolean("refundable").default(false).notNull(),
+  refundMessage: text("refund_message").default("").notNull(),
   termsAndConditions: text("terms_and_conditions"),
   faqs: jsonb("faqs").$type<{ question: string; answer: string }[]>().default([]).notNull(),
   supportContact: text("support_contact"),
