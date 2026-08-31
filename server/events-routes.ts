@@ -316,6 +316,7 @@ export type LocationEventConfig = {
   maxCapacityPerSlot: number;
   slotCapacityOverrides: Record<string, number>;
   registrationFee: number;
+  registrationFeeCustomText: string;
   refundable: boolean;
   refundMessage: string;
   // Optional link tying this location to a specific event on the branch.
@@ -358,6 +359,7 @@ export function resolveLocationConfig(ev: Event, svc: any | null | undefined): L
   const locationRefundable = typeof s.refundable === "boolean" ? s.refundable : ev.refundable;
   const hasLocationRefundMessage = typeof s.refundMessage === "string";
   const locationRefundMessage = hasLocationRefundMessage ? s.refundMessage.trim() : "";
+  const hasLocationFeeText = typeof s.registrationFeeCustomText === "string";
   return {
     operatingHoursStart: s.operatingHoursStart || ev.operatingHoursStart,
     operatingHoursEnd: s.operatingHoursEnd || ev.operatingHoursEnd,
@@ -365,6 +367,9 @@ export function resolveLocationConfig(ev: Event, svc: any | null | undefined): L
     maxCapacityPerSlot: Math.max(0, num(s.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
     slotCapacityOverrides: overrides,
     registrationFee: Math.max(0, num(s.registrationFee, ev.registrationFee)),
+    registrationFeeCustomText: hasLocationFeeText
+      ? s.registrationFeeCustomText.trim()
+      : ev.registrationFeeCustomText || "",
     refundable: locationRefundable,
     refundMessage: hasLocationRefundMessage ? locationRefundMessage : ev.refundMessage || "",
     eventId: typeof s.eventId === "string" ? s.eventId : "",
@@ -560,6 +565,16 @@ export function normalizeEventRefundPolicy(raw: unknown, fallback?: unknown): Ev
         : DEFAULT_EVENT_REFUND_POLICY.refundable,
     refundMessage,
   };
+}
+
+function normalizeRegistrationFeeCustomText(value: unknown, fallback = ""): string {
+  if (value === undefined || value === null) return String(fallback || "").trim();
+  if (typeof value !== "string") throw new Error("Registration fee custom text must be text");
+  const text = value.trim();
+  if (text.length > 1000) {
+    throw new Error("Registration fee custom text must be 1,000 characters or fewer");
+  }
+  return text;
 }
 
 export function isEventRegistrationOtpEnabled(
@@ -835,6 +850,7 @@ function publicEventShape(ev: Event) {
     maxCapacityPerSlot: ev.maxCapacityPerSlot,
     maxGuestsPerRegistration: ev.maxGuestsPerRegistration,
     registrationFee: ev.registrationFee,
+    registrationFeeCustomText: ev.registrationFeeCustomText || "",
     refundable: ev.refundable === true,
     refundMessage: typeof ev.refundMessage === "string" ? ev.refundMessage : "",
     termsAndConditions: ev.termsAndConditions,
@@ -1637,6 +1653,7 @@ export function registerEventsRoutes(app: Express) {
           name: svc.name,
           description: svc.description || "",
           registrationFee: cfg.registrationFee,
+           registrationFeeCustomText: cfg.registrationFeeCustomText,
           refundable: cfg.refundable,
           refundMessage: cfg.refundMessage,
           slotDurationMinutes: cfg.slotDurationMinutes,
@@ -3020,6 +3037,7 @@ export function registerEventsRoutes(app: Express) {
         maxCapacityPerSlot: Math.max(1, parseInt(String(b.maxCapacityPerSlot || 50), 10) || 50),
         maxGuestsPerRegistration: Math.max(1, parseInt(String(b.maxGuestsPerRegistration || 10), 10) || 10),
         registrationFee: Math.max(0, parseInt(String(b.registrationFee || 0), 10) || 0),
+        registrationFeeCustomText: normalizeRegistrationFeeCustomText(b.registrationFeeCustomText),
         refundable: refundPolicy.refundable,
         refundMessage: refundPolicy.refundMessage,
         termsAndConditions: b.termsAndConditions || null,
@@ -3064,6 +3082,13 @@ export function registerEventsRoutes(app: Express) {
       if (b.maxCapacityPerSlot !== undefined) patch.maxCapacityPerSlot = Math.max(1, parseInt(String(b.maxCapacityPerSlot), 10) || 50);
       if (b.maxGuestsPerRegistration !== undefined) patch.maxGuestsPerRegistration = Math.max(1, parseInt(String(b.maxGuestsPerRegistration), 10) || 10);
       if (b.registrationFee !== undefined) patch.registrationFee = Math.max(0, parseInt(String(b.registrationFee), 10) || 0);
+      if ("registrationFeeCustomText" in b) {
+        try {
+          patch.registrationFeeCustomText = normalizeRegistrationFeeCustomText(b.registrationFeeCustomText, ev.registrationFeeCustomText);
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
       if ("refundable" in b || "refundMessage" in b) {
         try {
           const refundPolicy = normalizeEventRefundPolicy({
@@ -3181,6 +3206,10 @@ export function registerEventsRoutes(app: Express) {
         slotDurationMinutes: Math.max(5, num(c.slotDurationMinutes, ev.slotDurationMinutes)),
         maxCapacityPerSlot: Math.max(0, num(c.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
         registrationFee: Math.max(0, num(c.registrationFee, ev.registrationFee)),
+         registrationFeeCustomText: normalizeRegistrationFeeCustomText(
+           c.registrationFeeCustomText,
+           ev.registrationFeeCustomText,
+         ),
         refundable: refundPolicy.refundable,
         refundMessage: refundPolicy.refundMessage,
         slotCapacityOverrides: {},
