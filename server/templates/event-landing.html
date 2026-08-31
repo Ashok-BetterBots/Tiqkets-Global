@@ -1206,16 +1206,6 @@
     .summary-value { font-weight: 800; color: var(--text); }
     .summary-value.accent { color: var(--brand-primary); font-size: 17px; }
     .summary-fee-wrap { max-width: 62%; text-align: right; }
-    .refund-policy {
-      font-size: 11.5px;
-      line-height: 1.35;
-      color: var(--text-secondary);
-      font-weight: 600;
-      margin-top: 4px;
-      overflow-wrap: anywhere;
-    }
-    .refund-status { color: var(--brand-primary); font-weight: 800; }
-    .refund-message { margin-top: 2px; }
     .advance-note {
       font-size: 12px;
       color: var(--brand-primary);
@@ -1723,10 +1713,6 @@
                   <span class="summary-label" data-i18n="summary.fee">Registration fee</span>
                   <div class="summary-fee-wrap">
                     <span class="summary-value accent" id="feeValue" data-i18n="summary.free">Free</span>
-                    <div id="refundPolicy" class="refund-policy hidden" role="note">
-                      <div id="refundStatus" class="refund-status"></div>
-                      <div id="refundPolicyMessage" class="refund-message hidden"></div>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1891,9 +1877,6 @@
         "summary.fee": "Registration fee",
         "summary.free": "Free",
         "summary.total": "Total",
-        "summary.advanceNote": "Advance {{fee}} \u2014 fully redeemable at billing",
-        "summary.refundable": "Refundable",
-        "summary.nonRefundable": "Non-refundable",
         "success.heading": "You're registered!",
         "success.bookingId": "Booking ID",
         "success.date": "Date",
@@ -1985,9 +1968,6 @@
         "summary.fee": "பதிவு கட்டணம்",
         "summary.free": "இலவசம்",
         "summary.total": "மொத்தம்",
-        "summary.advanceNote": "முன்பணம் {{fee}} \u2014 பில்லிங்கில் முழுவதுமாக பெறலாம்",
-        "summary.refundable": "திரும்பப்பெறக்கூடியது",
-        "summary.nonRefundable": "திரும்பப்பெற முடியாது",
         "success.heading": "நீங்கள் பதிவு செய்யப்பட்டீர்கள்!",
         "success.bookingId": "முன்பதிவு எண்",
         "success.date": "தேதி",
@@ -2104,7 +2084,10 @@
     }
 
     function fetchLanguageHint(phone) {
-      if (languageExplicitlyChosen || !branchId) return;
+      // A customer-selected or restored non-default language is authoritative
+      // for this registration. A historical phone hint must never switch a
+      // Tamil flow back to English when Continue blurs the phone input.
+      if (languageExplicitlyChosen || currentLang !== "en" || !branchId) return;
       fetch(apiEventBase + "/language-hint?phone=" + encodeURIComponent(phone))
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (out) {
@@ -2147,8 +2130,7 @@
     var selectedLocationId = null;
     var currentSlots = [];
     var currentFee = 0;
-    var currentRefundable = false;
-    var currentRefundMessage = "";
+    var currentRegistrationFeeCustomText = "";
     var currentFields = [];
     var fieldEls = {};
 
@@ -2424,8 +2406,9 @@
         selectedLocationId = null;
         currentSlots = data.slots || [];
         currentFee = data.event.registrationFee || 0;
-        currentRefundable = data.event.refundable === true;
-        currentRefundMessage = typeof data.event.refundMessage === "string" ? data.event.refundMessage : "";
+        currentRegistrationFeeCustomText = typeof data.event.registrationFeeCustomText === "string"
+          ? data.event.registrationFeeCustomText
+          : "";
         currentFields = [];
         renderCustomFields();
         renderDateChips();
@@ -2462,8 +2445,9 @@
       var loc = locations.find(function (l) { return l.id === id; });
       currentSlots = (loc && Array.isArray(loc.slots)) ? loc.slots : [];
       currentFee = (loc && loc.registrationFee) || 0;
-      currentRefundable = !!(loc && loc.refundable === true);
-      currentRefundMessage = loc && typeof loc.refundMessage === "string" ? loc.refundMessage : "";
+      currentRegistrationFeeCustomText = loc && typeof loc.registrationFeeCustomText === "string"
+        ? loc.registrationFeeCustomText
+        : "";
       currentFields = (loc && Array.isArray(loc.inputFields)) ? loc.inputFields : [];
       selectedDate = null;
       selectedTime = null;
@@ -2715,19 +2699,9 @@
       $("famPlus").disabled = familyCount >= maxFamilyCount();
       var feeText = fee > 0 ? formatFee(fee) : t("summary.free");
       $("feeValue").textContent = feeText;
-      var refundPolicy = $("refundPolicy");
-      $("refundStatus").textContent = t(currentRefundable ? "summary.refundable" : "summary.nonRefundable");
-      $("refundPolicyMessage").textContent = currentRefundMessage;
-      $("refundPolicyMessage").classList.toggle("hidden", !currentRefundMessage);
-      refundPolicy.dataset.refundable = currentRefundable ? "true" : "false";
-      refundPolicy.classList.toggle("hidden", fee <= 0);
-      if (fee > 0) {
-        var note = $("advanceNote");
-        note.textContent = t("summary.advanceNote", { fee: formatFee(fee) });
-        note.classList.remove("hidden");
-      } else {
-        $("advanceNote").classList.add("hidden");
-      }
+      var note = $("advanceNote");
+      note.textContent = currentRegistrationFeeCustomText;
+      note.classList.toggle("hidden", fee <= 0 || !currentRegistrationFeeCustomText);
     }
 
     function bindDetailsModal() {

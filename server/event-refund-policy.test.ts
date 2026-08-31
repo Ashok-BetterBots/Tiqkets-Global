@@ -80,7 +80,7 @@ test("location refund values override event defaults and otherwise fall back", (
   assert.equal(explicitlyCleared.refundMessage, "");
 });
 
-test("public landing contract carries and displays resolved policy beside fee", () => {
+test("public landing carries refund policy without duplicating it in the fee summary", () => {
   const routes = readFileSync("server/events-routes.ts", "utf8");
   const landing = readFileSync("server/templates/event-landing.html", "utf8");
 
@@ -88,11 +88,32 @@ test("public landing contract carries and displays resolved policy beside fee", 
   assert.match(routes, /refundMessage:\s*typeof ev\.refundMessage/);
   assert.match(routes, /refundable:\s*cfg\.refundable/);
   assert.match(routes, /refundMessage:\s*cfg\.refundMessage/);
-  assert.match(landing, /id="refundPolicy"/);
-  assert.match(landing, /refundStatus"\)\.textContent = t\(currentRefundable \? "summary\.refundable" : "summary\.nonRefundable"\)/);
-  assert.match(landing, /refundPolicyMessage"\)\.classList\.toggle\("hidden", !currentRefundMessage\)/);
-  assert.match(landing, /refundPolicy\.classList\.toggle\("hidden", fee <= 0\)/);
-  assert.match(landing, /currentRefundMessage = loc && typeof loc\.refundMessage/);
+  assert.doesNotMatch(landing, /id="refundPolicy"/);
+  assert.doesNotMatch(landing, /summary\.nonRefundable/);
+  assert.doesNotMatch(landing, /refundPolicyMessage/);
+});
+
+test("registration fee custom text replaces the hard-coded advance note", () => {
+  const routes = readFileSync("server/events-routes.ts", "utf8");
+  const landing = readFileSync("server/templates/event-landing.html", "utf8");
+  const schema = readFileSync("shared/schema.ts", "utf8");
+
+  assert.match(schema, /registrationFeeCustomText:\s*text\("registration_fee_custom_text"\)/);
+  assert.match(routes, /registrationFeeCustomText:\s*ev\.registrationFeeCustomText/);
+  assert.match(routes, /registrationFeeCustomText:\s*cfg\.registrationFeeCustomText/);
+  assert.match(landing, /note\.textContent = currentRegistrationFeeCustomText/);
+  assert.match(landing, /note\.classList\.toggle\("hidden", fee <= 0 \|\| !currentRegistrationFeeCustomText\)/);
+  assert.doesNotMatch(landing, /fully redeemable at billing/);
+});
+
+test("Tamil selection is not overwritten by a phone language hint", () => {
+  const landing = readFileSync("server/templates/event-landing.html", "utf8");
+
+  assert.match(
+    landing,
+    /if \(languageExplicitlyChosen \|\| currentLang !== "en" \|\| !branchId\) return;/,
+  );
+  assert.match(landing, /preferredLanguage:\s*currentLang/);
 });
 
 test("refund guidance stays independent of registration fee and Razorpay amount", () => {

@@ -36,6 +36,7 @@ interface EventConfig {
   slotDurationMinutes: string;
   maxCapacityPerSlot: string;
   registrationFee: string;
+  registrationFeeCustomText: string;
   refundable: boolean;
   refundMessage: string;
 }
@@ -46,6 +47,7 @@ const EMPTY_CONFIG: EventConfig = {
   slotDurationMinutes: "30",
   maxCapacityPerSlot: "50",
   registrationFee: "0",
+  registrationFeeCustomText: "",
   refundable: false,
   refundMessage: "",
 };
@@ -58,6 +60,7 @@ function readConfig(svc: OrgService): EventConfig {
     slotDurationMinutes: String(ev.slotDurationMinutes ?? 30),
     maxCapacityPerSlot: String(ev.maxCapacityPerSlot ?? 50),
     registrationFee: String((ev.registrationFee ?? 0) / 100),
+    registrationFeeCustomText: typeof ev.registrationFeeCustomText === "string" ? ev.registrationFeeCustomText : "",
     refundable: ev.refundable === true,
     refundMessage: typeof ev.refundMessage === "string" ? ev.refundMessage : "",
   };
@@ -230,6 +233,7 @@ export default function OrgEventLocationsScreen() {
           slotDurationMinutes: parseInt(config.slotDurationMinutes, 10) || 30,
           maxCapacityPerSlot: parseInt(config.maxCapacityPerSlot, 10) || 0,
           registrationFee: Math.max(0, Math.round((parseFloat(config.registrationFee) || 0) * 100)),
+          registrationFeeCustomText: config.registrationFeeCustomText.trim(),
           refundable: config.refundable,
           refundMessage: config.refundMessage.trim(),
         },
@@ -391,6 +395,14 @@ export default function OrgEventLocationsScreen() {
           </View>
         </View>
         <Field label={"Registration fee (\u20B9)"} value={config.registrationFee} onChangeText={(t) => setConfig((c) => ({ ...c, registrationFee: t }))} keyboardType="decimal-pad" testID="input-cfg-fee" />
+        <Field
+          label="Registration fee custom text"
+          value={config.registrationFeeCustomText}
+          onChangeText={(registrationFeeCustomText) => setConfig((c) => ({ ...c, registrationFeeCustomText }))}
+          placeholder="Text shown below the fee on the customer review page"
+          multiline
+          testID="input-cfg-fee-custom-text"
+        />
         <View style={[styles.refundPolicyBox, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
           <View style={{ flex: 1 }}>
             <ThemedText type="body" style={{ color: theme.text, fontWeight: "700" }}>Refundable</ThemedText>

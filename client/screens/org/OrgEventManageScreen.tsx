@@ -90,6 +90,7 @@ interface EventRow {
   maxCapacityPerSlot?: number;
   slotCapacityOverrides?: Record<string, number> | null;
   registrationFee: number;
+  registrationFeeCustomText?: string | null;
   supportContact?: string | null;
   parkingTotalSpaces: number;
   parkingEnabled?: boolean;
@@ -141,6 +142,7 @@ interface EventForm {
   slotDurationMinutes: string;
   maxCapacityPerSlot: string;
   registrationFee: string;
+  registrationFeeCustomText: string;
   refundable: boolean;
   refundMessage: string;
   supportContact: string;
@@ -168,6 +170,7 @@ const EMPTY_FORM: EventForm = {
   slotDurationMinutes: "30",
   maxCapacityPerSlot: "50",
   registrationFee: "0",
+  registrationFeeCustomText: "",
   refundable: false,
   refundMessage: "",
   supportContact: "",
@@ -291,6 +294,7 @@ export default function OrgEventManageScreen() {
       slotDurationMinutes: String(ev.slotDurationMinutes ?? 30),
       maxCapacityPerSlot: String(ev.maxCapacityPerSlot ?? 50),
       registrationFee: String((ev.registrationFee ?? 0) / 100),
+      registrationFeeCustomText: ev.registrationFeeCustomText ?? "",
       refundable: ev.refundable === true,
       refundMessage: ev.refundMessage ?? "",
       supportContact: ev.supportContact ?? "",
@@ -402,6 +406,7 @@ export default function OrgEventManageScreen() {
         slotDurationMinutes: parseInt(form.slotDurationMinutes, 10) || 30,
         maxCapacityPerSlot: parseInt(form.maxCapacityPerSlot, 10) || 50,
         registrationFee: Math.max(0, Math.round((parseFloat(form.registrationFee) || 0) * 100)),
+        registrationFeeCustomText: form.registrationFeeCustomText.trim(),
         refundable: form.refundable,
         refundMessage: form.refundMessage.trim(),
         supportContact: form.supportContact.trim() || null,
@@ -610,6 +615,14 @@ export default function OrgEventManageScreen() {
           <View style={{ flex: 1 }}><Field label={"Fee (\u20B9)"} value={form.registrationFee} onChangeText={(t) => setForm((f) => ({ ...f, registrationFee: t }))} keyboardType="decimal-pad" testID="input-event-fee" /></View>
           <View style={{ flex: 1 }}><Field label="Parking spaces" value={form.parkingTotalSpaces} onChangeText={(t) => setForm((f) => ({ ...f, parkingTotalSpaces: t }))} keyboardType="number-pad" testID="input-event-parking" /></View>
         </View>
+        <Field
+          label="Registration fee custom text"
+          value={form.registrationFeeCustomText}
+          onChangeText={(registrationFeeCustomText) => setForm((f) => ({ ...f, registrationFeeCustomText }))}
+          placeholder="Text shown below the fee on the customer review page"
+          multiline
+          testID="input-event-fee-custom-text"
+        />
         <View style={[styles.refundPolicyBox, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
           <View style={{ flex: 1 }}>
             <ThemedText type="body" style={{ color: theme.text, fontWeight: "700" }}>Registration fee refund policy</ThemedText>

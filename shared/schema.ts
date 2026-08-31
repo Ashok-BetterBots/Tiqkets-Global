@@ -1500,6 +1500,8 @@ export const events = pgTable("events", {
   maxGuestsPerRegistration: integer("max_guests_per_registration").default(10).notNull(),
   // Registration fee (advance amount) in paise, matching payments.amount.
   registrationFee: integer("registration_fee").default(0).notNull(),
+  // Optional customer-facing text shown below the registration fee.
+  registrationFeeCustomText: text("registration_fee_custom_text").default("").notNull(),
   // Customer-facing refund guidance only. This does not change payment
   // collection, payouts, or refund execution.
   refundable: boolean("refundable").default(false).notNull(),
