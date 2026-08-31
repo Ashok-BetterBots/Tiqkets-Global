@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Experimental Form Builder · TIQKETS</title>
+  <link rel="stylesheet" href="/experimental/form-builder/assets/experimental-form.css">
+  <script defer src="/experimental/form-builder/assets/renderer.js"></script>
+  <script defer src="/experimental/form-builder/assets/admin.js"></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <span class="experimental-badge">Experimental · isolated</span>
+        <h1>Dynamic form builder</h1>
+        <p>Build client-specific forms from configuration without changing the live registration flow.</p>
+      </div>
+      <a class="secondary" href="/dashboard">Back to dashboard</a>
+    </header>
+
+    <section class="builder-toolbar">
+      <label>Client<select id="client-select"><option>Loading clients…</option></select></label>
+      <label>Saved form<select id="config-select"><option value="">New form</option></select></label>
+      <label>Form name<input id="form-name" value="Untitled registration form" maxlength="160"></label>
+      <div>
+        <label class="check"><input id="form-active" type="checkbox"> Active / published</label>
+        <div class="toolbar-actions">
+          <button id="new-form" class="secondary" type="button">New</button>
+          <button id="preview-form" class="secondary" type="button">Preview</button>
+          <button id="save-form" class="primary" type="button">Save form</button>
+        </div>
+      </div>
+    </section>
+    <div id="builder-message" class="fb-status" aria-live="polite"></div>
+
+    <section class="builder-grid">
+      <aside class="panel">
+        <div class="panel-head"><h2>Field library</h2><p>Add a reusable field type.</p></div>
+        <div class="panel-body palette">
+          <button type="button" data-add-type="label">Notice / label</button>
+          <button type="button" data-add-type="text">Short text</button>
+          <button type="button" data-add-type="textarea">Long text</button>
+          <button type="button" data-add-type="dropdown">Dropdown</button>
+          <button type="button" data-add-type="radio_icon">Single choice + icon</button>
+          <button type="button" data-add-type="checkbox_icon">Multi choice + icon</button>
+          <button type="button" data-add-type="image">Image / upload</button>
+          <button type="button" data-add-type="date">Date</button>
+          <button type="button" data-add-type="time">Time</button>
+          <button type="button" data-add-type="phone">Phone</button>
+          <button type="button" data-add-type="email">Email</button>
+          <button type="button" data-add-type="currency">Currency</button>
+          <button type="button" data-add-type="number">Number</button>
+          <button type="button" data-add-type="toggle">Yes / no</button>
+        </div>
+      </aside>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Form fields</h2><p>Edit labels, options, icons, order, validation, and rules.</p></div>
+        <div class="panel-body fields-list" id="fields"></div>
+      </section>
+
+      <aside class="panel preview-panel">
+        <div class="panel-head"><h2>Live preview</h2><p>The same generic renderer powers the public form.</p></div>
+        <div class="preview-frame" id="preview"></div>
+        <details class="schema-details">
+          <summary>View generated JSON schema</summary>
+          <pre id="schema-json"></pre>
+        </details>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

@@ -4,6 +4,7 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerRoutes } from "./routes";
 import { registerQueueTicketRoutes } from "./queue-ticket-routes";
 import { registerAnnouncementRoutes } from "./announcements";
+import { registerExperimentalFormRoutes } from "./form-builder/routes";
 import { ensureBuiltinRoles } from "./rbac";
 import * as fs from "fs";
 import * as path from "path";
@@ -460,6 +461,7 @@ function setupErrorHandler(app: express.Application) {
   registerAnnouncementRoutes(app);
   await ensureBuiltinRoles();
   const server = await registerRoutes(app);
+  await registerExperimentalFormRoutes(app);
 
   setupErrorHandler(app);
 
