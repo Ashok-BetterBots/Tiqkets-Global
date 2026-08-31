@@ -2406,9 +2406,9 @@
         selectedLocationId = null;
         currentSlots = data.slots || [];
         currentFee = data.event.registrationFee || 0;
-        currentRegistrationFeeCustomText = typeof data.event.registrationFeeCustomText === "string"
-          ? data.event.registrationFeeCustomText
-          : "";
+        currentRegistrationFeeCustomText = typeof data.event.registrationFeeCustomText === "string" && data.event.registrationFeeCustomText.trim()
+          ? data.event.registrationFeeCustomText.trim()
+          : (typeof data.event.refundMessage === "string" ? data.event.refundMessage.trim() : "");
         currentFields = [];
         renderCustomFields();
         renderDateChips();
@@ -2445,9 +2445,9 @@
       var loc = locations.find(function (l) { return l.id === id; });
       currentSlots = (loc && Array.isArray(loc.slots)) ? loc.slots : [];
       currentFee = (loc && loc.registrationFee) || 0;
-      currentRegistrationFeeCustomText = loc && typeof loc.registrationFeeCustomText === "string"
-        ? loc.registrationFeeCustomText
-        : "";
+      currentRegistrationFeeCustomText = loc && typeof loc.registrationFeeCustomText === "string" && loc.registrationFeeCustomText.trim()
+        ? loc.registrationFeeCustomText.trim()
+        : (loc && typeof loc.refundMessage === "string" ? loc.refundMessage.trim() : "");
       currentFields = (loc && Array.isArray(loc.inputFields)) ? loc.inputFields : [];
       selectedDate = null;
       selectedTime = null;
