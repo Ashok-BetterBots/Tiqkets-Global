@@ -65,6 +65,10 @@ jobs:
           echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "RELEASE_TAG=v$VERSION" >> "$GITHUB_ENV"
 
+      - name: Set Android version code
+        shell: bash
+        run: echo "ANDROID_VERSION_CODE=$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))" >> "$GITHUB_ENV"
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
@@ -74,12 +78,17 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Set up Expo and EAS
-        uses: expo/expo-github-action@v9
+      - name: Set up Java
+        uses: actions/setup-java@v5
         with:
-          eas-version: 23.2.0
-          packager: npm
-          token: ${{ secrets.EXPO_TOKEN }}
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
 
       - name: Validate release configuration
         shell: bash
@@ -94,33 +103,39 @@ jobs:
       - name: Generate release notes
         run: node scripts/generate-release-notes.mjs "$RELEASE_VERSION"
 
-      - name: Build signed Android App Bundle on EAS
+      - name: Generate native Android project
+        env:
+          EXPO_NO_GIT_STATUS: "1"
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Restore Android upload keystore
         shell: bash
         run: |
-          eas build \
-            --platform android \
-            --profile production \
-            --message "TIQKETS $RELEASE_VERSION" \
-            --non-interactive \
-            --wait \
-            --json > eas-build.json
-          BUILD_ID="$(jq -r '.[0].id' eas-build.json)"
-          ARTIFACT_URL="$(jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl' eas-build.json)"
-          test -n "$BUILD_ID" && test "$BUILD_ID" != "null"
-          test -n "$ARTIFACT_URL" && test "$ARTIFACT_URL" != "null"
-          curl --fail --location --retry 3 "$ARTIFACT_URL" --output tiqkets-$RELEASE_VERSION.aab
-          echo "BUILD_ID=$BUILD_ID" >> "$GITHUB_ENV"
+          test -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" || {
+            echo "ANDROID_KEYSTORE_BASE64 is required." >&2
+            exit 1
+          }
+          printf '%s' '${{ secrets.ANDROID_KEYSTORE_BASE64 }}' | base64 --decode > "$RUNNER_TEMP/tiqkets-upload.jks"
+          echo "TIQKETS_UPLOAD_STORE_FILE=$RUNNER_TEMP/tiqkets-upload.jks" >> "$GITHUB_ENV"
 
-      - name: Upload to Google Play
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.tiqkets.app
-          releaseFiles: tiqkets-${{ env.RELEASE_VERSION }}.aab
-          tracks: ${{ env.PLAY_TRACK }}
-          status: ${{ env.PLAY_STATUS }}
-          releaseName: TIQKETS ${{ env.RELEASE_VERSION }}
-          whatsNewDirectory: distribution/whatsnew
+      - name: Configure release signing
+        run: node scripts/configure-android-signing.mjs
+        env:
+          TIQKETS_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TIQKETS_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TIQKETS_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Build and upload with Fastlane
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          TIQKETS_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TIQKETS_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TIQKETS_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: bundle exec fastlane android release
+
+      - name: Collect signed bundle
+        shell: bash
+        run: cp android/app/build/outputs/bundle/release/app-release.aab "tiqkets-$RELEASE_VERSION.aab"
 
       - name: Create GitHub release
         env:
@@ -143,7 +158,7 @@ jobs:
           {
             echo "## TIQKETS Android $RELEASE_VERSION"
             echo
-            echo "- EAS build: \`$BUILD_ID\`"
+            echo "- Android version code: \`$ANDROID_VERSION_CODE\`"
             echo "- Google Play track: \`$PLAY_TRACK\`"
             echo "- Google Play status: \`$PLAY_STATUS\`"
             echo "- GitHub release: \`$RELEASE_TAG\`"

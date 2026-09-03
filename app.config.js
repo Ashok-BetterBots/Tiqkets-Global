@@ -1,4 +1,7 @@
 const releaseVersion = process.env.RELEASE_VERSION?.replace(/^v/, "");
+const androidVersionCode = process.env.ANDROID_VERSION_CODE
+  ? Number.parseInt(process.env.ANDROID_VERSION_CODE, 10)
+  : undefined;
 
 if (
   releaseVersion &&
@@ -12,4 +15,8 @@ if (
 module.exports = ({ config }) => ({
   ...config,
   version: releaseVersion || config.version,
+  android: {
+    ...config.android,
+    versionCode: androidVersionCode || config.android?.versionCode || 1,
+  },
 });

@@ -20,7 +20,9 @@
     "test:event-ticket-delivery": "DATABASE_URL=$DATABASE_URL npx tsx --test server/event-ticket-delivery.test.ts",
     "release:check": "npx expo-doctor && npx expo export --platform all --output-dir /tmp/tiqkets-release-check --clear",
     "release:notes": "node scripts/generate-release-notes.mjs",
-    "build:stores": "npx eas-cli build --platform all --profile production"
+    "build:android:release": "npx expo prebuild --platform android --clean --no-install && node scripts/configure-android-signing.mjs && bundle exec fastlane android release",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@expo-google-fonts/nunito": "^0.4.2",

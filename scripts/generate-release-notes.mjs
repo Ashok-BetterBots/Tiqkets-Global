@@ -3,7 +3,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const version = process.argv[2]?.replace(/^v/, "");
-const outputDirectory = process.argv[3] || "distribution/whatsnew";
+const outputDirectory =
+  process.argv[3] || "fastlane/metadata/android/en-US/changelogs";
 
 if (!version) {
   throw new Error(
@@ -62,7 +63,7 @@ if ([...playNotes].length > 500) {
 }
 
 mkdirSync(outputDirectory, { recursive: true });
-writeFileSync(join(outputDirectory, "whatsnew-en-US"), `${playNotes}\n`);
+writeFileSync(join(outputDirectory, "default.txt"), `${playNotes}\n`);
 writeFileSync(
   "RELEASE_NOTES.md",
   `# TIQKETS ${version}\n\n${playNotes}\n\n` +
