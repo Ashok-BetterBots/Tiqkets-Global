@@ -1,0 +1,152 @@
+name: Android release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version without the v prefix (for example, 1.0.1)
+        required: true
+        type: string
+      track:
+        description: Google Play track
+        required: true
+        default: internal
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+      status:
+        description: Google Play release status
+        required: true
+        default: draft
+        type: choice
+        options:
+          - draft
+          - completed
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: ${{ (inputs.track || 'internal') == 'production' && 'google-play-production' || 'google-play-testing' }}
+    env:
+      RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+      PLAY_TRACK: ${{ inputs.track || 'internal' }}
+      PLAY_STATUS: ${{ inputs.status || 'draft' }}
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate release version
+        shell: bash
+        run: |
+          VERSION="${RELEASE_VERSION#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release version must use X.Y.Z format; received: $RELEASE_VERSION" >&2
+            exit 1
+          fi
+          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=v$VERSION" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Set up Expo and EAS
+        uses: expo/expo-github-action@v9
+        with:
+          eas-version: 23.2.0
+          packager: npm
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Validate release configuration
+        shell: bash
+        run: |
+          test -n "$EXPO_PUBLIC_API_URL" || {
+            echo "Repository environment variable EXPO_PUBLIC_API_URL is required." >&2
+            exit 1
+          }
+          npx expo-doctor
+          npx expo export --platform android --output-dir /tmp/tiqkets-export --clear
+
+      - name: Generate release notes
+        run: node scripts/generate-release-notes.mjs "$RELEASE_VERSION"
+
+      - name: Build signed Android App Bundle on EAS
+        shell: bash
+        run: |
+          eas build \
+            --platform android \
+            --profile production \
+            --message "TIQKETS $RELEASE_VERSION" \
+            --non-interactive \
+            --wait \
+            --json > eas-build.json
+          BUILD_ID="$(jq -r '.[0].id' eas-build.json)"
+          ARTIFACT_URL="$(jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl' eas-build.json)"
+          test -n "$BUILD_ID" && test "$BUILD_ID" != "null"
+          test -n "$ARTIFACT_URL" && test "$ARTIFACT_URL" != "null"
+          curl --fail --location --retry 3 "$ARTIFACT_URL" --output tiqkets-$RELEASE_VERSION.aab
+          echo "BUILD_ID=$BUILD_ID" >> "$GITHUB_ENV"
+
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.tiqkets.app
+          releaseFiles: tiqkets-${{ env.RELEASE_VERSION }}.aab
+          tracks: ${{ env.PLAY_TRACK }}
+          status: ${{ env.PLAY_STATUS }}
+          releaseName: TIQKETS ${{ env.RELEASE_VERSION }}
+          whatsNewDirectory: distribution/whatsnew
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "tiqkets-$RELEASE_VERSION.aab" --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              "tiqkets-$RELEASE_VERSION.aab" \
+              --target "$GITHUB_SHA" \
+              --title "TIQKETS $RELEASE_VERSION" \
+              --generate-notes
+          fi
+
+      - name: Publish workflow summary
+        shell: bash
+        run: |
+          {
+            echo "## TIQKETS Android $RELEASE_VERSION"
+            echo
+            echo "- EAS build: \`$BUILD_ID\`"
+            echo "- Google Play track: \`$PLAY_TRACK\`"
+            echo "- Google Play status: \`$PLAY_STATUS\`"
+            echo "- GitHub release: \`$RELEASE_TAG\`"
+            echo
+            cat RELEASE_NOTES.md
+          } >> "$GITHUB_STEP_SUMMARY"
