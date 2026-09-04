@@ -63,7 +63,10 @@ describe("event registration slot display", () => {
     assert.match(landing, /data-special-category="pregnant_women"/);
     assert.match(landing, /data-special-category="infants"/);
     assert.match(landing, /data-special-category="specially_abled"/);
-    assert.match(landing, /class="special-category-icon"[^>]*aria-hidden="true"><svg/);
+    assert.match(landing, /data-special-category="senior_citizen"[\s\S]*?src="\/assets\/special-categories\/person_1788525899674\.png"/);
+    assert.match(landing, /data-special-category="pregnant_women"[\s\S]*?src="\/assets\/special-categories\/pregnant_1788525899674\.png"/);
+    assert.match(landing, /data-special-category="infants"[\s\S]*?src="\/assets\/special-categories\/human_1788525899674\.png"/);
+    assert.match(landing, /data-special-category="specially_abled"[\s\S]*?src="\/assets\/special-categories\/disabled_1788525899674\.png"/);
     assert.match(landing, /isSpecialNeeds = selectedSpecialCategories\.length > 0/);
     assert.match(landing, /sel\.disabled = isSpecialNeeds/);
     assert.match(landing, /visibleDays = allAvailDays\.length > 0 \? \[allAvailDays\[allAvailDays\.length - 1\]\] : \[\]/);

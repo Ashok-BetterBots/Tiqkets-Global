@@ -1256,7 +1256,12 @@
       color: var(--brand-primary);
       background: var(--brand-tint);
     }
-    .special-category-icon svg { width: 20px; height: 20px; }
+    .special-category-icon img {
+      display: block;
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+    }
     .special-category-lock-note {
       display: none;
       align-items: center;
@@ -1891,19 +1896,19 @@
                   <div style="font-size:11px;color:#6b7280;margin-top:3px;" data-i18n="reg.specialNeedsHint">Select all that apply. The final event date will be reserved for you.</div>
                   <div class="special-category-grid" role="group" aria-labelledby="specialCategoryTitle">
                     <button type="button" class="special-category-option" data-special-category="senior_citizen" aria-pressed="false">
-                      <span class="special-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.5"></circle><path d="M10 8.5 8.5 14l3.5 2 1.5 5M13 10l3 3M7 21l2.5-5M17 12v9"></path></svg></span>
+                      <span class="special-category-icon" aria-hidden="true"><img src="/assets/special-categories/person_1788525899674.png" alt=""></span>
                       <span data-i18n="reg.specialSenior">Senior Citizen</span>
                     </button>
                     <button type="button" class="special-category-option" data-special-category="pregnant_women" aria-pressed="false">
-                      <span class="special-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="4" r="2.3"></circle><path d="M9 7.5v5.2c0 2.7 1.8 4.8 4.5 4.8H16v-2.2c0-3.4-2.1-6.2-5.2-7.2M9 12l-2 9M13.5 17.5 14 21"></path></svg></span>
+                      <span class="special-category-icon" aria-hidden="true"><img src="/assets/special-categories/pregnant_1788525899674.png" alt=""></span>
                       <span data-i18n="reg.specialPregnant">Pregnant Women</span>
                     </button>
                     <button type="button" class="special-category-option" data-special-category="infants" aria-pressed="false">
-                      <span class="special-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7"></circle><path d="M9.5 12h.01M14.5 12h.01M9.5 16c1.5 1 3.5 1 5 0M12 6c0-2 1.2-3 3-3"></path></svg></span>
+                      <span class="special-category-icon" aria-hidden="true"><img src="/assets/special-categories/human_1788525899674.png" alt=""></span>
                       <span data-i18n="reg.specialInfants">Infants</span>
                     </button>
                     <button type="button" class="special-category-option" data-special-category="specially_abled" aria-pressed="false">
-                      <span class="special-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2.2"></circle><path d="M11 7.5 9.5 13H15l2 5M10 10l4 2M8.5 14a5 5 0 1 0 6.8 5.5"></path></svg></span>
+                      <span class="special-category-icon" aria-hidden="true"><img src="/assets/special-categories/disabled_1788525899674.png" alt=""></span>
                       <span data-i18n="reg.specialDisabled">Specially abled</span>
                     </button>
                   </div>
