@@ -54,4 +54,20 @@ describe("event registration slot display", () => {
     assert.match(routes, /productCategory: normalizedProductCategory/);
     assert.match(routes, /allowedProductCategories/);
   });
+
+  test("special categories use icons and lock the final event date", () => {
+    const landing = readFileSync("server/templates/event-landing.html", "utf8");
+
+    assert.match(landing, /"reg\.specialNeeds": "Special category"/);
+    assert.match(landing, /data-special-category="senior_citizen"/);
+    assert.match(landing, /data-special-category="pregnant_women"/);
+    assert.match(landing, /data-special-category="infants"/);
+    assert.match(landing, /data-special-category="specially_abled"/);
+    assert.match(landing, /class="special-category-icon"[^>]*aria-hidden="true"><svg/);
+    assert.match(landing, /isSpecialNeeds = selectedSpecialCategories\.length > 0/);
+    assert.match(landing, /sel\.disabled = isSpecialNeeds/);
+    assert.match(landing, /visibleDays = allAvailDays\.length > 0 \? \[allAvailDays\[allAvailDays\.length - 1\]\] : \[\]/);
+    assert.match(landing, /priorityAccess: isSpecialNeeds/);
+    assert.match(landing, /"reg\.specialNeeds": "சிறப்புப் பிரிவு"/);
+  });
 });
