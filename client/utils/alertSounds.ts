@@ -1,4 +1,4 @@
-import { Audio, AVPlaybackStatus } from "expo-av";
+import { Audio, AVPlaybackStatus } from "@/utils/audioCompat";
 import { Platform } from "react-native";
 
 let successSound: Audio.Sound | null = null;
