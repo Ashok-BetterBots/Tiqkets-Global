@@ -39,10 +39,12 @@ describe("event registration slot display", () => {
     const landing = readFileSync("server/templates/event-landing.html", "utf8");
 
     assert.match(landing, /id="productCategory"/);
-    assert.match(landing, /value="electronics"[^>]*data-i18n="reg\.productCategoryElectronics"/);
-    assert.match(landing, /value="furniture"[^>]*data-i18n="reg\.productCategoryFurniture"/);
-    assert.match(landing, /value="home_appliances"[^>]*data-i18n="reg\.productCategoryHomeAppliances"/);
-    assert.match(landing, /value="vessels"[^>]*data-i18n="reg\.productCategoryVessels"/);
+    assert.match(landing, /data-category="electronics"[^>]*data-label-key="reg\.productCategoryElectronics"/);
+    assert.match(landing, /data-category="furniture"[^>]*data-label-key="reg\.productCategoryFurniture"/);
+    assert.match(landing, /data-category="home_appliances"[^>]*data-label-key="reg\.productCategoryHomeAppliances"/);
+    assert.match(landing, /data-category="vessels"[^>]*data-label-key="reg\.productCategoryVessels"/);
+    assert.match(landing, /class="product-category-icon"[^>]*aria-hidden="true"><svg/);
+    assert.doesNotMatch(landing, /"reg\.productCategoryElectronics": "📱/);
     assert.match(landing, /productCategory: productCategory/);
     assert.match(landing, /"reg\.productCategory": "நீங்கள் எந்த தயாரிப்பு வகையைத் தேடுகிறீர்கள்\?"/);
 

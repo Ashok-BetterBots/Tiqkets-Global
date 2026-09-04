@@ -1118,32 +1118,99 @@
     .field-float input.field-valid, .field-float textarea.field-valid, .field-float select.field-valid {
       border-color: #c7e8d7;
     }
-    .product-category-select {
+    .product-category-picker { position: relative; }
+    .product-category-trigger {
       width: 100%;
       min-height: 52px;
-      padding: 12px 42px 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 42px 11px 13px;
       border: 1.5px solid var(--line-strong);
       border-radius: var(--radius-sm);
       color: var(--text);
-      background-color: var(--surface);
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b6b76' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 14px center;
+      background: var(--surface);
       font: inherit;
       font-size: 15px;
-      -webkit-appearance: none;
-      appearance: none;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color 180ms ease, box-shadow 180ms ease;
     }
-    .product-category-select:focus {
+    .product-category-trigger:focus {
       outline: none;
       border-color: var(--brand-primary);
       box-shadow: 0 0 0 4px rgba(var(--brand-rgb), 0.1);
     }
-    .product-category-select.field-valid { border-color: #c7e8d7; }
-    html[dir="rtl"] .product-category-select {
-      padding-right: 14px;
-      padding-left: 42px;
-      background-position: left 14px center;
+    .product-category-trigger.field-valid { border-color: #c7e8d7; }
+    .product-category-selected-icon,
+    .product-category-icon {
+      display: grid;
+      place-items: center;
+      flex: 0 0 32px;
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      color: var(--brand-primary);
+      background: var(--brand-tint);
+    }
+    .product-category-selected-icon:empty { display: none; }
+    .product-category-selected-icon svg,
+    .product-category-icon svg { width: 19px; height: 19px; }
+    .product-category-trigger-label { flex: 1; min-width: 0; }
+    .product-category-chevron {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+      transition: transform 160ms ease;
+    }
+    .product-category-trigger[aria-expanded="true"] + .product-category-chevron {
+      transform: translateY(-50%) rotate(180deg);
+    }
+    .product-category-menu {
+      position: absolute;
+      z-index: 40;
+      left: 0;
+      right: 0;
+      top: calc(100% + 7px);
+      display: grid;
+      gap: 5px;
+      padding: 7px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: 0 16px 34px rgba(20, 24, 40, .16);
+    }
+    .product-category-menu.hidden { display: none; }
+    .product-category-option {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      width: 100%;
+      padding: 9px 10px;
+      border: 0;
+      border-radius: 9px;
+      color: var(--text);
+      background: transparent;
+      font: inherit;
+      font-size: 14px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .product-category-option:hover,
+    .product-category-option[aria-selected="true"] {
+      color: var(--brand-primary);
+      background: var(--brand-tint);
+      font-weight: 700;
+    }
+    html[dir="rtl"] .product-category-trigger,
+    html[dir="rtl"] .product-category-option { text-align: right; }
+    html[dir="rtl"] .product-category-trigger { padding-right: 13px; padding-left: 42px; }
+    html[dir="rtl"] .product-category-chevron { right: auto; left: 14px; }
+    @media (max-width: 520px) {
+      .product-category-menu { position: static; margin-top: 7px; }
     }
     .field-error-msg {
       font-size: 12px;
@@ -1641,14 +1708,33 @@
               </div>
 
               <div class="form-group">
-                <label class="field-label" for="productCategory" style="margin-bottom:8px;"><span data-i18n="reg.productCategory">What product category are you looking for?</span> <span class="required">*</span></label>
-                <select id="productCategory" class="product-category-select" required aria-required="true">
-                  <option value="" data-i18n="reg.productCategoryPlaceholder">Select a product category</option>
-                  <option value="electronics" data-i18n="reg.productCategoryElectronics">📱 Electronics</option>
-                  <option value="furniture" data-i18n="reg.productCategoryFurniture">🛋️ Furniture</option>
-                  <option value="home_appliances" data-i18n="reg.productCategoryHomeAppliances">🏠 Home Appliances</option>
-                  <option value="vessels" data-i18n="reg.productCategoryVessels">🍲 Vessels</option>
-                </select>
+                <label class="field-label" id="productCategoryLabel" style="margin-bottom:8px;"><span data-i18n="reg.productCategory">What product category are you looking for?</span> <span class="required">*</span></label>
+                <input type="hidden" id="productCategory" value="">
+                <div class="product-category-picker">
+                  <button type="button" id="productCategoryTrigger" class="product-category-trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="productCategoryLabel productCategorySelectedLabel">
+                    <span id="productCategorySelectedIcon" class="product-category-selected-icon" aria-hidden="true"></span>
+                    <span id="productCategorySelectedLabel" class="product-category-trigger-label" data-i18n="reg.productCategoryPlaceholder">Select a product category</span>
+                  </button>
+                  <svg class="product-category-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  <div id="productCategoryMenu" class="product-category-menu hidden" role="listbox" aria-labelledby="productCategoryLabel">
+                    <button type="button" class="product-category-option" role="option" aria-selected="false" data-category="electronics" data-label-key="reg.productCategoryElectronics">
+                      <span class="product-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="2.5" width="14" height="19" rx="2.5"></rect><path d="M9 5h6M10 18.5h4"></path></svg></span>
+                      <span data-i18n="reg.productCategoryElectronics">Electronics</span>
+                    </button>
+                    <button type="button" class="product-category-option" role="option" aria-selected="false" data-category="furniture" data-label-key="reg.productCategoryFurniture">
+                      <span class="product-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 11V8.5a2.5 2.5 0 0 1 5 0V11M14 11V8.5a2.5 2.5 0 0 1 5 0V11"></path><path d="M3 11h18v7H3zM5 18v3M19 18v3"></path></svg></span>
+                      <span data-i18n="reg.productCategoryFurniture">Furniture</span>
+                    </button>
+                    <button type="button" class="product-category-option" role="option" aria-selected="false" data-category="home_appliances" data-label-key="reg.productCategoryHomeAppliances">
+                      <span class="product-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10.5 12 4l8 6.5V21H4z"></path><path d="M9 21v-7h6v7M8 9h8"></path></svg></span>
+                      <span data-i18n="reg.productCategoryHomeAppliances">Home Appliances</span>
+                    </button>
+                    <button type="button" class="product-category-option" role="option" aria-selected="false" data-category="vessels" data-label-key="reg.productCategoryVessels">
+                      <span class="product-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 10h14v3a7 7 0 0 1-14 0zM3 10h18M9 6h6M12 6V3"></path></svg></span>
+                      <span data-i18n="reg.productCategoryVessels">Vessels</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div class="form-group field-float">
@@ -1974,10 +2060,10 @@
         "reg.phoneError": "Enter a valid 10-digit mobile number",
         "reg.productCategory": "What product category are you looking for?",
         "reg.productCategoryPlaceholder": "Select a product category",
-        "reg.productCategoryElectronics": "📱 Electronics",
-        "reg.productCategoryFurniture": "🛋️ Furniture",
-        "reg.productCategoryHomeAppliances": "🏠 Home Appliances",
-        "reg.productCategoryVessels": "🍲 Vessels",
+        "reg.productCategoryElectronics": "Electronics",
+        "reg.productCategoryFurniture": "Furniture",
+        "reg.productCategoryHomeAppliances": "Home Appliances",
+        "reg.productCategoryVessels": "Vessels",
         "reg.email": "Email",
         "reg.optional": "Optional",
         "reg.family": "Family members joining you",
@@ -2074,10 +2160,10 @@
         "reg.phoneError": "சரியான 10 இலக்க மொபைல் எண்ணை உள்ளிடவும்",
         "reg.productCategory": "நீங்கள் எந்த தயாரிப்பு வகையைத் தேடுகிறீர்கள்?",
         "reg.productCategoryPlaceholder": "தயாரிப்பு வகையைத் தேர்ந்தெடுக்கவும்",
-        "reg.productCategoryElectronics": "📱 மின்னணுப் பொருட்கள்",
-        "reg.productCategoryFurniture": "🛋️ மரச்சாமான்கள்",
-        "reg.productCategoryHomeAppliances": "🏠 வீட்டு உபயோகப் பொருட்கள்",
-        "reg.productCategoryVessels": "🍲 பாத்திரங்கள்",
+        "reg.productCategoryElectronics": "மின்னணுப் பொருட்கள்",
+        "reg.productCategoryFurniture": "மரச்சாமான்கள்",
+        "reg.productCategoryHomeAppliances": "வீட்டு உபயோகப் பொருட்கள்",
+        "reg.productCategoryVessels": "பாத்திரங்கள்",
         "reg.email": "மின்னஞ்சல்",
         "reg.optional": "விருப்பத்தேர்வு",
         "reg.family": "உங்களுடன் சேரும் குடும்ப உறுப்பினர்கள்",
@@ -2192,6 +2278,7 @@
       document.querySelectorAll("[data-i18n]").forEach(function (el) {
         el.textContent = t(el.getAttribute("data-i18n"));
       });
+      syncProductCategorySelection();
       renderLangSwitch();
       refreshCustomFieldPlaceholders();
       if (data) {
@@ -2938,9 +3025,17 @@
         $("phoneError").classList.toggle("show", invalid);
         if (validPhone(phone)) fetchLanguageHint(phone);
       });
-      $("productCategory").addEventListener("change", function () {
-        this.classList.toggle("field-valid", !!this.value);
-        updateSubmitState();
+      $("productCategoryTrigger").addEventListener("click", function () {
+        setProductCategoryMenuOpen($("productCategoryMenu").classList.contains("hidden"));
+      });
+      document.querySelectorAll(".product-category-option").forEach(function (option) {
+        option.addEventListener("click", function () { selectProductCategory(option.getAttribute("data-category")); });
+      });
+      document.addEventListener("click", function (event) {
+        if (!event.target.closest(".product-category-picker")) setProductCategoryMenuOpen(false);
+      });
+      $("productCategoryTrigger").addEventListener("keydown", function (event) {
+        if (event.key === "Escape") setProductCategoryMenuOpen(false);
       });
       $("backBtn").addEventListener("click", function () {
         if (inOtpStep) { hideOtpPanel(); return; }
@@ -2980,6 +3075,44 @@
 
     function validPhone(p) {
       return /^[6-9][0-9]{9}$/.test(p);
+    }
+
+    function setProductCategoryMenuOpen(open) {
+      var menu = $("productCategoryMenu");
+      var trigger = $("productCategoryTrigger");
+      menu.classList.toggle("hidden", !open);
+      trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    function syncProductCategorySelection() {
+      var input = $("productCategory");
+      var selectedValue = input ? input.value : "";
+      var selectedOption = selectedValue
+        ? document.querySelector('.product-category-option[data-category="' + selectedValue + '"]')
+        : null;
+      var label = $("productCategorySelectedLabel");
+      var icon = $("productCategorySelectedIcon");
+      if (!label || !icon) return;
+      var labelKey = selectedOption ? selectedOption.getAttribute("data-label-key") : "reg.productCategoryPlaceholder";
+      label.setAttribute("data-i18n", labelKey);
+      label.textContent = t(labelKey);
+      icon.innerHTML = "";
+      if (selectedOption) {
+        var sourceIcon = selectedOption.querySelector("svg");
+        if (sourceIcon) icon.appendChild(sourceIcon.cloneNode(true));
+      }
+      document.querySelectorAll(".product-category-option").forEach(function (option) {
+        option.setAttribute("aria-selected", option === selectedOption ? "true" : "false");
+      });
+      $("productCategoryTrigger").classList.toggle("field-valid", !!selectedValue);
+    }
+
+    function selectProductCategory(value) {
+      $("productCategory").value = value || "";
+      syncProductCategorySelection();
+      setProductCategoryMenuOpen(false);
+      updateSubmitState();
+      $("productCategoryTrigger").focus();
     }
 
     function registrationOtpEnabled() {
