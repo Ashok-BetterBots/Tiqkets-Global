@@ -1598,9 +1598,9 @@ export const eventRegistrations = pgTable("event_registrations", {
   // pre-select the switcher on a future registration.
   preferredLanguage: text("preferred_language").default("en").notNull(),
   familyMembersCount: integer("family_members_count").default(0).notNull(),
-  // Set when the customer requests priority access for an infant, senior
-  // citizen, or pregnant visitor. Used to surface a clear, privacy-respecting
-  // marker on the ticket shown at entry.
+  // Set when the customer selects any special category: senior citizen,
+  // pregnant women, infants, or specially abled. Used to surface a clear,
+  // privacy-respecting marker on the ticket shown at entry.
   priorityAccess: boolean("priority_access").default(false).notNull(),
   slotDate: text("slot_date").notNull(),
   slotTime: text("slot_time").notNull(),

@@ -1212,6 +1212,73 @@
     @media (max-width: 520px) {
       .product-category-menu { position: static; margin-top: 7px; }
     }
+    .special-category-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+      margin-top: 9px;
+    }
+    .special-category-option {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 58px;
+      padding: 9px 10px;
+      border: 1.5px solid var(--line-strong);
+      border-radius: 11px;
+      color: var(--text);
+      background: var(--surface);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.25;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+    }
+    .special-category-option:hover {
+      border-color: var(--brand-primary);
+      background: var(--brand-tint);
+    }
+    .special-category-option[aria-pressed="true"] {
+      border-color: var(--brand-primary);
+      color: var(--brand-primary);
+      background: var(--brand-tint);
+      box-shadow: inset 0 0 0 1px var(--brand-primary);
+    }
+    .special-category-icon {
+      display: grid;
+      place-items: center;
+      flex: 0 0 32px;
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      color: var(--brand-primary);
+      background: var(--brand-tint);
+    }
+    .special-category-icon svg { width: 20px; height: 20px; }
+    .special-category-lock-note {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      margin-top: 9px;
+      color: var(--brand-primary);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .special-category-lock-note.show { display: flex; }
+    .special-category-lock-note svg { flex: 0 0 auto; }
+    #dateSelect:disabled {
+      cursor: not-allowed !important;
+      color: var(--text);
+      border-color: var(--brand-primary) !important;
+      background: var(--brand-tint) !important;
+      opacity: 1;
+    }
+    html[dir="rtl"] .special-category-option { text-align: right; }
+    @media (max-width: 390px) {
+      .special-category-grid { grid-template-columns: 1fr; }
+    }
     .field-error-msg {
       font-size: 12px;
       color: var(--error);
@@ -1818,16 +1885,32 @@
               </div>
 
               <div id="slotBlock">
-                <!-- Infant / senior citizens: show only the last available date -->
-                <div style="margin-bottom:16px;">
-                  <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafafa;">
-                    <input type="checkbox" id="specialNeedsCheck" onchange="handleSpecialNeedsChange(this.checked)"
-                           style="width:18px;height:18px;margin-top:2px;flex-shrink:0;accent-color:#8c1867;cursor:pointer;">
-                    <div>
-                      <div style="font-size:13px;font-weight:700;color:#1a1a2e;line-height:1.4;" data-i18n="reg.specialNeeds">Visiting with infants / senior citizens / pregnant women?</div>
-                      <div style="font-size:11px;color:#6b7280;margin-top:3px;" data-i18n="reg.specialNeedsHint">The last available event slot will be reserved for you</div>
-                    </div>
-                  </label>
+                <!-- Selecting any special category reserves and locks the final event date. -->
+                <div style="margin-bottom:16px;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafafa;">
+                  <div id="specialCategoryTitle" style="font-size:13px;font-weight:800;color:#1a1a2e;line-height:1.4;" data-i18n="reg.specialNeeds">Special category</div>
+                  <div style="font-size:11px;color:#6b7280;margin-top:3px;" data-i18n="reg.specialNeedsHint">Select all that apply. The final event date will be reserved for you.</div>
+                  <div class="special-category-grid" role="group" aria-labelledby="specialCategoryTitle">
+                    <button type="button" class="special-category-option" data-special-category="senior_citizen" aria-pressed="false">
+                      <span class="special-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.5"></circle><path d="M10 8.5 8.5 14l3.5 2 1.5 5M13 10l3 3M7 21l2.5-5M17 12v9"></path></svg></span>
+                      <span data-i18n="reg.specialSenior">Senior Citizen</span>
+                    </button>
+                    <button type="button" class="special-category-option" data-special-category="pregnant_women" aria-pressed="false">
+                      <span class="special-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="4" r="2.3"></circle><path d="M9 7.5v5.2c0 2.7 1.8 4.8 4.5 4.8H16v-2.2c0-3.4-2.1-6.2-5.2-7.2M9 12l-2 9M13.5 17.5 14 21"></path></svg></span>
+                      <span data-i18n="reg.specialPregnant">Pregnant Women</span>
+                    </button>
+                    <button type="button" class="special-category-option" data-special-category="infants" aria-pressed="false">
+                      <span class="special-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7"></circle><path d="M9.5 12h.01M14.5 12h.01M9.5 16c1.5 1 3.5 1 5 0M12 6c0-2 1.2-3 3-3"></path></svg></span>
+                      <span data-i18n="reg.specialInfants">Infants</span>
+                    </button>
+                    <button type="button" class="special-category-option" data-special-category="specially_abled" aria-pressed="false">
+                      <span class="special-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2.2"></circle><path d="M11 7.5 9.5 13H15l2 5M10 10l4 2M8.5 14a5 5 0 1 0 6.8 5.5"></path></svg></span>
+                      <span data-i18n="reg.specialDisabled">Specially abled</span>
+                    </button>
+                  </div>
+                  <div id="specialCategoryLockNote" class="special-category-lock-note" aria-live="polite">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+                    <span data-i18n="reg.specialDateLocked">Final event date selected and locked</span>
+                  </div>
                 </div>
 
                 <label class="field-label"><span data-i18n="reg.selectDate">Select a date</span> <span class="required">*</span></label>
@@ -2113,8 +2196,13 @@
         "otp.resendCooldown": "Resend in {{s}}s",
         "otp.wrongCode": "Incorrect code. Please try again.",
         "otp.sendError": "Could not send code to this number. Please check your WhatsApp number.",
-        "reg.specialNeeds": "Visiting with infants / senior citizens / pregnant women?",
-        "reg.specialNeedsHint": "The last available event slot will be reserved for you",
+        "reg.specialNeeds": "Special category",
+        "reg.specialNeedsHint": "Select all that apply. The final event date will be reserved for you.",
+        "reg.specialSenior": "Senior Citizen",
+        "reg.specialPregnant": "Pregnant Women",
+        "reg.specialInfants": "Infants",
+        "reg.specialDisabled": "Specially abled",
+        "reg.specialDateLocked": "Final event date selected and locked",
         "otp.retry": "Try again"
       },
       ta: {
@@ -2213,8 +2301,13 @@
         "otp.resendCooldown": "{{s}} வினாடிகளில் மீண்டும் அனுப்பவும்",
         "otp.wrongCode": "தவறான குறியீடு. மீண்டும் முயற்சிக்கவும்.",
         "otp.sendError": "இந்த எண்ணிற்கு குறியீடு அனுப்ப முடியவில்லை. உங்கள் WhatsApp எண்ணை சரிபார்க்கவும்.",
-        "reg.specialNeeds": "குழந்தைகள் / முதியோர் / கர்ப்பிணிப் பெண்களுடன் வருகிறீர்களா?",
-        "reg.specialNeedsHint": "கடைசியாக கிடைக்கும் நிகழ்வு இடம் உங்களுக்காக ஒதுக்கப்படும்",
+        "reg.specialNeeds": "சிறப்புப் பிரிவு",
+        "reg.specialNeedsHint": "பொருந்தும் அனைத்தையும் தேர்ந்தெடுக்கவும். நிகழ்வின் இறுதி தேதி உங்களுக்காக ஒதுக்கப்படும்.",
+        "reg.specialSenior": "மூத்த குடிமக்கள்",
+        "reg.specialPregnant": "கர்ப்பிணிப் பெண்கள்",
+        "reg.specialInfants": "கைக்குழந்தைகள்",
+        "reg.specialDisabled": "மாற்றுத்திறனாளிகள்",
+        "reg.specialDateLocked": "நிகழ்வின் இறுதி தேதி தேர்ந்தெடுக்கப்பட்டு பூட்டப்பட்டது",
         "otp.retry": "மீண்டும் முயற்சிக்கவும்"
       }
     };
@@ -2330,7 +2423,8 @@
     var data = null;
     var razorpayKeyId = null;
     var selectedDate = null;
-    var isSpecialNeeds = false; // true = visiting with infants/senior citizens → last date only
+    var selectedSpecialCategories = [];
+    var isSpecialNeeds = false; // any special category selected → final date only
     var selectedTime = null;
     var familyCount = 0;
     var submitting = false;
@@ -2795,6 +2889,7 @@
     function renderDateChips() {
       var sel = $("dateSelect");
       if (!sel) return;
+      sel.disabled = isSpecialNeeds;
       var prevDate = selectedDate;
       sel.innerHTML = '<option value="">— Select a date —</option>';
       selectedDate = null;
@@ -2808,7 +2903,7 @@
       });
       var visibleDays;
       if (isSpecialNeeds) {
-        // Infants / senior citizens: LAST available date only
+        // Any special category: LAST available date only
         visibleDays = allAvailDays.length > 0 ? [allAvailDays[allAvailDays.length - 1]] : [];
       } else {
         // Regular visitors: all dates EXCEPT the last available date
@@ -2854,8 +2949,15 @@
        updateSubmitState();
      }
 
-    function handleSpecialNeedsChange(checked) {
-      isSpecialNeeds = !!checked;
+    function toggleSpecialCategory(category) {
+      var index = selectedSpecialCategories.indexOf(category);
+      if (index >= 0) selectedSpecialCategories.splice(index, 1);
+      else selectedSpecialCategories.push(category);
+      isSpecialNeeds = selectedSpecialCategories.length > 0;
+      document.querySelectorAll(".special-category-option").forEach(function (option) {
+        option.setAttribute("aria-pressed", selectedSpecialCategories.indexOf(option.getAttribute("data-special-category")) >= 0 ? "true" : "false");
+      });
+      $("specialCategoryLockNote").classList.toggle("show", isSpecialNeeds);
       renderDateChips();
     }
 
@@ -3030,6 +3132,9 @@
       });
       document.querySelectorAll(".product-category-option").forEach(function (option) {
         option.addEventListener("click", function () { selectProductCategory(option.getAttribute("data-category")); });
+      });
+      document.querySelectorAll(".special-category-option").forEach(function (option) {
+        option.addEventListener("click", function () { toggleSpecialCategory(option.getAttribute("data-special-category")); });
       });
       document.addEventListener("click", function (event) {
         if (!event.target.closest(".product-category-picker")) setProductCategoryMenuOpen(false);
