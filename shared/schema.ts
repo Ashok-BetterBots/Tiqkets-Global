@@ -1587,6 +1587,10 @@ export const eventRegistrations = pgTable("event_registrations", {
   customerName: text("customer_name").notNull(),
   customerPhone: text("customer_phone").notNull(),
   customerEmail: text("customer_email"),
+  // Normalized category selected in the public customer registration form.
+  // Kept as a dedicated column so reporting can group/filter without parsing
+  // location-specific custom form data.
+  productCategory: text("product_category"),
   // Language the customer selected at the moment of submission (see
   // shared/languages.ts for the supported-language catalog). Drives which
   // language all downstream WhatsApp/email communications for this

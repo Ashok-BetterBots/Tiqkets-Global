@@ -1863,7 +1863,7 @@ export function registerEventsRoutes(app: Express) {
       if (ev.status === "paused") {
         return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please check back soon.", paused: true });
       }
-      const { customerName, customerPhone, customerEmail, preferredLanguage, familyMembersCount, priorityAccess, slotDate, slotTime, locationId, formData } = req.body || {};
+      const { customerName, customerPhone, customerEmail, productCategory, preferredLanguage, familyMembersCount, priorityAccess, slotDate, slotTime, locationId, formData } = req.body || {};
       const name = String(customerName || "").trim();
       // Normalize to full international digits (country code + number) —
       // the public web registration form only collects a bare 10-digit
@@ -1875,8 +1875,13 @@ export function registerEventsRoutes(app: Express) {
       const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
       const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
       const needsPriorityAccess = priorityAccess === true;
+      const normalizedProductCategory = String(productCategory || "").trim().toLowerCase();
+      const allowedProductCategories = new Set(["electronics", "furniture", "home_appliances", "vessels"]);
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
+      if (!allowedProductCategories.has(normalizedProductCategory)) {
+        return res.status(400).json({ error: "A valid product category is required" });
+      }
       if (parseInt(String(familyMembersCount ?? 0), 10) > maxGuests - 1) {
         return res.status(400).json({ error: `This event allows a maximum of ${maxGuests} guests per registration` });
       }
@@ -2010,6 +2015,7 @@ export function registerEventsRoutes(app: Express) {
           customerName: name,
           customerPhone: phone,
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
+          productCategory: normalizedProductCategory,
           preferredLanguage: language,
           familyMembersCount: fam,
           priorityAccess: needsPriorityAccess,

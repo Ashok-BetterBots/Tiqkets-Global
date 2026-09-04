@@ -34,4 +34,22 @@ describe("event registration slot display", () => {
     assert.match(landing, /Enter and exit the shop within 3 hours to receive a surprise gift\./);
     assert.match(landing, /கடைக்குள் நுழைந்த 3 மணி நேரத்திற்குள் வெளியேறினால்/);
   });
+
+  test("collects a bilingual icon product category for reporting", () => {
+    const landing = readFileSync("server/templates/event-landing.html", "utf8");
+
+    assert.match(landing, /id="productCategory"/);
+    assert.match(landing, /value="electronics"[^>]*data-i18n="reg\.productCategoryElectronics"/);
+    assert.match(landing, /value="furniture"[^>]*data-i18n="reg\.productCategoryFurniture"/);
+    assert.match(landing, /value="home_appliances"[^>]*data-i18n="reg\.productCategoryHomeAppliances"/);
+    assert.match(landing, /value="vessels"[^>]*data-i18n="reg\.productCategoryVessels"/);
+    assert.match(landing, /productCategory: productCategory/);
+    assert.match(landing, /"reg\.productCategory": "நீங்கள் எந்த தயாரிப்பு வகையைத் தேடுகிறீர்கள்\?"/);
+
+    const schema = readFileSync("shared/schema.ts", "utf8");
+    const routes = readFileSync("server/events-routes.ts", "utf8");
+    assert.match(schema, /productCategory: text\("product_category"\)/);
+    assert.match(routes, /productCategory: normalizedProductCategory/);
+    assert.match(routes, /allowedProductCategories/);
+  });
 });

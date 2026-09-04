@@ -1115,8 +1115,35 @@
     .field-float input.field-invalid, .field-float textarea.field-invalid, .field-float select.field-invalid {
       border-color: var(--error);
     }
-    .field-float input.field-valid, .field-float textarea.field-valid {
+    .field-float input.field-valid, .field-float textarea.field-valid, .field-float select.field-valid {
       border-color: #c7e8d7;
+    }
+    .product-category-select {
+      width: 100%;
+      min-height: 52px;
+      padding: 12px 42px 12px 14px;
+      border: 1.5px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      background-color: var(--surface);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b6b76' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      font: inherit;
+      font-size: 15px;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .product-category-select:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 4px rgba(var(--brand-rgb), 0.1);
+    }
+    .product-category-select.field-valid { border-color: #c7e8d7; }
+    html[dir="rtl"] .product-category-select {
+      padding-right: 14px;
+      padding-left: 42px;
+      background-position: left 14px center;
     }
     .field-error-msg {
       font-size: 12px;
@@ -1613,6 +1640,17 @@
                 <div class="field-error-msg" id="phoneError" data-i18n="reg.phoneError">Enter a valid 10-digit mobile number</div>
               </div>
 
+              <div class="form-group">
+                <label class="field-label" for="productCategory" style="margin-bottom:8px;"><span data-i18n="reg.productCategory">What product category are you looking for?</span> <span class="required">*</span></label>
+                <select id="productCategory" class="product-category-select" required aria-required="true">
+                  <option value="" data-i18n="reg.productCategoryPlaceholder">Select a product category</option>
+                  <option value="electronics" data-i18n="reg.productCategoryElectronics">📱 Electronics</option>
+                  <option value="furniture" data-i18n="reg.productCategoryFurniture">🛋️ Furniture</option>
+                  <option value="home_appliances" data-i18n="reg.productCategoryHomeAppliances">🏠 Home Appliances</option>
+                  <option value="vessels" data-i18n="reg.productCategoryVessels">🍲 Vessels</option>
+                </select>
+              </div>
+
               <div class="form-group field-float">
                 <input type="email" id="email" placeholder=" " autocomplete="email" />
                 <label for="email"><span data-i18n="reg.email">Email</span> <span class="field-hint" data-i18n="reg.optional">Optional</span></label>
@@ -1934,6 +1972,12 @@
         "reg.fullNameError": "Please enter your full name",
         "reg.phone": "WhatsApp number",
         "reg.phoneError": "Enter a valid 10-digit mobile number",
+        "reg.productCategory": "What product category are you looking for?",
+        "reg.productCategoryPlaceholder": "Select a product category",
+        "reg.productCategoryElectronics": "📱 Electronics",
+        "reg.productCategoryFurniture": "🛋️ Furniture",
+        "reg.productCategoryHomeAppliances": "🏠 Home Appliances",
+        "reg.productCategoryVessels": "🍲 Vessels",
         "reg.email": "Email",
         "reg.optional": "Optional",
         "reg.family": "Family members joining you",
@@ -1962,6 +2006,7 @@
         "toast.genericError": "Something went wrong. Please try again.",
         "toast.name": "Please enter your full name",
         "toast.phone": "Please enter a valid 10-digit mobile number",
+        "toast.productCategory": "Please select a product category",
         "toast.location": "Please choose a location",
         "toast.slot": "Please pick a date and time slot",
         "toast.fieldRequired": "\"{{field}}\" is required",
@@ -2027,6 +2072,12 @@
         "reg.fullNameError": "உங்கள் முழு பெயரை உள்ளிடவும்",
         "reg.phone": "வாட்ஸ்அப் எண்",
         "reg.phoneError": "சரியான 10 இலக்க மொபைல் எண்ணை உள்ளிடவும்",
+        "reg.productCategory": "நீங்கள் எந்த தயாரிப்பு வகையைத் தேடுகிறீர்கள்?",
+        "reg.productCategoryPlaceholder": "தயாரிப்பு வகையைத் தேர்ந்தெடுக்கவும்",
+        "reg.productCategoryElectronics": "📱 மின்னணுப் பொருட்கள்",
+        "reg.productCategoryFurniture": "🛋️ மரச்சாமான்கள்",
+        "reg.productCategoryHomeAppliances": "🏠 வீட்டு உபயோகப் பொருட்கள்",
+        "reg.productCategoryVessels": "🍲 பாத்திரங்கள்",
         "reg.email": "மின்னஞ்சல்",
         "reg.optional": "விருப்பத்தேர்வு",
         "reg.family": "உங்களுடன் சேரும் குடும்ப உறுப்பினர்கள்",
@@ -2055,6 +2106,7 @@
         "toast.genericError": "ஏதோ தவறு நடந்துவிட்டது. மீண்டும் முயற்சிக்கவும்.",
         "toast.name": "உங்கள் முழு பெயரை உள்ளிடவும்",
         "toast.phone": "சரியான 10 இலக்க மொபைல் எண்ணை உள்ளிடவும்",
+        "toast.productCategory": "தயாரிப்பு வகையைத் தேர்ந்தெடுக்கவும்",
         "toast.location": "தயவுசெய்து ஒரு இடத்தை தேர்ந்தெடுக்கவும்",
         "toast.slot": "தேதி மற்றும் நேர இடைவெளியை தேர்ந்தெடுக்கவும்",
         "toast.fieldRequired": "\"{{field}}\" அவசியம்",
@@ -2886,6 +2938,10 @@
         $("phoneError").classList.toggle("show", invalid);
         if (validPhone(phone)) fetchLanguageHint(phone);
       });
+      $("productCategory").addEventListener("change", function () {
+        this.classList.toggle("field-valid", !!this.value);
+        updateSubmitState();
+      });
       $("backBtn").addEventListener("click", function () {
         if (inOtpStep) { hideOtpPanel(); return; }
         if (currentStep > 1) goToStep(currentStep - 1);
@@ -2940,8 +2996,9 @@
     function detailsStepValid() {
       var name = $("fullName").value.trim();
       var phone = $("phone").value.trim();
+      var productCategory = $("productCategory").value;
       var locOk = locations.length === 0 || !!selectedLocationId;
-      return locOk && name.length >= 2 && validPhone(phone) && customFieldsValid();
+      return locOk && name.length >= 2 && validPhone(phone) && !!productCategory && customFieldsValid();
     }
 
     function scheduleStepValid() {
@@ -3205,8 +3262,10 @@
       var name = $("fullName").value.trim();
       var phone = $("phone").value.trim();
       var email = $("email").value.trim();
+      var productCategory = $("productCategory").value;
       if (name.length < 2) { toast(t("toast.name"), true); return; }
       if (!validPhone(phone)) { toast(t("toast.phone"), true); return; }
+      if (!productCategory) { toast(t("toast.productCategory"), true); return; }
       if (locations.length > 0 && !selectedLocationId) { toast(t("toast.location"), true); return; }
       if (!selectedDate || !selectedTime) { toast(t("toast.slot"), true); return; }
       var missing = firstMissingField();
@@ -3224,6 +3283,7 @@
             customerName: name,
             customerPhone: phone,
             customerEmail: email || null,
+            productCategory: productCategory,
             preferredLanguage: currentLang,
             familyMembersCount: familyCount,
             priorityAccess: isSpecialNeeds,
