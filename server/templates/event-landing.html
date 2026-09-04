@@ -437,6 +437,63 @@
       flex-shrink: 0;
     }
     .modal-sheet .section:first-of-type { margin-top: 4px; }
+    .special-warning-sheet {
+      max-width: 440px;
+      padding: 24px;
+      overflow: visible;
+      text-align: center;
+    }
+    .special-warning-icon {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 14px;
+      border-radius: 14px;
+      color: #9a6700;
+      background: #fff4ce;
+    }
+    .special-warning-title {
+      margin-bottom: 9px;
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 800;
+    }
+    .special-warning-copy {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .special-warning-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .special-warning-actions button {
+      min-height: 46px;
+      padding: 10px 12px;
+      border-radius: 11px;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .special-warning-edit {
+      border: 1.5px solid var(--brand-primary);
+      color: var(--brand-primary);
+      background: var(--surface);
+    }
+    .special-warning-continue {
+      border: 1.5px solid var(--brand-primary);
+      color: #fff;
+      background: var(--brand-primary);
+    }
+    @media (max-width: 420px) {
+      .special-warning-sheet { padding: 21px 17px; }
+      .special-warning-actions { grid-template-columns: 1fr; }
+    }
 
     /* FAQ accordion */
     .faq-item {
@@ -1698,6 +1755,20 @@
         </div>
       </div>
 
+      <div id="specialCategoryWarningModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="specialCategoryWarningTitle" aria-describedby="specialCategoryWarningCopy">
+        <div class="modal-sheet special-warning-sheet">
+          <div class="special-warning-icon" aria-hidden="true">
+            <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>
+          </div>
+          <div id="specialCategoryWarningTitle" class="special-warning-title" data-i18n="reg.specialWarningTitle">Before you continue</div>
+          <div id="specialCategoryWarningCopy" class="special-warning-copy" data-i18n="reg.specialWarningCopy">Senior citizens, pregnant women, differently abled people, and visitors with infants are not permitted on the regular event dates. If any of these applies to your group, go back and select the appropriate Special category.</div>
+          <div class="special-warning-actions">
+            <button type="button" id="specialWarningEditBtn" class="special-warning-edit" data-i18n="reg.specialWarningEdit">Go back and edit</button>
+            <button type="button" id="specialWarningContinueBtn" class="special-warning-continue" data-i18n="reg.specialWarningContinue">None apply — continue</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Gallery lightbox: fullscreen image viewer with prev/next browsing -->
       <div id="lightboxOverlay" class="lightbox-overlay hidden">
         <button type="button" id="lightboxClose" class="lightbox-close-btn" aria-label="Close">
@@ -2208,6 +2279,10 @@
         "reg.specialInfants": "Infants",
         "reg.specialDisabled": "Specially abled",
         "reg.specialDateLocked": "Final event date selected and locked",
+        "reg.specialWarningTitle": "Before you continue",
+        "reg.specialWarningCopy": "Senior citizens, pregnant women, differently abled people, and visitors with infants are not permitted on the regular event dates. If any of these applies to your group, go back and select the appropriate Special category.",
+        "reg.specialWarningEdit": "Go back and edit",
+        "reg.specialWarningContinue": "None apply — continue",
         "otp.retry": "Try again"
       },
       ta: {
@@ -2313,6 +2388,10 @@
         "reg.specialInfants": "கைக்குழந்தைகள்",
         "reg.specialDisabled": "மாற்றுத்திறனாளிகள்",
         "reg.specialDateLocked": "நிகழ்வின் இறுதி தேதி தேர்ந்தெடுக்கப்பட்டு பூட்டப்பட்டது",
+        "reg.specialWarningTitle": "தொடர்வதற்கு முன்",
+        "reg.specialWarningCopy": "மூத்த குடிமக்கள், கர்ப்பிணிப் பெண்கள், மாற்றுத்திறனாளிகள் மற்றும் கைக்குழந்தைகளுடன் வருபவர்கள் வழக்கமான நிகழ்வு தேதிகளில் அனுமதிக்கப்பட மாட்டார்கள். இவற்றில் ஏதேனும் உங்கள் குழுவிற்கு பொருந்தினால், திரும்பிச் சென்று பொருத்தமான சிறப்புப் பிரிவைத் தேர்ந்தெடுக்கவும்.",
+        "reg.specialWarningEdit": "திரும்பிச் சென்று திருத்தவும்",
+        "reg.specialWarningContinue": "எதுவும் பொருந்தாது — தொடரவும்",
         "otp.retry": "மீண்டும் முயற்சிக்கவும்"
       }
     };
@@ -3152,6 +3231,19 @@
         if (currentStep > 1) goToStep(currentStep - 1);
       });
       $("nextBtn").addEventListener("click", onNextClick);
+      $("specialWarningEditBtn").addEventListener("click", closeSpecialCategoryWarning);
+      $("specialWarningContinueBtn").addEventListener("click", function () {
+        closeSpecialCategoryWarning();
+        goToStep(3);
+      });
+      $("specialCategoryWarningModal").addEventListener("click", function (event) {
+        if (event.target === this) closeSpecialCategoryWarning();
+      });
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !$("specialCategoryWarningModal").classList.contains("hidden")) {
+          closeSpecialCategoryWarning();
+        }
+      });
 
       // OTP sub-step listeners
       $("otpInput").addEventListener("input", function () {
@@ -3246,6 +3338,18 @@
 
     function scheduleStepValid() {
       return !!(selectedDate && selectedTime);
+    }
+
+    function openSpecialCategoryWarning() {
+      $("specialCategoryWarningModal").classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+      window.setTimeout(function () { $("specialWarningEditBtn").focus(); }, 0);
+    }
+
+    function closeSpecialCategoryWarning() {
+      $("specialCategoryWarningModal").classList.add("hidden");
+      document.body.style.overflow = "";
+      $("nextBtn").focus();
     }
 
     // ── OTP verification sub-step functions ─────────────────────────────────
@@ -3451,6 +3555,10 @@
         return;
       } else if (currentStep === 2) {
         if (!scheduleStepValid()) { toast(t("toast.slot"), true); return; }
+        if (!isSpecialNeeds) {
+          openSpecialCategoryWarning();
+          return;
+        }
         goToStep(3);
       } else {
         submitRegistration();

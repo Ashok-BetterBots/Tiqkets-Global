@@ -73,4 +73,18 @@ describe("event registration slot display", () => {
     assert.match(landing, /priorityAccess: isSpecialNeeds/);
     assert.match(landing, /"reg\.specialNeeds": "சிறப்புப் பிரிவு"/);
   });
+
+  test("warns before review when no special category is selected", () => {
+    const landing = readFileSync("server/templates/event-landing.html", "utf8");
+
+    assert.match(landing, /id="specialCategoryWarningModal"[^>]*role="dialog"[^>]*aria-modal="true"/);
+    assert.match(landing, /if \(!isSpecialNeeds\) \{\s*openSpecialCategoryWarning\(\);\s*return;/);
+    assert.match(landing, /id="specialWarningEditBtn"/);
+    assert.match(landing, /id="specialWarningContinueBtn"/);
+    assert.match(landing, /closeSpecialCategoryWarning\(\);\s*goToStep\(3\)/);
+    assert.match(landing, /"reg\.specialWarningTitle": "Before you continue"/);
+    assert.match(landing, /"reg\.specialWarningContinue": "None apply — continue"/);
+    assert.match(landing, /"reg\.specialWarningTitle": "தொடர்வதற்கு முன்"/);
+    assert.match(landing, /"reg\.specialWarningEdit": "திரும்பிச் சென்று திருத்தவும்"/);
+  });
 });
