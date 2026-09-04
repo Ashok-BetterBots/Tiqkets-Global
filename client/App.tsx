@@ -39,8 +39,6 @@ import { OrganizationProvider, useOrganization } from "@/contexts/OrganizationCo
 import { ThemeProvider, ThemeVariantProvider } from "@/contexts/ThemeContext";
 import { useNotificationHandler } from "@/hooks/useNotificationHandler";
 
-SplashScreen.preventAutoHideAsync();
-
 function NotificationWrapper({ children }: { children: React.ReactNode }) {
   useNotificationHandler();
   return <>{children}</>;
