@@ -56,9 +56,6 @@
       "expo-status-bar",
       "expo-audio",
       "expo-asset"
-    ],
-    "experiments": {
-      "reactCompiler": true
-    }
+    ]
   }
 }
