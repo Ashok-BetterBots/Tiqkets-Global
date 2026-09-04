@@ -683,6 +683,67 @@
     .step-panel { display: block; }
     .step-panel.hidden { display: none !important; }
 
+    .schedule-gift-card {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin: 0 0 18px;
+      padding: 14px 15px;
+      border: 1.5px solid #f3bd3e;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #fff8d9 0%, #fff2b8 55%, #fff8dc 100%);
+      box-shadow: 0 8px 22px rgba(199, 139, 0, 0.13);
+    }
+    .schedule-gift-card::after {
+      content: "";
+      position: absolute;
+      top: -45%;
+      left: -35%;
+      width: 34%;
+      height: 190%;
+      transform: rotate(18deg);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent);
+      animation: scheduleGiftShine 3.8s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .schedule-gift-icon {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      flex: 0 0 42px;
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(154, 102, 0, .14);
+      font-size: 22px;
+    }
+    .schedule-gift-copy { position: relative; z-index: 1; min-width: 0; }
+    .schedule-gift-title {
+      margin-bottom: 3px;
+      color: #7a3e00;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+    .schedule-gift-message {
+      color: #754c13;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.55;
+    }
+    @keyframes scheduleGiftShine {
+      0%, 55% { left: -35%; opacity: 0; }
+      65% { opacity: 1; }
+      85%, 100% { left: 115%; opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .schedule-gift-card::after { animation: none; }
+    }
+
     /* ---------- OTP verification sub-step ---------- */
     @keyframes ev-spin { to { transform: rotate(360deg); } }
     .ev-spinning { animation: ev-spin 0.8s linear infinite; }
@@ -1624,6 +1685,14 @@
                 </div>
               </div>
 
+              <div class="schedule-gift-card" role="note" aria-live="polite">
+                <div class="schedule-gift-icon" aria-hidden="true">🎁</div>
+                <div class="schedule-gift-copy">
+                  <div class="schedule-gift-title" data-i18n="reg.giftTitle">A surprise gift awaits!</div>
+                  <div class="schedule-gift-message" data-i18n="reg.giftMessage">Enter and exit the shop within 3 hours to receive a surprise gift.</div>
+                </div>
+              </div>
+
               <div id="slotBlock">
                 <!-- Infant / senior citizens: show only the last available date -->
                 <div style="margin-bottom:16px;">
@@ -1840,6 +1909,8 @@
         "reg.subtitleLocation": "Pick a location, then tell us a bit about yourself",
         "reg.scheduleTitle": "Choose date & time",
         "reg.scheduleSubtitle": "Pick a date, then a slot that suits you",
+        "reg.giftTitle": "A surprise gift awaits!",
+        "reg.giftMessage": "Enter and exit the shop within 3 hours to receive a surprise gift.",
         "reg.reviewTitle": "Review & confirm",
         "reg.reviewSubtitle": "Check your details before you confirm",
         "reg.reviewSlot": "Date & time",
@@ -1931,6 +2002,8 @@
         "reg.subtitleLocation": "இடத்தை தேர்ந்தெடுத்து, உங்களைப் பற்றி சிறிது கூறுங்கள்",
         "reg.scheduleTitle": "தேதி மற்றும் நேரத்தை தேர்ந்தெடுக்கவும்",
         "reg.scheduleSubtitle": "ஒரு தேதியை தேர்ந்தெடுத்து, பின்னர் ஏற்ற நேர இடைவெளியை தேர்வுசெய்யவும்",
+        "reg.giftTitle": "உங்களுக்காக ஒரு ஆச்சரியப் பரிசு காத்திருக்கிறது!",
+        "reg.giftMessage": "கடைக்குள் நுழைந்த 3 மணி நேரத்திற்குள் வெளியேறினால், உங்களுக்கு ஒரு ஆச்சரியப் பரிசு வழங்கப்படும்.",
         "reg.reviewTitle": "மதிப்பாய்வு செய்து உறுதிப்படுத்தவும்",
         "reg.reviewSubtitle": "உறுதிப்படுத்தும் முன் உங்கள் விவரங்களை சரிபார்க்கவும்",
         "reg.reviewSlot": "தேதி & நேரம்",

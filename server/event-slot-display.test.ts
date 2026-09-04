@@ -24,4 +24,14 @@ describe("event registration slot display", () => {
       "review and completion summaries should retain the slot range",
     );
   });
+
+  test("shows the three-hour gift notice in the selected registration language", () => {
+    const landing = readFileSync("server/templates/event-landing.html", "utf8");
+
+    assert.match(landing, /class="schedule-gift-card"/);
+    assert.match(landing, /data-i18n="reg\.giftTitle"/);
+    assert.match(landing, /data-i18n="reg\.giftMessage"/);
+    assert.match(landing, /Enter and exit the shop within 3 hours to receive a surprise gift\./);
+    assert.match(landing, /கடைக்குள் நுழைந்த 3 மணி நேரத்திற்குள் வெளியேறினால்/);
+  });
 });
