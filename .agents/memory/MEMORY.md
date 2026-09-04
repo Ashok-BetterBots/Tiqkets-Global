@@ -69,3 +69,4 @@
 - [Mobile event selection scope](mobile-event-selection-scope.md) — Event tabs share one session selection; selected data is scoped, ticket lookup stays global, and late async work must be discarded after a switch.
 - [Checkout alerts are write-once snapshots](event-checkout-alert-snapshots.md) — preserve the first server-confirmed alert even if Support reopens an exited booking; current event settings must not rewrite history.
 - [Event ticket completion boundaries](event-ticket-completion-boundaries.md) — payment finalization must retry; ticket success requires QR persistence, while WhatsApp dispatch remains independent.
+- [Expo Go 57 startup bootstrap](expo-go-57-startup-bootstrap.md) — defer the full provider-tree import until after root mount; immediate import can make iOS Expo Go return Home after bundling.
