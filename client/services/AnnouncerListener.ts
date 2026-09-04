@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { Audio } from "expo-av";
+import { Audio } from "@/utils/audioCompat";
 import * as Speech from "expo-speech";
 import RNEventSource from "react-native-sse";
 import { getApiUrl } from "@/lib/query-client";

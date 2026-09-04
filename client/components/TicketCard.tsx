@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useCallback } from "react";
 import { View, StyleSheet, Platform, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "@/utils/audioCompat";
 import * as Haptics from "expo-haptics";
 import Animated, {
   useAnimatedStyle,
