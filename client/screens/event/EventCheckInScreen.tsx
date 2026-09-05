@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
+  useWindowDimensions,
   StyleSheet,
   ScrollView,
   TextInput,
@@ -50,6 +51,7 @@ export default function EventCheckInScreen() {
 }
 
 function ScanPanel() {
+  const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
@@ -272,7 +274,7 @@ function ScanPanel() {
               </ThemedText>
             ) : cameraOpen && permission.granted ? (
               <View style={{ marginBottom: Spacing.md }}>
-                <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
+                <View style={[styles.cameraBox, { borderColor: BRAND + "55", maxHeight: Math.max(180, windowHeight * 0.3) }]}>
                   <CameraView
                     style={StyleSheet.absoluteFill}
                     facing="back"
@@ -423,7 +425,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  cameraBox: { height: 260, borderRadius: BorderRadius.xl, overflow: "hidden", borderWidth: 2, backgroundColor: "#000" },
+  cameraBox: { width: "100%", aspectRatio: 1.45, borderRadius: BorderRadius.xl, overflow: "hidden", borderWidth: 2, backgroundColor: "#000" },
   corner: { position: "absolute", width: 36, height: 36 },
   TL: { top: 14, left: 14, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
   TR: { top: 14, right: 14, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },

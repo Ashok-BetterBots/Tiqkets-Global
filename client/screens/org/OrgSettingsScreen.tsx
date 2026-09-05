@@ -12,6 +12,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -35,6 +36,7 @@ import { EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
 import { SUPPORTED_LANGUAGES, getLanguage as getSupportedLanguage } from "@shared/languages";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 
 const formatRoleLabel = (role?: string | null): string =>
   role
@@ -295,6 +297,7 @@ const hierStyles = StyleSheet.create({
 
 export default function OrgSettingsScreen() {
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<OrgStackParamList>>();
   const { isDark } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
@@ -1482,7 +1485,7 @@ export default function OrgSettingsScreen() {
                   {
                     translateY: queueModalAnimation.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [SCREEN_HEIGHT, 0],
+                    outputRange: [screenHeight, 0],
                     }),
                   },
                 ],
@@ -1568,7 +1571,7 @@ export default function OrgSettingsScreen() {
                   {
                     translateY: notificationModalAnimation.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [SCREEN_HEIGHT, 0],
+                    outputRange: [screenHeight, 0],
                     }),
                   },
                 ],

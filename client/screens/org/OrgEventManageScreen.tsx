@@ -741,7 +741,7 @@ export default function OrgEventManageScreen() {
 
       {/* ── Slot edit modal ── */}
       <Modal visible={!!slotEditEvent} transparent animationType="slide" onRequestClose={() => setSlotEditEvent(null)}>
-        <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSlotEditEvent(null)} />
           <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
@@ -839,7 +839,7 @@ export default function OrgEventManageScreen() {
 
       {/* ── Per-Slot Override Modal ── */}
       <Modal visible={!!overrideEvent} transparent animationType="slide" onRequestClose={() => setOverrideEvent(null)}>
-        <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setOverrideEvent(null)} />
           <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
@@ -1027,7 +1027,8 @@ export default function OrgEventManageScreen() {
 
       {/* ── Danger-zone confirm ── */}
       <Modal visible={!!confirm} transparent animationType="fade" onRequestClose={() => setConfirm(null)}>
-        <View style={styles.dangerBackdrop}>
+        <KeyboardAvoidingView style={styles.dangerBackdrop} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }} keyboardShouldPersistTaps="handled">
           <View style={[styles.dangerSheet, { backgroundColor: theme.surface }]}>
             <View style={[styles.dangerBanner, { backgroundColor: confirmKindColor(confirm?.kind ?? "end") + "15", borderColor: confirmKindColor(confirm?.kind ?? "end") + "40" }]}>
               <Feather name="alert-triangle" size={18} color={confirmKindColor(confirm?.kind ?? "end")} />
@@ -1092,7 +1093,8 @@ export default function OrgEventManageScreen() {
               </Pressable>
             </View>
           </View>
-        </View>
+        </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </ThemedView>
   );

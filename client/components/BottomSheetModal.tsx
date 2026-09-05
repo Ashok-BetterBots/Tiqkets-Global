@@ -11,6 +11,7 @@ import {
   useColorScheme,
   useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -54,6 +55,7 @@ export function BottomSheetModal({
 }: BottomSheetModalProps) {
   const isDark = useColorScheme() === "dark";
   const { height: screenHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const primary = isDark ? BrandColors.primaryLight : BrandColors.primary;
   const surface = isDark ? "#1C1C1E" : "#FFFFFF";
   const textColor = isDark ? "#F5F5F5" : "#1A1A2E";
@@ -63,7 +65,8 @@ export function BottomSheetModal({
   // The scroll area can grow up to (90% of screen) minus the fixed chrome height.
   // This means the total card height is at most 90% of the screen, and the footer
   // is always visible. Content taller than scrollMaxHeight will scroll.
-  const scrollMaxHeight = Math.max(120, screenHeight * 0.90 - CHROME_HEIGHT);
+  const availableHeight = Math.max(240, screenHeight - insets.top - insets.bottom);
+  const scrollMaxHeight = Math.max(120, availableHeight * 0.90 - CHROME_HEIGHT);
 
   const closeTop = () => {
     Keyboard.dismiss();
@@ -95,14 +98,14 @@ export function BottomSheetModal({
           Android's window-soft-input-mode handles it natively.
         */}
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "position" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.kavContainer}
         >
           {/* ── Card: grows with content, ScrollView limits max size ───── */}
           <Animated.View
             entering={SlideInDown.duration(300).springify()}
             exiting={SlideOutDown.duration(220)}
-            style={styles.card}
+            style={[styles.card, { maxHeight: availableHeight * 0.94, flexShrink: 1 }]}
           >
             {/*
               On Android, overflow:"hidden" + borderRadius on an Animated.View
@@ -110,7 +113,7 @@ export function BottomSheetModal({
               both the clipping and the opaque background so Android paints it
               correctly on all API levels.
             */}
-            <View style={[styles.cardInner, { backgroundColor: surface }]}>
+            <View style={[styles.cardInner, { backgroundColor: surface, flexShrink: 1 }]}>
 
               {/* Drag handle */}
               <View style={styles.handle} />
@@ -137,7 +140,7 @@ export function BottomSheetModal({
                 88% of the screen; content taller than this will scroll.
               */}
               <ScrollView
-                style={{ maxHeight: scrollMaxHeight }}
+                style={{ flex: 1, maxHeight: scrollMaxHeight }}
                 contentContainerStyle={styles.body}
                 showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
@@ -239,7 +242,9 @@ const styles = StyleSheet.create({
     left: 0,
   },
   kavContainer: {
+    flex: 1,
     width: "100%",
+    justifyContent: "flex-end",
   },
   card: {
     borderRadius: 32,
@@ -249,6 +254,7 @@ const styles = StyleSheet.create({
   cardInner: {
     borderRadius: 32,
     overflow: "hidden",
+    flexShrink: 1,
   },
   handle: {
     width: 40,

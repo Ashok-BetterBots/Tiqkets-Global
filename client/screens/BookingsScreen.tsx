@@ -4,7 +4,7 @@ import {
   StyleSheet,
   Pressable,
   TextInput,
-  Dimensions,
+  useWindowDimensions,
   Platform,
   Animated as RNAnimated,
 } from "react-native";
@@ -34,8 +34,6 @@ import { AppointmentsStackParamList } from "@/navigation/AppointmentsStackNaviga
 import { Service } from "@/types/queue";
 import { CompositeNavigationProp } from "@react-navigation/native";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = SCREEN_WIDTH * 0.85;
 const CARD_MARGIN = Spacing.sm;
 
 type NavigationProp = CompositeNavigationProp<
@@ -70,6 +68,8 @@ const CAROUSEL_BLOCK_HEIGHT = 220;
 
 export default function BookingsScreen() {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const cardWidth = Math.max(260, screenWidth * 0.85);
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
   const { theme, isDark } = useTheme();
@@ -304,9 +304,9 @@ export default function BookingsScreen() {
 
   const renderOrganizationCard = ({ item, index }: { item: Organization; index: number }) => {
     const inputRange = [
-      (index - 1) * (CARD_WIDTH + CARD_MARGIN * 2),
-      index * (CARD_WIDTH + CARD_MARGIN * 2),
-      (index + 1) * (CARD_WIDTH + CARD_MARGIN * 2),
+       (index - 1) * (cardWidth + CARD_MARGIN * 2),
+       index * (cardWidth + CARD_MARGIN * 2),
+       (index + 1) * (cardWidth + CARD_MARGIN * 2),
     ];
     const scale = scrollX.interpolate({
       inputRange,
@@ -327,7 +327,7 @@ export default function BookingsScreen() {
           style={[
             styles.orgCard,
             {
-              width: CARD_WIDTH,
+               width: cardWidth,
               backgroundColor: theme.surface,
               borderColor: theme.borderSubtle ?? theme.border,
             },
@@ -576,7 +576,7 @@ export default function BookingsScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.carouselContent}
-            snapToInterval={CARD_WIDTH + CARD_MARGIN * 2}
+             snapToInterval={cardWidth + CARD_MARGIN * 2}
             decelerationRate="fast"
             onScroll={RNAnimated.event(
               [{ nativeEvent: { contentOffset: { x: scrollX } } }],
@@ -585,8 +585,8 @@ export default function BookingsScreen() {
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
             getItemLayout={(data, index) => ({
-              length: CARD_WIDTH + CARD_MARGIN * 2,
-              offset: (CARD_WIDTH + CARD_MARGIN * 2) * index,
+               length: cardWidth + CARD_MARGIN * 2,
+               offset: (cardWidth + CARD_MARGIN * 2) * index,
               index,
             })}
             testID="carousel-booking-organizations"

@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -124,6 +125,7 @@ const si = StyleSheet.create({
 
 export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }: Props) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { theme } = useTheme();
 
   const alreadyRedeemed = !!lookup.redemption;
@@ -372,6 +374,7 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
             <StepIndicator step={step} otpRequired={lookup.otpRequired && !otpAlreadyVerified && !otpBypassed} cashPaidAtCounter={lookup.cashPaidAtCounter} />
 
             <ScrollView
+              style={{ maxHeight: windowHeight - insets.top - insets.bottom - 150 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: Spacing.sm }}

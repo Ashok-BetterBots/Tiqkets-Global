@@ -6,6 +6,7 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -89,6 +90,7 @@ export default function QueueScannerScreen() {
 
 function QueueScannerNative() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
 
@@ -252,7 +254,7 @@ function QueueScannerNative() {
         </View>
 
         <View style={styles.scanArea}>
-          <View style={styles.scanFrame}>
+          <View style={[styles.scanFrame, { width: Math.min(width - Spacing["2xl"] * 2, 280), aspectRatio: 1 }]}>
             <View style={[styles.corner, styles.topLeft, { borderColor: theme.primary }]} />
             <View style={[styles.corner, styles.topRight, { borderColor: theme.primary }]} />
             <View style={[styles.corner, styles.bottomLeft, { borderColor: theme.primary }]} />
@@ -433,7 +435,7 @@ const styles = StyleSheet.create({
   badgeText: { fontWeight: "700" },
 
   scanArea: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scanFrame: { width: 260, height: 260, position: "relative" },
+  scanFrame: { maxWidth: 280, width: "100%", aspectRatio: 1, position: "relative" },
   corner: { position: "absolute", width: 44, height: 44 },
   topLeft: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: BorderRadius.md },
   topRight: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: BorderRadius.md },

@@ -8,8 +8,10 @@ import {
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
@@ -41,6 +43,8 @@ async function fetchJson(path: string): Promise<any> {
 
 export default function EventBillingScreen() {
   const tabBarHeight = useBottomTabBarHeight();
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { theme } = useTheme();
   const { selectedEventId } = useEventSelection();
 
@@ -137,7 +141,7 @@ export default function EventBillingScreen() {
         <ScrollView
           contentContainerStyle={[
             styles.scroll,
-            { paddingTop: Spacing.xl, paddingBottom: tabBarHeight + Spacing["2xl"] },
+             { paddingTop: Spacing.xl, paddingBottom: Math.max(tabBarHeight, insets.bottom) + Spacing["2xl"] },
           ]}
           keyboardShouldPersistTaps="handled"
         >
@@ -149,7 +153,7 @@ export default function EventBillingScreen() {
             {/* Camera viewer */}
             {cameraOpen && CameraView && permission?.granted ? (
               <View style={{ marginBottom: Spacing.md }}>
-                <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
+                 <View style={[styles.cameraBox, { borderColor: BRAND + "55", maxHeight: Math.max(180, windowHeight * 0.3) }]}>
                   <CameraView
                     style={StyleSheet.absoluteFill}
                     facing="back"
@@ -269,7 +273,8 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 15, fontWeight: "700", marginBottom: Spacing.md },
   /* Camera */
   cameraBox: {
-    height: 220,
+    width: "100%",
+    aspectRatio: 1.55,
     borderRadius: BorderRadius.xl,
     overflow: "hidden",
     borderWidth: 2,

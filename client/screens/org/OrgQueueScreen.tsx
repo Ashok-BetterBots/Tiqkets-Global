@@ -11,9 +11,9 @@ import {
   Platform,
   Keyboard,
   Modal,
+  KeyboardAvoidingView,
   ActivityIndicator,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -3426,7 +3426,8 @@ export default function OrgQueueScreen() {
         >
           <KeyboardAvoidingView
             style={styles.modalOverlay}
-            behavior="padding"
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={0}
           >
             <Pressable
               style={styles.modalDismissArea}

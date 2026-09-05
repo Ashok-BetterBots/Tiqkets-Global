@@ -13,10 +13,10 @@ import {
   useColorScheme,
   useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
-import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { getApiUrl } from "@/lib/query-client";
 import { BrandColors, Spacing, BorderRadius } from "@/constants/theme";
 import { formatEventSlotRange } from "@shared/eventSlots";
@@ -135,6 +135,7 @@ export function EventManualRegModal({
 }) {
   const isDark = useColorScheme() === "dark";
   const { height: screenHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const surface = isDark ? "#1C1C1E" : "#FFFFFF";
   const bg = isDark ? "#0F0F12" : "#F5F6F8";
   const text = isDark ? "#F5F5F5" : "#1A1A2E";
@@ -353,19 +354,16 @@ export function EventManualRegModal({
     }
   }, [eventId, canSubmit, selectedLocation, form, amountCollectedNum, onSuccess]);
 
-  const sheetHeight = Math.round(screenHeight * 0.75);
-
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "position" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
-          style={{ width: "100%" }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1, width: "100%", justifyContent: "flex-end" }}
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={[styles.card, { backgroundColor: surface, height: sheetHeight }]}
+            style={[styles.card, { backgroundColor: surface, flex: 1, maxHeight: screenHeight - insets.top - insets.bottom - 24 }]}
             testID="manual-reg-sheet"
           >
             <View style={[styles.handle, { backgroundColor: border }]} />
@@ -378,11 +376,10 @@ export function EventManualRegModal({
               </Pressable>
             </View>
 
-            <KeyboardAwareScrollViewCompat
-              style={styles.scrollBody}
+            <ScrollView
+              style={[styles.scrollBody, { flex: 1 }]}
               contentContainerStyle={styles.body}
               keyboardShouldPersistTaps="handled"
-              bottomOffset={24}
               showsVerticalScrollIndicator
               nestedScrollEnabled
               testID="manual-reg-scroll"
@@ -830,7 +827,7 @@ export function EventManualRegModal({
                    </View>
                 </View>
               )}
-            </KeyboardAwareScrollViewCompat>
+            </ScrollView>
 
             {!success && !loadingLocations ? (
               <View style={styles.footer} testID="manual-reg-footer">

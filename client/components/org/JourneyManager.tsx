@@ -368,7 +368,7 @@ function JourneyManager({ branchId, isDark = false }: JourneyManagerProps, ref) 
           style={styles.modalOverlay}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, flexShrink: 1 }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <ThemedText style={styles.modalTitle}>
@@ -379,7 +379,11 @@ function JourneyManager({ branchId, isDark = false }: JourneyManagerProps, ref) 
               </Pressable>
             </View>
 
-            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={[styles.modalScroll, { flexGrow: 1, flexShrink: 1 }]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.formGroup}>
                 <ThemedText style={styles.label}>Journey Name *</ThemedText>
                 <TextInput
@@ -905,6 +909,8 @@ const createStyles = (colors: typeof Colors.light) =>
     modalContent: {
       borderRadius: 32,
       maxHeight: "90%",
+      flexShrink: 1,
+      flexDirection: "column",
     },
     modalHandle: {
       width: 44,

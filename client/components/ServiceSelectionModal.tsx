@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from "react-native-reanimated";
@@ -57,6 +58,7 @@ export function ServiceSelectionModal({
   onJoinQueue,
 }: ServiceSelectionModalProps) {
   const { theme } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const { user } = useAuth();
   const [step, setStep] = useState<ModalStep>("services");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -624,7 +626,7 @@ export function ServiceSelectionModal({
           <Animated.View
             entering={SlideInDown.duration(250)}
             exiting={SlideOutDown.duration(200)}
-            style={[styles.modal, { backgroundColor: theme.backgroundDefault }]}
+            style={[styles.modal, { backgroundColor: theme.backgroundDefault, maxHeight: windowHeight - 32 }]}
           >
             <View style={styles.modalTopBar}>
               <View style={styles.handle}>
