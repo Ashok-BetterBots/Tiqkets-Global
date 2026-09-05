@@ -38,6 +38,9 @@ env:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    # GitHub requires write access to see unpublished release drafts.
+    permissions:
+      contents: write
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}

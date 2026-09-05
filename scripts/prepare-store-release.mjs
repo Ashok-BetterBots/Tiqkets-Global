@@ -12,16 +12,28 @@ if (!release) {
   const tag = process.env.INPUT_TAG;
   if (!/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(tag || ""))
     throw new Error("Select an existing GitHub Release tag, such as v1.0.0.");
-  release = JSON.parse(
+  const selected = JSON.parse(
     execFileSync(
       "gh",
       [
-        "api",
-        `repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${encodeURIComponent(tag)}`,
+        "release",
+        "view",
+        tag,
+        "--repo",
+        process.env.GITHUB_REPOSITORY,
+        "--json",
+        "body,tagName,isDraft,isPrerelease",
       ],
       { encoding: "utf8" },
     ),
   );
+  // GitHub's REST release-by-tag endpoint omits drafts; gh's GraphQL lookup includes them.
+  release = {
+    body: selected.body,
+    tag_name: selected.tagName,
+    draft: selected.isDraft,
+    prerelease: selected.isPrerelease,
+  };
 }
 const match = /^v(\d+\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)?$/.exec(release.tag_name);
 if (!match) throw new Error("Release tags must use vX.Y.Z or vX.Y.Z-rc.N.");
