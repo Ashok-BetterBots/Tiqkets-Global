@@ -1,11 +1,11 @@
 {
-  "id": "ad6cb384-3cfb-4072-bf60-3da4922fcfd3",
-  "createdAt": "2026-08-31T19:25:38.446Z",
-  "runtimeVersion": "exposdk:54.0.0",
+  "id": "7416055d-fb8d-402a-b1f3-144b3c298c04",
+  "createdAt": "2026-09-05T12:22:26.209Z",
+  "runtimeVersion": "exposdk:57.0.0",
   "launchAsset": {
-    "key": "bundle-1788204338446-3777",
+    "key": "bundle-1788610946209-2515",
     "contentType": "application/javascript",
-    "url": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/1788204338446-3777/_expo/static/js/android/bundle.js"
+    "url": "https://example.invalid/1788610946209-2515/_expo/static/js/android/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -19,7 +19,6 @@
       "icon": "./assets/images/icon.png",
       "scheme": "tiqkets",
       "userInterfaceStyle": "light",
-      "newArchEnabled": true,
       "ios": {
         "supportsTablet": true,
         "bundleIdentifier": "com.tiqkets.app",
@@ -35,12 +34,14 @@
           "foregroundImage": "./assets/images/icon.png",
           "foregroundImageUrl": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/assets/./assets/images/icon.png"
         },
-        "edgeToEdgeEnabled": true,
         "predictiveBackGestureEnabled": false,
         "package": "com.tiqkets.app",
         "permissions": [
           "android.permission.CAMERA",
-          "android.permission.RECORD_AUDIO"
+          "android.permission.RECORD_AUDIO",
+          "android.permission.MODIFY_AUDIO_SETTINGS",
+          "android.permission.FOREGROUND_SERVICE",
+          "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
         ]
       },
       "web": {
@@ -67,11 +68,15 @@
             "cameraPermission": "Allow TIQKETS to access your camera to scan QR codes and join queues."
           }
         ],
-        "expo-localization"
+        "expo-localization",
+        "@react-native-community/datetimepicker",
+        "expo-font",
+        "expo-image",
+        "expo-sharing",
+        "expo-status-bar",
+        "expo-audio",
+        "expo-asset"
       ],
-      "experiments": {
-        "reactCompiler": true
-      },
       "_internal": {
         "isDebug": false,
         "projectRoot": "/home/runner/workspace",
@@ -81,32 +86,53 @@
         "pluginHistory": {
           "expo-splash-screen": {
             "name": "expo-splash-screen",
-            "version": "31.0.11"
+            "version": "57.0.8"
           },
           "expo-web-browser": {
             "name": "expo-web-browser",
-            "version": "15.0.9"
+            "version": "57.0.2"
           },
           "expo-camera": {
             "name": "expo-camera",
-            "version": "17.0.10"
+            "version": "57.0.4"
+          },
+          "expo-font": {
+            "name": "expo-font",
+            "version": "57.0.3"
+          },
+          "expo-image": {
+            "name": "expo-image",
+            "version": "57.0.4"
+          },
+          "expo-sharing": {
+            "name": "expo-sharing",
+            "version": "57.0.18"
+          },
+          "expo-status-bar": {
+            "name": "expo-status-bar",
+            "version": "57.0.1"
+          },
+          "expo-audio": {
+            "name": "expo-audio",
+            "version": "57.0.4"
+          },
+          "expo-asset": {
+            "name": "expo-asset",
+            "version": "57.0.16"
           }
         }
       },
-      "sdkVersion": "54.0.0",
+      "sdkVersion": "57.0.0",
       "platforms": [
         "ios",
         "android",
         "web"
       ],
-      "androidStatusBar": {
-        "backgroundColor": "#8c1867"
-      },
       "iconUrl": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/assets/./assets/images/icon.png",
-      "hostUri": "d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/android"
+      "hostUri": "example.invalid"
     },
     "expoGo": {
-      "debuggerHost": "d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/android",
+      "debuggerHost": "example.invalid",
       "developer": {
         "tool": "expo-cli",
         "projectRoot": "/home/runner/workspace"
@@ -114,8 +140,9 @@
       "packagerOpts": {
         "dev": false
       },
-      "mainModuleName": "client/index"
+      "mainModuleName": "client/index",
+      "username": "thiagu.r"
     },
-    "scopeKey": "@anonymous/tiqkets-ea48b211-f680-4822-bf06-dfda53c66a36"
+    "scopeKey": "@anonymous/tiqkets-5a5ad2cc-d30b-40f6-a8f3-a2679c2d10d3"
   }
 }
