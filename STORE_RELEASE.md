@@ -162,9 +162,10 @@ Do not use `match nuke` or delete existing company certificates.
    `f74b98d63ed22e31b960c6074b7c89a7d897692f7bf7207b988236f7825696ed`.
    Independent verification confirms package `com.tiqkets.app` and signer
    `TIQKETS Upload` / BetterBots AI Solutions Private Limited.
-4. Upload that signed AAB to Play Console manually to initialize the new package
-   and Google Play App Signing. Later releases can upload through Fastlane after
-   the Google service-account secret is installed.
+4. The bundle is accepted by Play Console as version code `210753775` (version
+   `1.0.0`, target SDK 36) and released to the internal-testing track. Add a
+   company tester email list to activate tester access. Later releases can upload
+   through Fastlane after the Google service-account secret is installed.
 5. Complete review access, ratings, target audience, privacy/data declarations,
    countries, and pricing in both consoles. Use a non-production review account;
    do not put its credentials in Git.
@@ -189,6 +190,11 @@ Do not use `match nuke` or delete existing company certificates.
   `support@tiqkets.in`, but an authorized person must accept the IARC Terms of
   Use before the questionnaire can proceed. Privacy/data answers must be
   confirmed against actual production practices before certification.
+- Internal release **TIQKETS 1.0.0** is published with version code `210753775`
+  and the GitHub Store notes. Play accepted the signed bundle and reports a
+  34.9 MB new-install download. The track remains inactive until a tester email
+  list is selected; its opt-in URL is
+  `https://play.google.com/apps/internaltest/4701748236699726598`.
 
 App Store screenshots are uploaded separately with `bundle exec fastlane ios
 screenshots` after review; normal releases preserve the screenshots already in
