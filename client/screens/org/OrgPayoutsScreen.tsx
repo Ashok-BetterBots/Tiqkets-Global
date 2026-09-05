@@ -8,6 +8,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { apiRequest, getErrorMessage, queryClient } from "@/lib/query-client";
 import { BorderRadius, Spacing } from "@/constants/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type OnboardingStep = { id: "linked_account" | "stakeholder" | "route_product" | "settlement"; label: string; status: "complete" | "current" | "locked" };
 type Profile = { configured: boolean; status: string; finalActivationStatus?: string | null; accountId?: string | null; stakeholderId?: string | null; productId?: string | null; productStatus?: string | null; canAcceptPaidTickets: boolean; actionRequired?: string | null; statusReason?: string | null; coolingEndsAt?: string | null; displayName?: string | null; onboarding?: { currentStage: OnboardingStep["id"] | "complete"; steps: OnboardingStep[] } };
@@ -48,6 +49,7 @@ const statusLabel = (value: string | null | undefined) => String(value || "not a
 
 export default function OrgPayoutsScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { organization } = useOrganization();
   const orgId = organization?.id;
   const [form, setForm] = useState<Form>(initialForm);
@@ -118,7 +120,7 @@ export default function OrgPayoutsScreen() {
   const onboardingStage = profile?.onboarding?.currentStage || "linked_account";
   return (
     <ThemedView style={styles.root}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Spacing["3xl"] + insets.bottom }]}>
         <View style={styles.titleRow}>
           <View style={{ flex: 1 }}><ThemedText type="h2">Ticket Payments</ThemedText><ThemedText type="body" style={{ color: theme.textSecondary }}>Razorpay Route payouts for paid event tickets.</ThemedText></View>
           <Pressable accessibilityRole="button" onPress={() => reconcile.mutate()} disabled={reconcile.isPending} style={[styles.outlineButton, { borderColor: theme.border }]}><Feather name="refresh-cw" size={16} color={theme.text} /><ThemedText>{reconcile.isPending ? "Refreshing" : "Refresh"}</ThemedText></Pressable>

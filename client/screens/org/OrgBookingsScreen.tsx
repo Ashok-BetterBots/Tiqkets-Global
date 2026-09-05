@@ -10,6 +10,7 @@ import {
   ViewStyle,
   useColorScheme,
   Switch,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
@@ -1201,7 +1202,9 @@ export default function OrgBookingsScreen() {
         animationType="fade"
         onRequestClose={() => setShowBreakModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setShowBreakModal(false)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowBreakModal(false)} />
+          <KeyboardAvoidingView style={styles.modalKeyboardRegion} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View style={[styles.modalContent, styles.breakModalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHandle} />
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
@@ -1210,7 +1213,7 @@ export default function OrgBookingsScreen() {
                 <Feather name="x" size={24} color={colors.text} />
               </Pressable>
             </View>
-            <View style={styles.breakFormContent}>
+            <ScrollView style={styles.breakFormContent} contentContainerStyle={{ paddingBottom: Spacing.xl }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
               {activeBreakPicker === null ? (
                 <>
                   <View style={styles.formGroup}>
@@ -1315,9 +1318,10 @@ export default function OrgBookingsScreen() {
                   </View>
                 </View>
               )}
-            </View>
+            </ScrollView>
           </View>
-        </Pressable>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       <Modal
@@ -1332,11 +1336,13 @@ export default function OrgBookingsScreen() {
           }
         }}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => {
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => {
           if (!showDatePicker) {
             setShowHolidayModal(false);
           }
-        }}>
+        }} />
+          <KeyboardAvoidingView style={styles.modalKeyboardRegion} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <Pressable style={[styles.modalContent, styles.holidayModalContent, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalHandle} />
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
@@ -1345,7 +1351,7 @@ export default function OrgBookingsScreen() {
                 <Feather name="x" size={24} color={colors.text} />
               </Pressable>
             </View>
-            <ScrollView style={styles.holidayFormContent}>
+            <ScrollView style={styles.holidayFormContent} contentContainerStyle={{ paddingBottom: Spacing.xl }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
               <View style={styles.formGroup}>
                 <ThemedText style={[styles.formLabel, { color: colors.text }]}>Holiday Name</ThemedText>
                 <TextInput
@@ -1418,7 +1424,8 @@ export default function OrgBookingsScreen() {
               </View>
             </ScrollView>
           </Pressable>
-        </Pressable>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       <Modal
@@ -2098,7 +2105,7 @@ const createStyles = (colors: typeof Colors.light, isDark = false) => StyleSheet
   modalContent: {
     backgroundColor: colors.backgroundDefault,
     borderRadius: 32,
-    maxHeight: "70%",
+    flexShrink: 1,
   },
   modalHandle: {
     width: 44,
@@ -2110,10 +2117,14 @@ const createStyles = (colors: typeof Colors.light, isDark = false) => StyleSheet
     marginBottom: 4,
   },
   breakModalContent: {
-    maxHeight: "70%",
+    flexShrink: 1,
   },
   holidayModalContent: {
-    maxHeight: "75%",
+    flexShrink: 1,
+  },
+  modalKeyboardRegion: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
   modalHeader: {
     flexDirection: "row",

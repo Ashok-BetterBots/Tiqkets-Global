@@ -22,11 +22,12 @@ import {
   View,
   Text,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   Modal,
   FlatList,
   StyleSheet,
-  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Country, State, City } from "country-state-city";
@@ -92,6 +93,10 @@ function PickerModal({
       onRequestClose={handleClose}
       presentationStyle={Platform.OS === "ios" ? "pageSheet" : undefined}
     >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
       <View style={modalStyles.container}>
         <View style={modalStyles.header}>
           <Text style={modalStyles.headerTitle}>{title}</Text>
@@ -175,6 +180,7 @@ function PickerModal({
           />
         )}
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   useColorScheme,
+  useWindowDimensions,
 } from "react-native";
 import Svg, { Circle, Text as SvgText } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -891,6 +892,7 @@ function ParkingActionModal({
   theme: any;
 }) {
   const colorScheme = useColorScheme();
+  const { height: windowHeight } = useWindowDimensions();
   const sheetBg     = colorScheme === "dark" ? "#1c1c1e" : "#ffffff";
 
   // If we know the customer's parking status, use it; otherwise fall back to lot-level logic
@@ -904,10 +906,11 @@ function ParkingActionModal({
       <View style={styles.modalOverlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalSheet}
         >
-          <View style={[styles.modalContent, { backgroundColor: sheetBg, borderColor: theme.border }]}>
+          <View style={[styles.modalContent, { backgroundColor: sheetBg, borderColor: theme.border, flexShrink: 1, maxHeight: windowHeight * 0.9 }]}>
+            <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: Spacing.md }}>
             {/* Handle */}
             <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
 
@@ -1032,7 +1035,8 @@ function ParkingActionModal({
                 </Pressable>
               </>
             )}
-          </View>
+            </ScrollView>
+            </View>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -1345,7 +1349,7 @@ const styles = StyleSheet.create({
 
   // ── Modal ──
   modalOverlay:  { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  modalSheet:    { width: "100%" },
+  modalSheet:    { flex: 1, width: "100%", justifyContent: "flex-end" },
   modalContent: {
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     borderTopWidth: StyleSheet.hairlineWidth,

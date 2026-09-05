@@ -13,6 +13,8 @@ import {
   useColorScheme,
   Image,
   Platform,
+  KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -45,6 +47,7 @@ export function ProfileModal({
   onLogout,
 }: ProfileModalProps) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
@@ -233,11 +236,17 @@ export function ProfileModal({
           <Pressable style={StyleSheet.absoluteFillObject} onPress={handleClose} />
         </Animated.View>
 
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+        >
         <Animated.View
           style={[
             styles.modalContent,
             {
               width: MODAL_WIDTH,
+              maxHeight: windowHeight - insets.top - insets.bottom,
               backgroundColor: isDark ? colors.backgroundRoot : "#F7F5FE",
               transform: [{ translateX: slideAnim }],
               paddingTop: insets.top + Spacing.md,
@@ -253,8 +262,10 @@ export function ProfileModal({
           </View>
 
           <ScrollView
+            style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
           >
             <View style={styles.profileSection}>
               <Pressable onPress={handlePickImage} disabled={isPickingImage}>
@@ -524,6 +535,7 @@ export function ProfileModal({
             )}
           </ScrollView>
         </Animated.View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );

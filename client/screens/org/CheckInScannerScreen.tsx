@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, StyleSheet, Pressable, Platform, Linking } from "react-native";
+import { View, StyleSheet, Pressable, Platform, Linking, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -76,6 +76,7 @@ export default function CheckInScannerScreen() {
 
 function CheckInScannerNative() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const navigation = useNavigation<NavigationProp>();
   const { theme, isDark } = useTheme();
   const { checkInCustomer, organization } = useOrganization();
@@ -228,7 +229,7 @@ function CheckInScannerNative() {
         </View>
 
         <View style={styles.scanArea}>
-          <View style={styles.scanFrame}>
+          <View style={[styles.scanFrame, { width: Math.min(width - Spacing["2xl"] * 2, 280), aspectRatio: 1 }]}>
             <View style={[styles.corner, styles.topLeft, { borderColor: theme.primary }]} />
             <View style={[styles.corner, styles.topRight, { borderColor: theme.primary }]} />
             <View style={[styles.corner, styles.bottomLeft, { borderColor: theme.primary }]} />
@@ -402,8 +403,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   scanFrame: {
-    width: 280,
-    height: 280,
+    maxWidth: 280,
+    width: "100%",
+    aspectRatio: 1,
     position: "relative",
   },
   corner: {

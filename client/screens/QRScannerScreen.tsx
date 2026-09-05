@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Pressable, Platform, Linking, ActivityIndicator } from "react-native";
+import { View, StyleSheet, Pressable, Platform, Linking, ActivityIndicator, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -85,6 +85,7 @@ export default function QRScannerScreen() {
 
 function QRScannerNative({ navigation }: { navigation: NativeStackNavigationProp<RootStackParamList> }) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { theme } = useTheme();
   const CameraModule = require("expo-camera");
   const { CameraView, useCameraPermissions } = CameraModule;
@@ -271,7 +272,7 @@ function QRScannerNative({ navigation }: { navigation: NativeStackNavigationProp
         </View>
 
         <View style={styles.scanArea}>
-          <View style={styles.scanFrame}>
+           <View style={[styles.scanFrame, { width: Math.min(width - Spacing["2xl"] * 2, 280), aspectRatio: 1 }]}>
             <View style={[styles.corner, styles.topLeft]} />
             <View style={[styles.corner, styles.topRight]} />
             <View style={[styles.corner, styles.bottomLeft]} />
@@ -419,8 +420,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   scanFrame: {
-    width: 250,
-    height: 250,
+    maxWidth: 280,
+    width: "100%",
+    aspectRatio: 1,
     position: "relative",
   },
   corner: {
