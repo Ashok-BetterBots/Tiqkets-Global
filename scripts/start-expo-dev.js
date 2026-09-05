@@ -1,5 +1,4 @@
 const { spawn } = require("node:child_process");
-const QRCode = require("qrcode");
 
 const domain = process.env.REPLIT_DEV_DOMAIN;
 
@@ -8,18 +7,17 @@ if (!domain) {
   process.exit(1);
 }
 
-const secureExpoUrl = `exps://${domain}`;
 const env = {
   ...process.env,
-  EXPO_NO_QR_CODE: "1",
-  EXPO_PACKAGER_PROXY_URL: `https://${domain}`,
-  REACT_NATIVE_PACKAGER_HOSTNAME: domain,
   EXPO_PUBLIC_DOMAIN: `${domain}:5000`,
 };
+delete env.EXPO_PACKAGER_PROXY_URL;
+delete env.REACT_NATIVE_PACKAGER_HOSTNAME;
+delete env.EXPO_NO_QR_CODE;
 
 const expo = spawn(
   process.platform === "win32" ? "npx.cmd" : "npx",
-  ["expo", "start", "--localhost"],
+  ["expo", "start", "--tunnel", "--clear"],
   {
     env,
     stdio: "inherit",
@@ -27,35 +25,6 @@ const expo = spawn(
 );
 
 let stopped = false;
-
-async function waitForMetroAndPrintSecureQr() {
-  for (let attempt = 0; attempt < 90 && !stopped; attempt += 1) {
-    try {
-      const response = await fetch("http://127.0.0.1:8081/status", {
-        signal: AbortSignal.timeout(1000),
-      });
-      if (response.ok) {
-        const qr = await QRCode.toString(secureExpoUrl, {
-          type: "terminal",
-          small: true,
-          errorCorrectionLevel: "M",
-        });
-        console.log("\nScan this secure QR code with Android or iOS Expo Go:");
-        console.log(qr);
-        console.log(`Expo Go: ${secureExpoUrl}`);
-        console.log(
-          "Do not use an exp:// URL for this Replit project; Android cannot reach the development domain over HTTP.\n",
-        );
-        return;
-      }
-    } catch {
-      // Metro is still starting.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-}
-
-void waitForMetroAndPrintSecureQr();
 
 function stop(signal) {
   if (stopped) return;
