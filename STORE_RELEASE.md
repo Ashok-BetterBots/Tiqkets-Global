@@ -143,8 +143,10 @@ Do not use `match nuke` or delete existing company certificates.
 - The App Store profile `match AppStore com.tiqkets.app` includes that certificate
   and the production push-notification entitlement, and expires September 5, 2027.
 - The certificate, private key, and profile are encrypted with `MATCH_PASSWORD`
-  on `codex/signing` (commit `85f4fd0`). GitHub build-only jobs restore them
-  without an Apple login; submission still requires the company team API key.
+  on `codex/signing` (commit `0b175f8`). A clean recovery into an isolated macOS
+  keychain verified the signing identity and profile. GitHub build-only jobs
+  restore them without an Apple login; submission still requires the company
+  team API key.
 - Ignored local recovery files remain in `.release-credentials/`. Move a copy to
   the company vault; GitHub Actions does not depend on those local files.
 
