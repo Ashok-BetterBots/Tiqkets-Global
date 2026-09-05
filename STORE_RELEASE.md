@@ -211,11 +211,11 @@ Do not use `match nuke` or delete existing company certificates.
   list is selected; its opt-in URL is
   `https://play.google.com/apps/internaltest/4701748236699726598`.
 
-App Store screenshots are uploaded separately with `bundle exec fastlane ios
-screenshots` after review; normal releases preserve the screenshots already in
-App Store Connect. The current iOS build enables iPad support, so an appropriate
-iPad screenshot set is still needed. The supplied iPhone artwork also needs final
-review: images 1 and 3 contain Android status indicators inside iPhone frames.
+Six App Store iPhone screenshots are uploaded at Apple’s accepted 1284×2778
+size. The next release build is iPhone-only, so an inaccurate stretched iPad set
+is not required. Normal releases preserve the screenshots already in App Store
+Connect. The artwork should still receive a final human review: images 1 and 3
+contain Android status indicators inside iPhone frames.
 
 ## Validation
 

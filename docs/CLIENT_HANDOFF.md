@@ -79,9 +79,9 @@ The detailed recovery procedure and the exact GitHub secret names are in
    as the `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` GitHub Actions secret.
 5. Have an authorized representative accept the IARC terms and complete content
    rating, target audience, Data Safety, and remaining privacy declarations.
-6. Supply corrected App Store iPhone screenshots and the required iPad set.
-7. Complete Apple review contact information, privacy answers, age rating,
-   countries, pricing, and review credentials.
+6. Visually approve the uploaded App Store iPhone screenshots; two supplied
+   images contain Android status indicators inside iPhone frames.
+7. Approve the prepared Apple privacy attestation and provide review credentials.
 8. Test the internal Android build and iOS TestFlight build before publishing the
    stable GitHub Release.
 
