@@ -1,2 +1,3 @@
 package_name("com.tiqkets.app")
 app_identifier("com.tiqkets.app")
+apple_id("6808904758")
