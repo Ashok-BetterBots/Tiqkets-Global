@@ -22,24 +22,26 @@ production environment secrets.
 
 ### Android
 
-- File: `tiqkets-1.0.0-210753775.aab`
+- File: `tiqkets-1.0.0-210771865.aab`
 - Package: `com.tiqkets.app`
-- Version: `1.0.0` (`210753775`)
+- Version: `1.0.0` (`210771865`)
 - Signer: TIQKETS Upload, BetterBots AI Solutions Private Limited
-- SHA-256: `f74b98d63ed22e31b960c6074b7c89a7d897692f7bf7207b988236f7825696ed`
-- GitHub Actions run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33950563282>
-- Status: published to Google Play internal testing
+- SHA-256: `c8e59dc6074a09b54c67afb9eff458002e5d3364c49c18c560d4705e1e8432ce`
+- GitHub Actions run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33964123854>
+- Status: published to the active Google Play internal-testing track; the
+  **TIQKETS Internal Testers** list contains one authorized tester
 
 ### iOS
 
-- File: `tiqkets-1.0.0-4.1.ipa`
+- File: `tiqkets-1.0.0-8.1.ipa`
 - Bundle: `com.tiqkets.app`
-- Version: `1.0.0` (`4.1`)
+- Version: `1.0.0` (`8.1`)
 - Team application identifier: `FF43UTULMB.com.tiqkets.app`
-- SHA-256: `2b4fb77545e514b2d44bf40d42fb6654e2e48e7b0960529f74ed41e636e34d1e`
-- GitHub Actions run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33953307577>
+- SHA-256: `1fc45d041dccc0e5b9a0a3da2beaec9bfb9946f02cd770fad39431b289df6660`
+- GitHub Actions run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33964123854>
 - Status: Ready to Test in the automatically distributed **TIQKETS Internal**
-  group; one authorized internal tester is enrolled
+  group and selected for the App Store version; one authorized internal tester
+  is enrolled
 
 ## Store records
 
@@ -73,14 +75,16 @@ The detailed recovery procedure and the exact GitHub secret names are in
 
 ## Client actions required before public launch
 
-1. Add the client's Google accounts to an internal-testing email list.
-2. Provide a stable non-production reviewer login and clear review instructions.
-3. Store the Apple API `.p8` recovery file and `MATCH_PASSWORD` in the company
+1. Provide a stable non-production reviewer login and clear review instructions.
+2. Store the Apple API `.p8` recovery file and `MATCH_PASSWORD` in the company
    password manager with access for at least two authorized maintainers.
-4. Create and authorize a company Google Play service account and install its JSON
+3. Create and authorize a company Google Play service account and install its JSON
    as the `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` GitHub Actions secret.
-5. Have an authorized representative accept the IARC terms and complete content
+4. Have an authorized representative accept the IARC terms and complete content
    rating, target audience, Data Safety, and remaining privacy declarations.
+5. Deploy the current server commit so the public account-deletion URL returns
+   successfully; the available Replit login opened a new personal account and
+   does not own the existing deployment.
 6. Visually approve the uploaded App Store iPhone screenshots; two supplied
    images contain Android status indicators inside iPhone frames.
 7. Approve the prepared Apple privacy attestation and provide review credentials.

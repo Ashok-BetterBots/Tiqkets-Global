@@ -153,15 +153,16 @@ Do not use `match nuke` or delete existing company certificates.
   keychain verified the signing identity and profile. GitHub build-only jobs
   restore them without an Apple login; submission still requires the company
   team API key.
-- The signed iOS build-only rehearsal completed successfully from the current
-  `v1.0.0-rc.1` tag in
-  [run 33953307577](https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33953307577).
-  Its draft release contains `tiqkets-1.0.0-4.1.ipa`; independent verification
-  confirms bundle `com.tiqkets.app`, version `1.0.0` (build `4.1`), team-prefixed
+- The current signed iOS release build completed successfully from commit
+  `235d2eb20f87d438db3989aa7f8fc879a85fe903` in
+  [run 33964123854](https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33964123854).
+  Draft release `v1.0.0-rc.2` contains `tiqkets-1.0.0-8.1.ipa`; independent
+  verification confirms bundle `com.tiqkets.app`, version `1.0.0` (build `8.1`),
+  team-prefixed
   application identifier `FF43UTULMB.com.tiqkets.app`, and a valid code signature.
   The IPA SHA-256 is
-  `2b4fb77545e514b2d44bf40d42fb6654e2e48e7b0960529f74ed41e636e34d1e`.
-- Version `1.0.0` (build `4.1`) was uploaded through Fastlane with the company
+  `1fc45d041dccc0e5b9a0a3da2beaec9bfb9946f02cd770fad39431b289df6660`.
+- Version `1.0.0` (build `8.1`) was uploaded through Fastlane with the company
   API key, finished Apple processing, and received the GitHub release changelog
   on September 5, 2026. It is **Ready to Test** in the automatically distributed
   **TIQKETS Internal** group (one build, one authorized internal tester). This
@@ -176,15 +177,16 @@ Do not use `match nuke` or delete existing company certificates.
 2. Install the company Google Play API credential in GitHub Secrets. The Apple
    API and signing credentials are installed, so do not run Apple setup again
    unless rotating or renewing credentials.
-3. The first Android build-only rehearsal completed successfully in GitHub Actions
-   ([run 33950563282](https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33950563282)).
-   Draft release `v1.0.0` contains `tiqkets-1.0.0-210753775.aab`; its SHA-256 is
-   `f74b98d63ed22e31b960c6074b7c89a7d897692f7bf7207b988236f7825696ed`.
+3. The current Android build completed successfully in GitHub Actions
+   ([run 33964123854](https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33964123854)).
+   Draft release `v1.0.0-rc.2` contains `tiqkets-1.0.0-210771865.aab`; its SHA-256 is
+   `c8e59dc6074a09b54c67afb9eff458002e5d3364c49c18c560d4705e1e8432ce`.
    Independent verification confirms package `com.tiqkets.app` and signer
    `TIQKETS Upload` / BetterBots AI Solutions Private Limited.
-4. The bundle is accepted by Play Console as version code `210753775` (version
-   `1.0.0`, target SDK 36) and released to the internal-testing track. Add a
-   company tester email list to activate tester access. Later releases can upload
+4. The bundle is accepted by Play Console as version code `210771865` (version
+   `1.0.0`, target SDK 36) and released to the active internal-testing track.
+   The **TIQKETS Internal Testers** list currently has one tester. Later releases
+   can upload
    through Fastlane after the Google service-account secret is installed.
 5. Complete review access, ratings, target audience, privacy/data declarations,
    countries, and pricing in both consoles. Use a non-production review account;
@@ -215,10 +217,10 @@ Do not use `match nuke` or delete existing company certificates.
   `https://tiqketsglobal.replit.app/account-deletion`; it creates a high-priority
   support ticket for identity verification and deletion. Verify the deployed URL
   before entering it in Data Safety.
-- Internal release **TIQKETS 1.0.0** is published with version code `210753775`
+- Internal release **TIQKETS 1.0.0 (210771865)** is published with version code `210771865`
   and the GitHub Store notes. Play accepted the signed bundle and reports a
-  34.9 MB new-install download. The track remains inactive until a tester email
-  list is selected; its opt-in URL is
+  34.9 MB new-install download. The track is active with the **TIQKETS Internal
+  Testers** list selected; its opt-in URL is
   `https://play.google.com/apps/internaltest/4701748236699726598`.
 
 Six App Store iPhone screenshots are uploaded at Apple’s accepted 1284×2778
