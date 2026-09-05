@@ -20,6 +20,7 @@
     "test:event-ticket-delivery": "DATABASE_URL=$DATABASE_URL npx tsx --test server/event-ticket-delivery.test.ts",
     "release:check": "npx expo-doctor && npx expo export --platform all --output-dir /tmp/tiqkets-release-check --clear",
     "release:notes": "node scripts/generate-release-notes.mjs",
+    "test:release": "node --test scripts/release-notes.test.mjs",
     "build:android:release": "npx expo prebuild --platform android --clean --no-install && node scripts/configure-android-signing.mjs && bundle exec fastlane android release",
     "android": "expo run:android",
     "ios": "expo run:ios"

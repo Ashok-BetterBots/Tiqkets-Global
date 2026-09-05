@@ -1,2 +1,2 @@
 package_name("com.tiqkets.app")
-
+app_identifier("com.tiqkets.app")

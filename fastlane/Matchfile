@@ -1,0 +1,7 @@
+storage_mode("git")
+git_url(ENV.fetch("MATCH_GIT_URL", "https://github.com/Ashok-BetterBots/Tiqkets-Global.git"))
+git_branch("codex/signing")
+type("appstore")
+app_identifier(["com.tiqkets.app"])
+team_id(ENV["APPLE_TEAM_ID"]) if ENV["APPLE_TEAM_ID"]
+readonly(true)

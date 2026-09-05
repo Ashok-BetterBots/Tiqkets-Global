@@ -1,30 +1,14 @@
-Tiqkets turns your walk-in queue into a smooth, no-app-download experience, for you and your customers.
+TIQKETS helps businesses manage queues, tokens, appointments and event check-ins from one dashboard. Customers can join using a QR code or WhatsApp and receive updates without installing the business app.
 
-No more shouting token numbers. No more customers crowding your counter. With Tiqkets, customers join your queue and get updates straight on WhatsApp, while you manage everything from a simple, fast dashboard.
+KEEP YOUR LINE MOVING
+• Call, serve, skip and transfer customers with simple queue controls.
+• Manage first-come-first-served queues, dine-in seating, takeaway orders and multi-stage services.
+• Send WhatsApp updates when it is a customer's turn.
 
-WHY BUSINESSES CHOOSE TIQKETS?
+MANAGE EVENTS AND YOUR TEAM
+• Scan QR codes to verify tickets and check in attendees.
+• Manage staff, counters and organization settings.
+• View queue activity, wait times, footfall and service reports.
+• Support customers in multiple languages.
 
-• Customers join instantly via WhatsApp or QR scan, zero app download needed for them
-• Real-time queue status keeps your counter calm and organized
-• Automatic WhatsApp notifications tell customers exactly when it's their turn
-• Works for retail check-ins, dine-in seating, take-away orders, and multi-stage service counters
-• Multi-language support so you can serve customers in their preferred language
-• Built-in analytics to track wait times, footfall, and service speed
-
-QUEUE MODES FOR EVERY BUSINESS
-
-• FIFO Queue: Simple first-come, first-served ticketing
-• Dine-In: Table queue management for restaurants
-• Take-Away: Order-ready notifications for quick service
-• Check-In: QR-based verification for events and appointments
-• Multi-Stage: Track customers across multiple service steps
-
-BUILT FOR YOUR TEAM
-
-• Fast, intuitive Process Queue screen to call, serve, or skip customers
-• Admin controls for staff, counters, and settings
-• Secure, reliable performance, built to handle high-volume, high-traffic events
-
-Whether you're running a retail store, restaurant, clinic, or a large-scale event, Tiqkets keeps your line moving and your customers informed, without making them install another app.
-
-Start your free trial today and see why businesses trust Tiqkets to manage their queues.
+Designed for retail stores, restaurants, service counters, clinics and events. An account with a participating TIQKETS organization is required for business management features.

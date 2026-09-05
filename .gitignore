@@ -11,6 +11,8 @@ server_dist/
 *.jks
 *.keystore
 *.p12
+*.p8
+*.pem
 *.cer
 *.mobileprovision
 credentials.json
@@ -23,6 +25,10 @@ credentials.json
 *.apk
 tiqkets-*.aab
 RELEASE_NOTES.md
+/release-output/
+/fastlane/report.xml
+/fastlane/Preview.html
+/fastlane/README.md
 
 .DS_Store
 npm-debug.log*

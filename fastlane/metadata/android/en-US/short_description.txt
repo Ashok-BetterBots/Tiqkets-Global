@@ -1,1 +1,1 @@
-Manage queues, tokens & customer notifications - all through WhatsApp.
+Manage queues, tokens & customer notifications — all through WhatsApp.

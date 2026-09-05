@@ -15,6 +15,10 @@ if (
 module.exports = ({ config }) => ({
   ...config,
   version: releaseVersion || config.version,
+  ios: {
+    ...config.ios,
+    buildNumber: process.env.IOS_BUILD_NUMBER || config.ios?.buildNumber || "1",
+  },
   android: {
     ...config.android,
     versionCode: androidVersionCode || config.android?.versionCode || 1,

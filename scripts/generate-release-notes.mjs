@@ -1,73 +1,46 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
-const version = process.argv[2]?.replace(/^v/, "");
-const outputDirectory =
-  process.argv[3] || "fastlane/metadata/android/en-US/changelogs";
-
-if (!version) {
+// Release text is data, never shell code. Both stores use the same approved notes.
+const [releasePath, versionCode, outputRoot = "."] = process.argv.slice(2);
+if (!releasePath || !/^\d+$/.test(versionCode || "")) {
   throw new Error(
-    "Usage: node scripts/generate-release-notes.mjs <version> [output-directory]",
+    "Usage: node scripts/generate-release-notes.mjs <release.json> <android-version-code> [output-root]",
   );
 }
-
-const git = (...args) =>
-  execFileSync("git", args, {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  }).trim();
-
-let previousTag = "";
-try {
-  previousTag = git("describe", "--tags", "--abbrev=0", "HEAD^");
-} catch {
-  // The first release intentionally includes the available commit history.
+const release = JSON.parse(readFileSync(releasePath, "utf8"));
+const body = (release.body || "").trim();
+if (!body)
+  throw new Error("Add release notes to the GitHub Release before publishing.");
+// A short Store notes section can accompany longer engineering notes on GitHub.
+const lines = body.split(/\r?\n/);
+const start = lines.findIndex((line) => /^## Store notes\s*$/.test(line));
+let selected = body;
+if (start !== -1) {
+  const remaining = lines.slice(start + 1);
+  const end = remaining.findIndex((line) => /^##\s/.test(line));
+  selected = (end === -1 ? remaining : remaining.slice(0, end)).join("\n");
 }
-
-const range = previousTag ? `${previousTag}..HEAD` : "HEAD";
-const subjects = git("log", range, "--pretty=format:%s")
-  .split("\n")
-  .map((subject) => subject.trim())
-  .filter(Boolean)
-  .filter((subject) => !/^merge\b/i.test(subject))
-  .filter((subject) => !/^release\b/i.test(subject))
-  .filter((subject) => !/^deploy new version$/i.test(subject))
-  .map((subject) =>
-    subject
-      .replace(
-        /^(feat|fix|perf|refactor|docs|chore|build|ci|test)(\([^)]*\))?!?:\s*/i,
-        "",
-      )
-      .replace(/\s*\(#\d+\)$/, ""),
+const notes = selected
+  .replace(/<!--[^]*?-->/g, "")
+  .replace(/^#{1,6}\s+/gm, "")
+  .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+  .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+  .replace(/[*`]/g, "")
+  .replace(/\r\n/g, "\n")
+  .trim();
+if (!notes || [...notes].length > 500) {
+  throw new Error(
+    "Store notes must contain 1–500 characters. Add a '## Store notes' section to the GitHub Release for concise customer-facing notes.",
   );
-
-const uniqueSubjects = [...new Set(subjects)];
-const fallback = [
-  "- Improved WhatsApp notification speed",
-  "- Added multilingual registration and queue updates",
-  "- Bug fixes and performance improvements",
-].join("\n");
-let playNotes = uniqueSubjects.length
-  ? uniqueSubjects.map((subject) => `- ${subject}`).join("\n")
-  : fallback;
-
-// Google Play limits each localized What's new entry to 500 characters.
-if ([...playNotes].length > 500) {
-  const suffix = "\n- Additional fixes and performance improvements";
-  playNotes =
-    [...playNotes]
-      .slice(0, 500 - [...suffix].length)
-      .join("")
-      .trimEnd() + suffix;
 }
-
-mkdirSync(outputDirectory, { recursive: true });
-writeFileSync(join(outputDirectory, "default.txt"), `${playNotes}\n`);
-writeFileSync(
-  "RELEASE_NOTES.md",
-  `# TIQKETS ${version}\n\n${playNotes}\n\n` +
-    (previousTag ? `Changes since ${previousTag}.\n` : "Initial release.\n"),
+const android = `${outputRoot}/fastlane/metadata/android/en-US/changelogs`;
+const ios = `${outputRoot}/fastlane/metadata/ios/en-US`;
+mkdirSync(android, { recursive: true });
+mkdirSync(ios, { recursive: true });
+writeFileSync(`${android}/${versionCode}.txt`, `${notes}\n`);
+writeFileSync(`${android}/default.txt`, `${notes}\n`);
+writeFileSync(`${ios}/release_notes.txt`, `${notes}\n`);
+writeFileSync(`${outputRoot}/RELEASE_NOTES.md`, `${body}\n`);
+console.log(
+  `Prepared identical store notes (${[...notes].length} characters) from the GitHub Release.`,
 );
-
-console.log(playNotes);
