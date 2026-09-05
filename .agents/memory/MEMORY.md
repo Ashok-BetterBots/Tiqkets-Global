@@ -72,3 +72,4 @@
 - [Expo Go 57 startup bootstrap](expo-go-57-startup-bootstrap.md) — defer the full provider-tree import until after root mount; immediate import can make iOS Expo Go return Home after bundling.
 - [Expo Go manifest packager host](expo-go-manifest-packager-host.md) — hostUri/debuggerHost must be bare hosts; platform path suffixes can leave Android stuck on “Loading project…” before JS starts.
 - [Expo SDK 57 Worklets deduplication](expo-57-worklets-dedup.md) — nested Worklets patch versions can crash Android Hermes after bundling; pin the whole tree to Expo Go’s bundled version.
+- [Expo Go SDK 57 module compatibility](expo-go-57-module-compat.md) — static notifications and MediaLibrary Next imports can abort Android startup; gate notifications and use MediaLibrary legacy.
