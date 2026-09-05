@@ -27,6 +27,7 @@ credentials.json
 tiqkets-*.aab
 RELEASE_NOTES.md
 /release-output/
+/client-delivery/
 /fastlane/report.xml
 /fastlane/Preview.html
 /fastlane/README.md
