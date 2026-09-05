@@ -109,5 +109,8 @@
     "prettier": "3.6.2",
     "typescript": "~6.0.3"
   },
+  "overrides": {
+    "shell-quote": "1.10.0"
+  },
   "private": true
 }
