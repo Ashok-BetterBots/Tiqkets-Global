@@ -1003,7 +1003,7 @@ export default function OrgSettingsScreen() {
           </View>
         </Pressable>
 
-        {hasPermission("org.settings.queue") ? (
+        {!isMobile && hasPermission("org.settings.queue") ? (
         <SettingSection title="QUEUE PROCESSING">
           <Pressable
             style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
@@ -1467,7 +1467,7 @@ export default function OrgSettingsScreen() {
       </ScrollView>
 
       <Modal
-        visible={showQueueModeModal}
+        visible={!isMobile && showQueueModeModal}
         transparent
         animationType="none"
         onRequestClose={closeQueueModeModal}
