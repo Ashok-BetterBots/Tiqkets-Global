@@ -229,6 +229,11 @@ is not required. Normal releases preserve the screenshots already in App Store
 Connect. The artwork should still receive a final human review: images 1 and 3
 contain Android status indicators inside iPhone frames.
 
+Apple build `8.1` is selected for App Store version `1.0`. App Store Connect's
+**Add for Review** validation reports three remaining blockers: Content Rights
+must be set, an Admin must publish the prepared App Privacy answers, and a stable
+reviewer username and password must be supplied.
+
 ## Validation
 
 `npm run test:release` checks notes selection, both-store consistency, limits,

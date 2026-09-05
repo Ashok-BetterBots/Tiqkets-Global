@@ -87,7 +87,9 @@ The detailed recovery procedure and the exact GitHub secret names are in
    does not own the existing deployment.
 6. Visually approve the uploaded App Store iPhone screenshots; two supplied
    images contain Android status indicators inside iPhone frames.
-7. Approve the prepared Apple privacy attestation and provide review credentials.
+7. Have an Apple Admin publish the prepared privacy answers, set Content Rights,
+   and provide the reviewer username and password. These are the three blockers
+   App Store Connect reported when **Add for Review** was checked.
 8. Test the internal Android build and iOS TestFlight build before publishing the
    stable GitHub Release.
 
