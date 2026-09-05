@@ -147,6 +147,14 @@ Do not use `match nuke` or delete existing company certificates.
   keychain verified the signing identity and profile. GitHub build-only jobs
   restore them without an Apple login; submission still requires the company
   team API key.
+- The signed iOS build-only rehearsal completed successfully from the current
+  `v1.0.0-rc.1` tag in
+  [run 33953307577](https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33953307577).
+  Its draft release contains `tiqkets-1.0.0-4.1.ipa`; independent verification
+  confirms bundle `com.tiqkets.app`, version `1.0.0` (build `4.1`), team-prefixed
+  application identifier `FF43UTULMB.com.tiqkets.app`, and a valid code signature.
+  The IPA SHA-256 is
+  `2b4fb77545e514b2d44bf40d42fb6654e2e48e7b0960529f74ed41e636e34d1e`.
 - Ignored local recovery files remain in `.release-credentials/`. Move a copy to
   the company vault; GitHub Actions does not depend on those local files.
 
