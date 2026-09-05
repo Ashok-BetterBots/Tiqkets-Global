@@ -1,0 +1,31 @@
+Uncaught Error
+
+expo-notifications: Android Push notifications (remote notifications) functionality provided by expo-notifications was removed from Expo Go with the release of SDK 53. Use a development build instead of Expo Go. Learn more at https://docs.expo.dev/develop/development-builds/introduction/.
+
+Source:
+/home/runner/workspace/client/services/NotificationService.ts (2:0)
+
+Call Stack:
+warnOfExpoGoPushUsage (/home/runner/workspace/node_modules/expo-notifications/build/warnOfExpoGoPushUsage.js:8)
+addPushTokenListener (/home/runner/workspace/node_modules/expo-notifications/build/TokenEmitter.js:33)
+<global> (/home/runner/workspace/node_modules/expo-notifications/build/DevicePushTokenAutoRegistration.fx.js:78)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:163)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+<global> (/home/runner/workspace/node_modules/expo-notifications/build/getExpoPushTokenAsync.js:4)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:163)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+<global> (/home/runner/workspace/node_modules/expo-notifications/build/index.js:12)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:163)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+<global> (/home/runner/workspace/client/services/NotificationService.ts:2)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:163)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+<global> (/home/runner/workspace/client/App.tsx:29)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:156)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+setTimeout$argument_0 (/home/runner/workspace/client/AppBootstrap.tsx:14)

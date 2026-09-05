@@ -1,5 +1,5 @@
 import { logHandledError } from "@/lib/logger";
-import * as Notifications from "expo-notifications";
+import { getNotificationsModule } from "@/lib/notificationsCompat";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { Audio, AVPlaybackStatus } from "@/utils/audioCompat";
@@ -8,15 +8,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const NOTIFICATION_PERMISSION_KEY = "@tiqkets_notification_permission";
 const PUSH_TOKEN_KEY = "@tiqkets_push_token";
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
 
 export type NotificationType = "approaching" | "next" | "your_turn";
 
@@ -55,6 +46,9 @@ class NotificationService {
 
   async requestPermissions(): Promise<boolean> {
     try {
+      const Notifications = getNotificationsModule();
+      if (!Notifications) return false;
+
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       
       let finalStatus = existingStatus;
@@ -87,6 +81,9 @@ class NotificationService {
         return null;
       }
 
+      const Notifications = getNotificationsModule();
+      if (!Notifications) return null;
+
       const cached = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
       if (cached) return cached;
 
@@ -114,6 +111,9 @@ class NotificationService {
   }
 
   private async setupAndroidChannel(): Promise<void> {
+    const Notifications = getNotificationsModule();
+    if (!Notifications) return;
+
     await Notifications.setNotificationChannelAsync("queue-alerts", {
       name: "Queue Alerts",
       importance: Notifications.AndroidImportance.MAX,
@@ -139,17 +139,20 @@ class NotificationService {
     if (this.lastNotificationType === "approaching") return;
     this.lastNotificationType = "approaching";
 
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "Get Ready! Your Turn is Approaching",
-        body: `You're #${data.position} in line at ${data.organizationName}. Estimated wait: ${data.estimatedWaitTime} min`,
-        data: { ...data, category: "queue_notification", notificationType: "approaching" },
-        sound: "default",
-        badge: data.position,
-        ...(Platform.OS === "android" ? { channelId: "queue-alerts" } : {}),
-      },
-      trigger: null,
-    });
+    const Notifications = getNotificationsModule();
+    if (Notifications) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Get Ready! Your Turn is Approaching",
+          body: `You're #${data.position} in line at ${data.organizationName}. Estimated wait: ${data.estimatedWaitTime} min`,
+          data: { ...data, category: "queue_notification", notificationType: "approaching" },
+          sound: "default",
+          badge: data.position,
+          ...(Platform.OS === "android" ? { channelId: "queue-alerts" } : {}),
+        },
+        trigger: null,
+      });
+    }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   }
@@ -158,17 +161,20 @@ class NotificationService {
     if (this.lastNotificationType === "next") return;
     this.lastNotificationType = "next";
 
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "You're Next!",
-        body: `${data.ticketNumber} - You're next in line at ${data.organizationName}. Please be ready!`,
-        data: { ...data, category: "queue_notification", notificationType: "next" },
-        sound: "default",
-        badge: 1,
-        ...(Platform.OS === "android" ? { channelId: "queue-urgent" } : {}),
-      },
-      trigger: null,
-    });
+    const Notifications = getNotificationsModule();
+    if (Notifications) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "You're Next!",
+          body: `${data.ticketNumber} - You're next in line at ${data.organizationName}. Please be ready!`,
+          data: { ...data, category: "queue_notification", notificationType: "next" },
+          sound: "default",
+          badge: 1,
+          ...(Platform.OS === "android" ? { channelId: "queue-urgent" } : {}),
+        },
+        trigger: null,
+      });
+    }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   }
@@ -176,18 +182,21 @@ class NotificationService {
   async sendYourTurnNotification(data: QueueNotificationData): Promise<void> {
     this.lastNotificationType = "your_turn";
 
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "IT'S YOUR TURN!",
-        body: `${data.ticketNumber} - Please proceed to ${data.serviceName} at ${data.organizationName} now!`,
-        data: { ...data, category: "queue_notification", notificationType: "your_turn" },
-        sound: "default",
-        badge: 0,
-        categoryIdentifier: "urgent",
-        ...(Platform.OS === "android" ? { channelId: "queue-urgent" } : {}),
-      },
-      trigger: null,
-    });
+    const Notifications = getNotificationsModule();
+    if (Notifications) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "IT'S YOUR TURN!",
+          body: `${data.ticketNumber} - Please proceed to ${data.serviceName} at ${data.organizationName} now!`,
+          data: { ...data, category: "queue_notification", notificationType: "your_turn" },
+          sound: "default",
+          badge: 0,
+          categoryIdentifier: "urgent",
+          ...(Platform.OS === "android" ? { channelId: "queue-urgent" } : {}),
+        },
+        trigger: null,
+      });
+    }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
@@ -251,12 +260,12 @@ class NotificationService {
     } catch (error) {
       console.log("Alert sound playback error:", error);
       if (Platform.OS === "android") {
-        Notifications.scheduleNotificationAsync({
+        const Notifications = getNotificationsModule();
+        Notifications?.scheduleNotificationAsync({
           content: {
             title: "IT'S YOUR TURN!",
             body: "Please proceed now!",
             sound: "default",
-            channelId: "queue-urgent",
             priority: Notifications.AndroidNotificationPriority.MAX,
           },
           trigger: null,
@@ -293,6 +302,9 @@ class NotificationService {
 
   async clearAllNotifications(): Promise<void> {
     try {
+      const Notifications = getNotificationsModule();
+      if (!Notifications) return;
+
       await Notifications.dismissAllNotificationsAsync();
       await Notifications.setBadgeCountAsync(0);
     } catch {
