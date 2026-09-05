@@ -121,9 +121,36 @@ Do not use `match nuke` or delete existing company certificates.
 
 ## First publication
 
+### Apple setup status — September 5, 2026
+
+- The release maintainer now has Admin and Certificates, Identifiers & Profiles
+  access for team `FF43UTULMB`.
+- `com.tiqkets.app` is registered as **TIQKETS Global**, with Push Notifications
+  enabled. This does not configure notification delivery credentials by itself.
+- An existing **TIQKETS** draft, Apple ID `6764407653`, uses
+  `app.replit.tiqkets` and SKU `EX1777404717595`. It is not the `com.tiqkets.app`
+  record required by this repository. Leave it unchanged until the owner decides
+  how to resolve the identity/name conflict; do not upload this project's build
+  to that record or silently change the application's bundle identifier.
+- App Store Connect API access has not been activated for the company. The
+  account holder (`devops@betterbots.in`) must request access at **Users and Access
+  → Integrations → App Store Connect API**. After activation, an Admin can create
+  the team release key and install it in GitHub Secrets.
+- A private key and public signing request were prepared in the ignored
+  `.release-credentials/apple-distribution.key` and `apple-distribution.csr`.
+  No new Apple certificate has been issued yet: Chrome's file upload permission
+  blocked the CSR upload. Reuse this key/request when resuming; do not generate a
+  replacement pair after the certificate has been issued.
+- After issuance, verify the certificate matches that key, create the App Store
+  provisioning profile for `com.tiqkets.app`, and import both into encrypted
+  Fastlane Match storage. Until that import and recovery verification complete,
+  Apple signing is not backed up remotely or ready for GitHub builds.
+
+### Remaining steps
+
 1. Confirm the production API URL and add it to GitHub variables.
-2. Enable Apple Certificates, Identifiers & Profiles access and register
-   `com.tiqkets.app`; create the separate TIQKETS App Store record.
+2. Resolve the existing TIQKETS draft's identity/name conflict and create the
+   separate App Store record for the registered `com.tiqkets.app` identifier.
 3. Install company Google/Apple API credentials in GitHub Secrets, then run
    **Set up shared Apple signing** once.
 4. Create an explicit tag and a draft GitHub Release with the first release notes.

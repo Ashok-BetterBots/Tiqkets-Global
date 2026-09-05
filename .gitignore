@@ -13,6 +13,7 @@ server_dist/
 *.p12
 *.p8
 *.pem
+*.key
 *.cer
 *.mobileprovision
 credentials.json
