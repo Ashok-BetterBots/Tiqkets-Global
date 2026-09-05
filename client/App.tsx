@@ -127,6 +127,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const timeout = setTimeout(() => {
+      if (active) {
+        console.warn("Icon font load timed out; continuing without blocking startup");
+        setIconFontLoaded(true);
+      }
+    }, 5000);
+
     async function loadIconFont() {
       try {
         if (!Font.isLoaded("feather")) {
@@ -134,10 +142,16 @@ export default function App() {
         }
       } catch (e) {
         console.log("Icon font load error:", e);
+      } finally {
+        clearTimeout(timeout);
+        if (active) setIconFontLoaded(true);
       }
-      setIconFontLoaded(true);
     }
     loadIconFont();
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
   }, []);
 
   const fontsReady = fontsLoaded || !!fontError || fontTimeout;
