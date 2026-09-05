@@ -156,11 +156,15 @@ Do not use `match nuke` or delete existing company certificates.
    in the `EXPO_PUBLIC_API_URL` GitHub variable.
 2. Install company Google/Apple API credentials in GitHub Secrets. Apple signing
    is already initialized, so do not run setup again unless renewing credentials.
-3. Create an explicit tag and a draft GitHub Release with the first release notes.
-   Run **Publish mobile apps**, choose that tag, destination `build`, and the desired
-   platform. The workflow can build Android before the Google service account is ready.
-4. Download the signed AAB from the draft GitHub Release and upload it to Play
-   Console manually to initialize the new package and Google Play App Signing.
+3. The first Android build-only rehearsal completed successfully in GitHub Actions
+   ([run 33950563282](https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33950563282)).
+   Draft release `v1.0.0` contains `tiqkets-1.0.0-210753775.aab`; its SHA-256 is
+   `f74b98d63ed22e31b960c6074b7c89a7d897692f7bf7207b988236f7825696ed`.
+   Independent verification confirms package `com.tiqkets.app` and signer
+   `TIQKETS Upload` / BetterBots AI Solutions Private Limited.
+4. Upload that signed AAB to Play Console manually to initialize the new package
+   and Google Play App Signing. Later releases can upload through Fastlane after
+   the Google service-account secret is installed.
 5. Complete review access, ratings, target audience, privacy/data declarations,
    countries, and pricing in both consoles. Use a non-production review account;
    do not put its credentials in Git.
