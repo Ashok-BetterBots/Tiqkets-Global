@@ -1,8 +1,18 @@
 default_platform(:android)
 
 platform :android do
-  desc "Build a signed AAB and publish it to the selected Google Play track"
-  lane :release do
+  desc "Build a signed Android App Bundle"
+  lane :build do
+    gradle(
+      project_dir: "android",
+      task: "bundle",
+      build_type: "Release",
+      print_command: false
+    )
+  end
+
+  desc "Publish an existing AAB and its store metadata to Google Play"
+  lane :publish do |options|
     required = %w[
       GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
       PLAY_TRACK
@@ -11,24 +21,26 @@ platform :android do
     missing = required.select { |name| ENV[name].to_s.empty? }
     UI.user_error!("Missing environment variables: #{missing.join(', ')}") unless missing.empty?
 
-    gradle(
-      project_dir: "android",
-      task: "bundle",
-      build_type: "Release",
-      print_command: false
-    )
+    aab_path = options[:aab].to_s
+    UI.user_error!("Pass the signed bundle with aab:/path/to/app.aab") if aab_path.empty?
 
     upload_to_play_store(
       package_name: "com.tiqkets.app",
       json_key_data: ENV.fetch("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"),
-      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      aab: aab_path,
       track: ENV.fetch("PLAY_TRACK"),
       release_status: ENV.fetch("PLAY_STATUS"),
       release_name: "TIQKETS #{ENV.fetch('RELEASE_VERSION')}",
       metadata_path: "fastlane/metadata/android",
       skip_upload_images: true,
-      skip_upload_screenshots: true
+      skip_upload_screenshots: false
     )
   end
-end
 
+
+  desc "Build and publish in one local command"
+  lane :release do
+    build
+    publish(aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH])
+  end
+end

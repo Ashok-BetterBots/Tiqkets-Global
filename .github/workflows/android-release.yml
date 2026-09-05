@@ -125,17 +125,29 @@ jobs:
           TIQKETS_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           TIQKETS_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-      - name: Build and upload with Fastlane
+      - name: Build signed bundle with Fastlane
         env:
-          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           TIQKETS_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           TIQKETS_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           TIQKETS_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: bundle exec fastlane android release
+        run: bundle exec fastlane android build
 
       - name: Collect signed bundle
         shell: bash
         run: cp android/app/build/outputs/bundle/release/app-release.aab "tiqkets-$RELEASE_VERSION.aab"
+
+      - name: Preserve signed bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiqkets-${{ env.RELEASE_VERSION }}-android
+          path: tiqkets-${{ env.RELEASE_VERSION }}.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload bundle and listing with Fastlane
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: bundle exec fastlane android publish aab:"tiqkets-$RELEASE_VERSION.aab"
 
       - name: Create GitHub release
         env:
