@@ -540,9 +540,26 @@ export default function OrgSettingsScreen() {
   };
 
   const handleQueueModeChange = async (mode: QueueMode) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await saveSetting({ queueMode: mode });
-    closeQueueModeModal();
+    if (mode === settings.queueMode) {
+      closeQueueModeModal();
+      return;
+    }
+    Alert.alert(
+      "Change queue mode?",
+      "Changing the queue mode will delete all custom fields and reset every affected service to the default or preset fields for the new mode.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Change Mode",
+          style: "destructive",
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            await saveSetting({ queueMode: mode });
+            closeQueueModeModal();
+          },
+        },
+      ],
+    );
   };
 
   const handleNotificationModeChange = async (mode: NotificationMode) => {
@@ -988,7 +1005,7 @@ export default function OrgSettingsScreen() {
           </View>
         </Pressable>
 
-        {!isMobile && hasPermission("org.settings.queue") ? (
+        {hasPermission("org.settings.queue") ? (
         <SettingSection title="QUEUE PROCESSING">
           <Pressable
             style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
@@ -1452,7 +1469,7 @@ export default function OrgSettingsScreen() {
       </ScrollView>
 
       <Modal
-        visible={!isMobile && showQueueModeModal}
+        visible={showQueueModeModal}
         transparent
         animationType="none"
         onRequestClose={closeQueueModeModal}

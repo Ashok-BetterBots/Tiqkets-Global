@@ -29,6 +29,7 @@ import {
   isDineInMode,
   isDineInDefaultFieldId,
   seedDineInFields,
+  buildDefaultDineInFields,
   buildGenderField,
   buildSplitGroupField,
   buildShareTableField,
@@ -41,6 +42,7 @@ import {
   isTakeawayMode,
   isTakeawayDefaultFieldId,
   seedTakeawayFields,
+  buildOrderIdField,
   TAKEAWAY_FIELD_IDS,
   MAX_TAKEAWAY_CUSTOM_FIELDS,
 } from "@shared/takeawayFields";
@@ -774,23 +776,27 @@ export default function OrgServicesScreen() {
   // mode-specific default fields and remove any defaults from the old mode.
   const handleQueueModeChange = useCallback(
     (newMode: string) => {
-      setServiceQueueMode(newMode);
-      setInputFields((prev) => {
-        const cleaned = prev.filter(
-          (f) => !isDineInDefaultFieldId(f.id) && !isTakeawayDefaultFieldId(f.id),
+      if (newMode === serviceQueueMode) return;
+      const applyChange = () => {
+        setServiceQueueMode(newMode);
+        setInputFields(
+          isDineInMode(newMode)
+            ? buildDefaultDineInFields() as InputField[]
+            : isTakeawayMode(newMode)
+              ? [buildOrderIdField() as InputField]
+              : [],
         );
-        const effective =
-          newMode ||
-          (editorBranch as any)?.queueMode ||
-          (editorBranch as any)?.settings?.queueMode ||
-          (organization as any)?.settings?.queueMode ||
-          "fifo";
-        if (isDineInMode(effective)) return seedDineInFields(cleaned) as InputField[];
-        if (isTakeawayMode(effective)) return seedTakeawayFields(cleaned) as InputField[];
-        return cleaned;
-      });
+      };
+      Alert.alert(
+        "Change queue mode?",
+        "Changing the queue mode will delete all custom fields and reset the form to the default or preset fields for the new mode.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Change Mode", style: "destructive", onPress: applyChange },
+        ],
+      );
     },
-    [editorBranch, organization],
+    [serviceQueueMode],
   );
 
   const hasDineInField = useCallback(

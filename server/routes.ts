@@ -45,6 +45,7 @@ import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle, normalizeWaMode } from "@shared/wa-templates";
 import { isDineInMode, seedDineInFields } from "@shared/dineInFields";
 import { isTakeawayMode, seedTakeawayFields } from "@shared/takeawayFields";
+import { buildQueueModePresetFields, queueModesEqual } from "@shared/queueModeFields";
 import {
   predictForTicket,
   recordCompletion,
@@ -3342,6 +3343,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const existingService = await storage.getServiceById(serviceId);
       const previousStatus = (existingService as any)?.queueStatus || "active";
+      if (existingService && serviceSettings !== undefined) {
+        const branch = await storage.getBranchById(existingService.branchId);
+        const org = branch ? await storage.getOrganizationById(branch.organizationId) : null;
+        const oldMode = (existingService.serviceSettings as any)?.queueMode
+          || (branch as any)?.queueMode
+          || (branch as any)?.settings?.queueMode
+          || (org as any)?.settings?.queueMode
+          || "fifo";
+        const newMode = serviceSettings?.queueMode
+          || (branch as any)?.queueMode
+          || (branch as any)?.settings?.queueMode
+          || (org as any)?.settings?.queueMode
+          || "fifo";
+        if (!queueModesEqual(oldMode, newMode)) {
+          updateData.inputFields = buildQueueModePresetFields(newMode);
+        }
+      }
 
       const service = await storage.updateService(serviceId, updateData);
 
@@ -4161,13 +4179,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (branchForMode as any)?.queueMode ||
         (branchForMode as any)?.settings?.queueMode ||
         (orgForMode as any)?.settings?.queueMode;
-      if (isDineInMode(effectiveMode)) {
+      const previousEffectiveMode =
+        existingSettings.queueMode ||
+        (branchForMode as any)?.queueMode ||
+        (branchForMode as any)?.settings?.queueMode ||
+        (orgForMode as any)?.settings?.queueMode;
+      if (!queueModesEqual(previousEffectiveMode, effectiveMode)) {
+        serviceUpdate.inputFields = buildQueueModePresetFields(effectiveMode);
+      } else if (isDineInMode(effectiveMode)) {
         const seeded = seedDineInFields((service.inputFields as any[]) || []);
         if (seeded.length !== ((service.inputFields as any[]) || []).length) {
           serviceUpdate.inputFields = seeded;
         }
       }
-      if (isTakeawayMode(effectiveMode)) {
+      if (serviceUpdate.inputFields === undefined && isTakeawayMode(effectiveMode)) {
         const seeded = seedTakeawayFields((service.inputFields as any[]) || []);
         if (seeded.length !== ((service.inputFields as any[]) || []).length) {
           serviceUpdate.inputFields = seeded;
@@ -4636,6 +4661,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (requiresInPersonRegistration !== undefined) updateData.requiresInPersonRegistration = requiresInPersonRegistration;
       if (inPersonPerimeterMeters !== undefined) updateData.inPersonPerimeterMeters = parseInt(inPersonPerimeterMeters) || 100;
       if (serviceSettings !== undefined) updateData.serviceSettings = serviceSettings;
+      const existingService = await storage.getServiceById(id);
+      if (existingService && serviceSettings !== undefined) {
+        const branch = await storage.getBranchById(existingService.branchId);
+        const org = branch ? await storage.getOrganizationById(branch.organizationId) : null;
+        const oldMode = (existingService.serviceSettings as any)?.queueMode
+          || (branch as any)?.queueMode || (branch as any)?.settings?.queueMode
+          || (org as any)?.settings?.queueMode || "fifo";
+        const newMode = serviceSettings?.queueMode
+          || (branch as any)?.queueMode || (branch as any)?.settings?.queueMode
+          || (org as any)?.settings?.queueMode || "fifo";
+        if (!queueModesEqual(oldMode, newMode)) {
+          updateData.inputFields = buildQueueModePresetFields(newMode);
+        }
+      }
       const service = await storage.updateService(id, updateData);
       res.json({ service });
     } catch (error) {
