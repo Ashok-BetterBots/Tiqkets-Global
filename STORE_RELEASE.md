@@ -156,23 +156,41 @@ Do not use `match nuke` or delete existing company certificates.
    in the `EXPO_PUBLIC_API_URL` GitHub variable.
 2. Install company Google/Apple API credentials in GitHub Secrets. Apple signing
    is already initialized, so do not run setup again unless renewing credentials.
-4. Create an explicit tag and a draft GitHub Release with the first release notes.
+3. Create an explicit tag and a draft GitHub Release with the first release notes.
    Run **Publish mobile apps**, choose that tag, destination `build`, and the desired
    platform. The workflow can build Android before the Google service account is ready.
-5. Download the signed AAB from the draft GitHub Release and upload it to Play
+4. Download the signed AAB from the draft GitHub Release and upload it to Play
    Console manually to initialize the new package and Google Play App Signing.
-6. Complete listing assets, contact details, review access, ratings, countries,
-   pricing, and privacy/data declarations in both consoles. Use a non-production
-   review account; do not put its credentials in Git.
-7. Publish a prerelease for internal testing. Once verified, publish a stable
+5. Complete review access, ratings, target audience, privacy/data declarations,
+   countries, and pricing in both consoles. Use a non-production review account;
+   do not put its credentials in Git.
+6. Publish a prerelease for internal testing. Once verified, publish a stable
    GitHub Release to submit to both stores.
+
+### Google Play setup status — September 5, 2026
+
+- The default English (United States) store listing is saved and ready to send
+  for review. It includes the description, a 512×512 icon, a 1024×500 feature
+  graphic, and six ordered 1080×1920 phone screenshots.
+- The app is categorized as **Business**. Public support details are
+  `hello@tiqkets.in`, `+91 91500 86103`, and `https://www.tiqkets.in`.
+- Seven of the eleven initial Play setup tasks are complete. The saved policy
+  declarations state that this app has no ads, does not use Advertising ID, is
+  not a government app, does not provide regulated financial features, and has
+  no health features.
+- Remaining Play questionnaires are **Sign in details**, **Content rating**,
+  **Target audience**, and **Data safety**. A stable non-production reviewer
+  account is required before target-audience setup can continue. The content
+  rating form is prepared as **All Other App Types** with
+  `support@tiqkets.in`, but an authorized person must accept the IARC Terms of
+  Use before the questionnaire can proceed. Privacy/data answers must be
+  confirmed against actual production practices before certification.
 
 App Store screenshots are uploaded separately with `bundle exec fastlane ios
 screenshots` after review; normal releases preserve the screenshots already in
 App Store Connect. The current iOS build enables iPad support, so an appropriate
 iPad screenshot set is still needed. The supplied iPhone artwork also needs final
 review: images 1 and 3 contain Android status indicators inside iPhone frames.
-The Play listing still needs a 512×512 icon and 1024×500 feature graphic.
 
 ## Validation
 
