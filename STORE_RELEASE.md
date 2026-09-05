@@ -127,6 +127,8 @@ Do not use `match nuke` or delete existing company certificates.
   access for team `FF43UTULMB`.
 - `com.tiqkets.app` is registered as **TIQKETS Global**, with Push Notifications
   enabled. This does not configure notification delivery credentials by itself.
+- App Store Connect record **TIQKETS Global**, Apple ID `6808904758`, SKU
+  `TIQKETS-GLOBAL-IOS`, is bound to `com.tiqkets.app` with full team access.
 - An existing **TIQKETS** draft, Apple ID `6764407653`, uses
   `app.replit.tiqkets` and SKU `EX1777404717595`. It is not the `com.tiqkets.app`
   record required by this repository. Leave it unchanged until the owner decides
@@ -136,23 +138,22 @@ Do not use `match nuke` or delete existing company certificates.
   account holder (`devops@betterbots.in`) must request access at **Users and Access
   → Integrations → App Store Connect API**. After activation, an Admin can create
   the team release key and install it in GitHub Secrets.
-- A private key and public signing request were prepared in the ignored
-  `.release-credentials/apple-distribution.key` and `apple-distribution.csr`.
-  No new Apple certificate has been issued yet: Chrome's file upload permission
-  blocked the CSR upload. Reuse this key/request when resuming; do not generate a
-  replacement pair after the certificate has been issued.
-- After issuance, verify the certificate matches that key, create the App Store
-  provisioning profile for `com.tiqkets.app`, and import both into encrypted
-  Fastlane Match storage. Until that import and recovery verification complete,
-  Apple signing is not backed up remotely or ready for GitHub builds.
+- Apple Distribution certificate `5LABDNC357` was issued and verified against
+  the locally generated private key. It expires September 5, 2027.
+- The App Store profile `match AppStore com.tiqkets.app` includes that certificate
+  and the production push-notification entitlement, and expires September 5, 2027.
+- The certificate, private key, and profile are encrypted with `MATCH_PASSWORD`
+  on `codex/signing` (commit `85f4fd0`). GitHub build-only jobs restore them
+  without an Apple login; submission still requires the company team API key.
+- Ignored local recovery files remain in `.release-credentials/`. Move a copy to
+  the company vault; GitHub Actions does not depend on those local files.
 
 ### Remaining steps
 
-1. Confirm the production API URL and add it to GitHub variables.
-2. Resolve the existing TIQKETS draft's identity/name conflict and create the
-   separate App Store record for the registered `com.tiqkets.app` identifier.
-3. Install company Google/Apple API credentials in GitHub Secrets, then run
-   **Set up shared Apple signing** once.
+1. Production API URL `https://tiqketsglobal.replit.app` is verified and stored
+   in the `EXPO_PUBLIC_API_URL` GitHub variable.
+2. Install company Google/Apple API credentials in GitHub Secrets. Apple signing
+   is already initialized, so do not run setup again unless renewing credentials.
 4. Create an explicit tag and a draft GitHub Release with the first release notes.
    Run **Publish mobile apps**, choose that tag, destination `build`, and the desired
    platform. The workflow can build Android before the Google service account is ready.

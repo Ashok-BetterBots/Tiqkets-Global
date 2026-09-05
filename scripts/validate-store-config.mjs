@@ -12,11 +12,14 @@ if (platform === "android") {
 } else if (platform === "ios") {
   required.push(
     "APPLE_TEAM_ID",
-    "APP_STORE_CONNECT_KEY_ID",
-    "APP_STORE_CONNECT_ISSUER_ID",
-    "APP_STORE_CONNECT_KEY_BASE64",
     "MATCH_PASSWORD",
   );
+  if (process.env.RELEASE_DESTINATION !== "build")
+    required.push(
+      "APP_STORE_CONNECT_KEY_ID",
+      "APP_STORE_CONNECT_ISSUER_ID",
+      "APP_STORE_CONNECT_KEY_BASE64",
+    );
 } else throw new Error("Specify android or ios.");
 const missing = required.filter((name) => !process.env[name]?.trim());
 if (missing.length)
