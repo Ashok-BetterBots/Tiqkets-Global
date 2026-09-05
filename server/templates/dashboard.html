@@ -6649,7 +6649,7 @@
           <div><label class="block text-sm font-semibold text-gray-700 mb-2">Description</label><textarea x-model="serviceForm.description" class="input-field" rows="2" placeholder="Brief description of this service"></textarea></div>
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">Queue Mode</label>
-            <select :value="serviceForm.serviceSettings?.queueMode || ''" @change="setServiceQueueMode($event.target.value)" class="input-field">
+            <select :value="serviceForm.serviceSettings?.queueMode || ''" @change="setServiceQueueMode($event)" class="input-field">
               <option value="">Default (inherit from branch)</option>
               <option value="fifo">First Come First Serve</option>
               <option value="dinein">Dine In</option>
@@ -8253,6 +8253,14 @@
           const arr = Array.isArray(fields) ? [...fields] : [];
           if (arr.some(f => f.id === 'orderId')) return arr;
           return [this.buildTakeawayDefaultField('orderId'), ...arr];
+        },
+        queueModePresetFields(mode) {
+          const normalized = String(mode || 'fifo').toLowerCase().replace(/[_-]/g, '');
+          if (normalized === 'dinein') {
+            return ['partySize', 'gender', 'splitGroup', 'shareTable'].map(id => this.buildDineInDefaultField(id));
+          }
+          if (normalized === 'takeaway') return [this.buildTakeawayDefaultField('orderId')];
+          return [];
         },
         showUserModal: false,
         userForm: {},
@@ -10357,21 +10365,19 @@
         },
         // Update the per-service queue mode override and re-seed mode-specific
         // default fields (Order ID for takeaway, Guests/Gender/etc for dine-in).
-        setServiceQueueMode(value) {
+        setServiceQueueMode(event) {
+          const value = event.target.value;
+          const previous = this.serviceForm.serviceSettings?.queueMode || '';
+          if (value === previous) return;
+          if (!confirm('Changing the queue mode will delete all custom fields and reset the form to the default or preset fields for the new mode. Continue?')) {
+            event.target.value = previous;
+            return;
+          }
           if (!this.serviceForm.serviceSettings) this.serviceForm.serviceSettings = {};
           // Replace the whole object so Alpine detects the change reactively.
           this.serviceForm.serviceSettings = { ...this.serviceForm.serviceSettings, queueMode: value || undefined };
           // Re-seed / clean default fields for the newly selected mode.
-          const cleaned = (this.serviceForm.inputFields || []).filter(
-            f => !this.isDineInDefaultFieldId(f.id) && !this.isTakeawayDefaultFieldId(f.id)
-          );
-          if (this.serviceFormIsDineIn) {
-            this.serviceForm.inputFields = this.seedDineInFields(cleaned);
-          } else if (this.serviceFormIsTakeaway) {
-            this.serviceForm.inputFields = this.seedTakeawayFields(cleaned);
-          } else {
-            this.serviceForm.inputFields = cleaned;
-          }
+          this.serviceForm.inputFields = this.queueModePresetFields(value);
         },
         getBranchNameForService(svc) {
           const b = this.branches.find(br => br.id === svc.branchId);
@@ -10794,6 +10800,10 @@
         },
         async saveSettings() {
           try {
+            if (this.settingsForm.queueMode !== this.settingsFormOriginal.queueMode
+              && !confirm('Changing the queue mode will delete all custom fields and reset every affected service to the default or preset fields for the new mode. Continue?')) {
+              return;
+            }
             if (this.selectedServiceId) {
               const serviceSettings = {};
               const b = this.selectedBranch;
