@@ -134,10 +134,11 @@ Do not use `match nuke` or delete existing company certificates.
   record required by this repository. Leave it unchanged until the owner decides
   how to resolve the identity/name conflict; do not upload this project's build
   to that record or silently change the application's bundle identifier.
-- App Store Connect API access has not been activated for the company. The
-  account holder (`devops@betterbots.in`) must request access at **Users and Access
-  → Integrations → App Store Connect API**. After activation, an Admin can create
-  the team release key and install it in GitHub Secrets.
+- App Store Connect API access is active. Company team key **TIQKETS GitHub
+  Releases** (key ID `8TNK58H7YX`) has App Manager access and its issuer, key ID,
+  and private key are installed as GitHub Actions secrets. It is not tied to a
+  personal Apple session or an app-specific password. Keep the one-time `.p8`
+  recovery copy in the company password manager.
 - Apple Distribution certificate `5LABDNC357` was issued and verified against
   the locally generated private key. It expires September 5, 2027.
 - The App Store profile `match AppStore com.tiqkets.app` includes that certificate
@@ -155,6 +156,11 @@ Do not use `match nuke` or delete existing company certificates.
   application identifier `FF43UTULMB.com.tiqkets.app`, and a valid code signature.
   The IPA SHA-256 is
   `2b4fb77545e514b2d44bf40d42fb6654e2e48e7b0960529f74ed41e636e34d1e`.
+- Version `1.0.0` (build `4.1`) was uploaded through Fastlane with the company
+  API key, finished Apple processing, and received the GitHub release changelog
+  on September 5, 2026. It is **Ready to Test** in the automatically distributed
+  **TIQKETS Internal** group (one build, one authorized internal tester). This
+  verifies the login-independent TestFlight delivery path.
 - Ignored local recovery files remain in `.release-credentials/`. Move a copy to
   the company vault; GitHub Actions does not depend on those local files.
 
@@ -162,8 +168,9 @@ Do not use `match nuke` or delete existing company certificates.
 
 1. Production API URL `https://tiqketsglobal.replit.app` is verified and stored
    in the `EXPO_PUBLIC_API_URL` GitHub variable.
-2. Install company Google/Apple API credentials in GitHub Secrets. Apple signing
-   is already initialized, so do not run setup again unless renewing credentials.
+2. Install the company Google Play API credential in GitHub Secrets. The Apple
+   API and signing credentials are installed, so do not run Apple setup again
+   unless rotating or renewing credentials.
 3. The first Android build-only rehearsal completed successfully in GitHub Actions
    ([run 33950563282](https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33950563282)).
    Draft release `v1.0.0` contains `tiqkets-1.0.0-210753775.aab`; its SHA-256 is
@@ -177,8 +184,8 @@ Do not use `match nuke` or delete existing company certificates.
 5. Complete review access, ratings, target audience, privacy/data declarations,
    countries, and pricing in both consoles. Use a non-production review account;
    do not put its credentials in Git.
-6. Publish a prerelease for internal testing. Once verified, publish a stable
-   GitHub Release to submit to both stores.
+6. Test the available Android internal build and iOS TestFlight build. Once both
+   are approved, publish a stable GitHub Release to submit to both stores.
 
 ### Google Play setup status — September 5, 2026
 

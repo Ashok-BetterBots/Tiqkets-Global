@@ -36,7 +36,8 @@ production environment secrets.
 - Team application identifier: `FF43UTULMB.com.tiqkets.app`
 - SHA-256: `2b4fb77545e514b2d44bf40d42fb6654e2e48e7b0960529f74ed41e636e34d1e`
 - GitHub Actions run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33953307577>
-- Status: signed and ready for App Store upload after API access is enabled
+- Status: Ready to Test in the automatically distributed **TIQKETS Internal**
+  group; one authorized internal tester is enrolled
 
 ## Store records
 
@@ -57,6 +58,9 @@ Release credentials are designed for company ownership rather than one laptop:
   encrypted recovery copy on the private `codex/signing` branch.
 - Apple distribution certificate and App Store provisioning profile are stored
   by Fastlane Match on the private `codex/signing` branch.
+- The company App Store Connect team key **TIQKETS GitHub Releases** is installed
+  in GitHub Actions with App Manager access. It does not depend on a personal
+  Apple login or app-specific password.
 - `MATCH_PASSWORD`, the Android recovery material, Apple API key, and Google
   service-account JSON must also be stored in the client's company password
   manager with access for at least two authorized maintainers.
@@ -69,8 +73,8 @@ The detailed recovery procedure and the exact GitHub secret names are in
 
 1. Add the client's Google accounts to an internal-testing email list.
 2. Provide a stable non-production reviewer login and clear review instructions.
-3. Have the Apple Account Holder request App Store Connect API access, then create
-   a company API key and install its three values as GitHub Actions secrets.
+3. Store the Apple API `.p8` recovery file and `MATCH_PASSWORD` in the company
+   password manager with access for at least two authorized maintainers.
 4. Create and authorize a company Google Play service account and install its JSON
    as the `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` GitHub Actions secret.
 5. Have an authorized representative accept the IARC terms and complete content
@@ -101,4 +105,3 @@ Publishing remains subject to Apple and Google account requirements and review.
 - [`DEPLOYMENT.md`](../DEPLOYMENT.md): server deployment instructions.
 - [`LIGHTSAIL_DEPLOY.md`](../LIGHTSAIL_DEPLOY.md): AWS Lightsail deployment.
 - [`design_guidelines.md`](../design_guidelines.md): application design guidance.
-
