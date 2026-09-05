@@ -78,8 +78,16 @@ export function BottomSheetModal({
       statusBarTranslucent
       onRequestClose={closeTop}
     >
-      {/* ── Backdrop ─────────────────────────────────────────────────────── */}
-      <Pressable style={styles.overlay} onPress={closeTop}>
+      {/* Keep the dismiss target separate from the sheet. A Pressable wrapped
+          around the card competes with the ScrollView for responder ownership,
+          which makes vertical scrolling intermittently fail. */}
+      <View style={styles.overlay}>
+        <Pressable
+          style={styles.backdropPressTarget}
+          onPress={closeTop}
+          accessibilityRole="button"
+          accessibilityLabel="Close modal"
+        />
 
         {/*
           KeyboardAvoidingView lifts the card above the software keyboard.
@@ -103,8 +111,6 @@ export function BottomSheetModal({
               correctly on all API levels.
             */}
             <View style={[styles.cardInner, { backgroundColor: surface }]}>
-            {/* Inner Pressable stops taps reaching the backdrop */}
-            <Pressable onPress={(e) => e.stopPropagation()}>
 
               {/* Drag handle */}
               <View style={styles.handle} />
@@ -162,12 +168,11 @@ export function BottomSheetModal({
                 />
               )}
 
-            </Pressable>
             </View>
           </Animated.View>
         </KeyboardAvoidingView>
 
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -225,6 +230,13 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     paddingHorizontal: 10,
     paddingBottom: 20,
+  },
+  backdropPressTarget: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   kavContainer: {
     width: "100%",
