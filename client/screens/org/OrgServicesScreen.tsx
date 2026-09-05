@@ -390,7 +390,6 @@ const QUEUE_MODE_OPTIONS: { value: string; label: string }[] = [
   { value: "fifo", label: "First Come First Serve" },
   { value: "dinein", label: "Dine In" },
   { value: "takeaway", label: "Take Away" },
-  { value: "checkin", label: "Check In" },
   { value: "selective", label: "Selective" },
   { value: "multistage", label: "Multi Stage" },
 ];

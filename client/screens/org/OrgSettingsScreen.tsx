@@ -459,9 +459,7 @@ export default function OrgSettingsScreen() {
 
   const currentQueueMode = QUEUE_MODE_OPTIONS.find(opt => opt.id === settings.queueMode) || QUEUE_MODE_OPTIONS[0];
   const currentNotificationMode = NOTIFICATION_MODE_OPTIONS.find(opt => opt.id === settings.notificationMode) || NOTIFICATION_MODE_OPTIONS[0];
-  const visibleQueueModeOptions = isMobile
-    ? QUEUE_MODE_OPTIONS.filter((option) => option.id !== "checkin")
-    : QUEUE_MODE_OPTIONS;
+  const visibleQueueModeOptions = QUEUE_MODE_OPTIONS.filter((option) => option.id !== "checkin");
 
   // After a branch-level change, reset the per-service overrides for the fields
   // that just changed so EVERY service under the branch re-inherits the new
