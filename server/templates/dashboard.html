@@ -4548,13 +4548,6 @@
                     </div>
                     <p class="text-[11px] text-gray-400 leading-relaxed">Pick and call any customer from the queue, regardless of order.</p>
                   </button>
-                  <button @click="settingsForm.queueMode = 'checkin'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'checkin' ? 'border-brand bg-brand-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
-                    <div class="flex items-center gap-2.5 mb-2">
-                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'checkin' ? 'bg-brand-100 text-brand' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-qrcode text-sm"></i></div>
-                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'checkin' ? 'text-brand' : 'text-gray-700'">Check-in</span>
-                    </div>
-                    <p class="text-[11px] text-gray-400 leading-relaxed">Scan ticket or enter number to mark customer as arrived.</p>
-                  </button>
                   <button @click="settingsForm.queueMode = 'dine_in'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'dine_in' || settingsForm.queueMode === 'dinein' ? 'border-brand bg-brand-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
                     <div class="flex items-center gap-2.5 mb-2">
                       <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'dine_in' || settingsForm.queueMode === 'dinein' ? 'bg-brand-100 text-brand' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-utensils text-sm"></i></div>
@@ -6654,7 +6647,6 @@
               <option value="fifo">First Come First Serve</option>
               <option value="dinein">Dine In</option>
               <option value="takeaway">Take Away</option>
-              <option value="checkin">Check In</option>
               <option value="selective">Selective</option>
               <option value="multistage">Multi Stage</option>
             </select>
