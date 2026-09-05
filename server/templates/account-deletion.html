@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Delete your TIQKETS account</title>
+    <style>
+      :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; color: #17111d; background: #f8f5fa; }
+      main { width: min(680px, calc(100% - 32px)); margin: 48px auto; }
+      .brand { color: #94166f; font-weight: 800; letter-spacing: .04em; }
+      .card { margin-top: 18px; padding: 30px; border: 1px solid #e4dbe8; border-radius: 20px; background: white; box-shadow: 0 18px 45px rgba(57, 22, 68, .08); }
+      h1 { margin: 0 0 12px; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; }
+      h2 { margin: 28px 0 8px; font-size: 19px; }
+      p, li { color: #554b5a; line-height: 1.6; }
+      label { display: block; margin: 18px 0 6px; font-weight: 700; }
+      input, select, textarea { width: 100%; padding: 12px 14px; border: 1px solid #cfc3d4; border-radius: 10px; background: white; font: inherit; }
+      textarea { min-height: 96px; resize: vertical; }
+      button { margin-top: 20px; width: 100%; padding: 13px 18px; border: 0; border-radius: 10px; color: white; background: #94166f; font: inherit; font-weight: 750; cursor: pointer; }
+      button:disabled { opacity: .55; cursor: wait; }
+      .note { padding: 14px 16px; border-radius: 10px; background: #f3edf5; }
+      #status { display: none; margin-top: 16px; padding: 12px 14px; border-radius: 10px; }
+      #status.ok { display: block; color: #14532d; background: #dcfce7; }
+      #status.error { display: block; color: #7f1d1d; background: #fee2e2; }
+      .hp { position: absolute; left: -10000px; }
+      a { color: #7b125d; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">TIQKETS GLOBAL</div>
+      <section class="card">
+        <h1>Delete your account</h1>
+        <p>Use this form to request deletion of a TIQKETS account and the personal data associated with it.</p>
+
+        <h2>What happens next</h2>
+        <ul>
+          <li>We verify the request using the email address or phone number registered to the account.</li>
+          <li>After verification, the account and its personal profile data are deleted within 30 days.</li>
+          <li>Records that must be kept for fraud prevention, tax, accounting, or other legal duties are restricted and retained only for the required period.</li>
+          <li>Aggregated or anonymized information that can no longer identify you may remain in service analytics.</li>
+        </ul>
+        <p class="note">Deleting an organization owner account also removes access for its staff. Export any records you need before submitting the request.</p>
+
+        <form id="deletion-form">
+          <label for="accountType">Account type</label>
+          <select id="accountType" name="accountType" required>
+            <option value="organization">Organization or event account</option>
+            <option value="customer">Customer account</option>
+          </select>
+          <label for="email">Account email (if used)</label>
+          <input id="email" name="email" type="email" autocomplete="email" />
+          <label for="phone">Registered phone (if used)</label>
+          <input id="phone" name="phone" type="tel" autocomplete="tel" />
+          <p>Enter at least one identifier registered to the account.</p>
+          <label for="details">Additional details (optional)</label>
+          <textarea id="details" name="details" maxlength="1000"></textarea>
+          <label class="hp" for="website">Website</label>
+          <input class="hp" id="website" name="website" tabindex="-1" autocomplete="off" />
+          <button type="submit">Request account deletion</button>
+          <div id="status" role="status" aria-live="polite"></div>
+        </form>
+        <p>If you cannot use this form, email <a href="mailto:hello@tiqkets.in?subject=Account%20deletion%20request">hello@tiqkets.in</a>.</p>
+      </section>
+    </main>
+    <script>
+      const form = document.getElementById("deletion-form");
+      const status = document.getElementById("status");
+      const button = form.querySelector("button");
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        button.disabled = true;
+        status.className = "";
+        try {
+          const payload = Object.fromEntries(new FormData(form).entries());
+          const response = await fetch("/api/account-deletion-requests", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Could not submit the request.");
+          form.reset();
+          status.textContent = `Request received. Keep reference ${data.reference} for your records.`;
+          status.className = "ok";
+        } catch (error) {
+          status.textContent = error.message || "Could not submit the request. Please email hello@tiqkets.in.";
+          status.className = "error";
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

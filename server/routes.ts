@@ -154,6 +154,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // CUSTOMER AUTH (WhatsApp OTP)
   // ============================================
 
+  app.get("/account-deletion", (_req: Request, res: Response) => {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.sendFile(path.join(templatesDir, "account-deletion.html"));
+  });
+
+  const deletionRequestAttempts = new Map<string, number>();
+  app.post(
+    "/api/account-deletion-requests",
+    publicRoute("public account deletion request form"),
+    async (req: Request, res: Response) => {
+      try {
+        const email = String(req.body?.email ?? "").trim().toLowerCase();
+        const phone = String(req.body?.phone ?? "").trim().slice(0, 40);
+        const details = String(req.body?.details ?? "").trim().slice(0, 1000);
+        const accountType = req.body?.accountType === "customer" ? "customer" : "organization";
+        if (req.body?.website) return res.status(202).json({ reference: "received" });
+        if (!email && !phone) {
+          return res.status(400).json({ error: "Enter the email address or phone number registered to the account." });
+        }
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return res.status(400).json({ error: "Enter a valid account email address." });
+        }
+        const source = req.ip || "unknown";
+        const lastAttempt = deletionRequestAttempts.get(source) ?? 0;
+        if (Date.now() - lastAttempt < 60_000) {
+          return res.status(429).json({ error: "Please wait a minute before sending another request." });
+        }
+        deletionRequestAttempts.set(source, Date.now());
+        const ticketNumber = `DEL-${Date.now().toString(36).toUpperCase()}`;
+        await storage.createSupportTicket({
+          organizationId: null,
+          ticketNumber,
+          subject: `Account deletion request (${accountType})`,
+          description: [
+            email ? `Account email: ${email}` : null,
+            phone ? `Registered phone: ${phone}` : null,
+            details ? `Additional details: ${details}` : null,
+            "Verify ownership before deleting or anonymizing data.",
+          ].filter(Boolean).join("\n"),
+          priority: "high",
+          status: "open",
+          reportedByEmail: email || null,
+        });
+        return res.status(201).json({ reference: ticketNumber });
+      } catch (error) {
+        console.error("create account deletion request failed:", error);
+        return res.status(500).json({ error: "Could not submit the request. Please email hello@tiqkets.in." });
+      }
+    },
+  );
+
   app.post("/api/auth/send-otp", async (req: Request, res: Response) => {
     try {
       const { phone } = req.body;

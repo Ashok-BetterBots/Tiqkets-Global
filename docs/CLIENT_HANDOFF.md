@@ -8,6 +8,8 @@ Prepared on September 5, 2026.
 - Fastlane configuration for Android and iOS.
 - GitHub Actions release workflow driven by GitHub Releases and their notes.
 - Google Play and App Store metadata and screenshots.
+- Public account-deletion request page and in-app deletion links for customer,
+  organization, and event accounts.
 - Shared Android upload signing and Apple distribution signing configuration.
 - Verified signed Android App Bundle and iOS IPA in the client delivery package.
 - Release, deployment, recovery, and store-publication documentation.
@@ -85,10 +87,16 @@ The detailed recovery procedure and the exact GitHub secret names are in
 8. Test the internal Android build and iOS TestFlight build before publishing the
    stable GitHub Release.
 
+The Google Play account-deletion URL is
+`https://tiqketsglobal.replit.app/account-deletion`. Deploy the current server
+commit and verify this URL before saving the Data Safety form.
+
 ## Normal release process
 
 1. Merge approved changes to the release commit.
-2. Create a version tag and GitHub Release with customer-facing notes.
+2. Create a GitHub Release with customer-facing notes. For an unpublished draft,
+   set the target to the full 40-character release commit SHA; publishing creates
+   the version tag.
 3. Use a GitHub prerelease for internal testing or a stable release for production.
 4. GitHub Actions builds the tagged commit, applies shared signing, attaches the
    AAB and IPA, and sends the same release notes through Fastlane.

@@ -12,6 +12,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -301,6 +302,15 @@ export default function OrgSettingsScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, getAccessibleServices, hasPermission, hasAnyPermission, refreshOrganizationData, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
   const isMobile = Platform.OS !== "web";
+
+  const openAccountDeletion = async () => {
+    const url = new URL("/account-deletion", getApiUrl()).toString();
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Couldn't open page", `Visit ${url} to request account deletion.`);
+    }
+  };
 
   // Pull fresh org/branch data from the server every time this screen gains
   // focus so changes made elsewhere (e.g. a different admin updating queue
@@ -1446,6 +1456,17 @@ export default function OrgSettingsScreen() {
             label="Tech Support"
             isDark={isDark}
             onPress={() => navigation.navigate("OrgSupport")}
+            showChevron
+          />
+        </SettingSection>
+
+        <SettingSection title="ACCOUNT">
+          <SettingRow
+            icon="trash-2"
+            label="Delete Account"
+            description="Request permanent deletion of your account and personal data"
+            isDark={isDark}
+            onPress={openAccountDeletion}
             showChevron
           />
         </SettingSection>

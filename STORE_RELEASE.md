@@ -15,6 +15,11 @@ native builds and store delivery use Fastlane.
 | Save a draft | No automatic upload | No automatic upload |
 | Run workflow manually: build | Signed AAB attached to release | Signed IPA attached to release |
 
+When manually building an unpublished draft, set the release target to the full
+40-character commit SHA. GitHub does not create the tag reference until the
+draft is published; the immutable SHA lets the workflow build the intended code
+without depending on a moving branch.
+
 Publishing a release submits the app; store review, account requirements, and any
 managed publishing settings still control when customers can download it. Editing
 release notes after publication does not trigger another upload. Use the manual
@@ -205,6 +210,11 @@ Do not use `match nuke` or delete existing company certificates.
   `support@tiqkets.in`, but an authorized person must accept the IARC Terms of
   Use before the questionnaire can proceed. Privacy/data answers must be
   confirmed against actual production practices before certification.
+- Account deletion is available inside both customer and organization settings.
+  The public request form is
+  `https://tiqketsglobal.replit.app/account-deletion`; it creates a high-priority
+  support ticket for identity verification and deletion. Verify the deployed URL
+  before entering it in Data Safety.
 - Internal release **TIQKETS 1.0.0** is published with version code `210753775`
   and the GitHub Store notes. Play accepted the signed bundle and reports a
   34.9 MB new-install download. The track remains inactive until a tester email
