@@ -8,3 +8,5 @@ Expo Go manifest fields `extra.expoClient.hostUri` and `extra.expoGo.debuggerHos
 **Why:** An SDK 57 Android Expo Go client remained indefinitely on its native “Loading project…” screen even though the manifest and Android bundle were publicly reachable. Fresh Metro manifests use the same bare host for both platforms; removing the custom platform suffix restored the canonical contract.
 
 **How to apply:** When generating or dynamically rewriting static Expo manifests, set both fields directly to the request’s public host. Keep platform selection in the launch bundle URL and manifest routing, not in the packager identity.
+
+For development on Replit, the public development domain is HTTPS-only. Expo CLI 57 hardcodes `exp://` for its Expo Go terminal URL even when `EXPO_PACKAGER_PROXY_URL` is HTTPS; Android translates that to an unreachable HTTP packager URL. Suppress the CLI QR and provide an `exps://<REPLIT_DEV_DOMAIN>` QR after Metro is ready. Exclude Replit’s transient `.local/state/workflow-logs` tree from Metro watching because workflow restarts can delete a watched directory and crash Metro with `ENOENT`.
