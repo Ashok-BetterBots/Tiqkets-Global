@@ -141,6 +141,7 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
   const [otpBypassed, setOtpBypassed] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [invoiceRupees, setInvoiceRupees] = useState("");
+  const [invoiceEntryDone, setInvoiceEntryDone] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<{
@@ -170,6 +171,7 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     setOtpVerified(otpAlreadyVerified);
     setResendCooldown(0);
     setInvoiceRupees("");
+    setInvoiceEntryDone(false);
     setError(null);
     setSuccessData(null);
     setShowOverride(false);
@@ -252,6 +254,11 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
       setStep("invoice");
     }
   };
+
+  const finishInvoiceEntry = useCallback(() => {
+    Keyboard.dismiss();
+    if (invoiceRupees.trim()) setInvoiceEntryDone(true);
+  }, [invoiceRupees]);
 
   const handleResendOtp = useCallback(async () => {
     if (resendCooldown > 0 || otpSending) return;
@@ -716,7 +723,11 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                     <ThemedText style={[styles.rupeeSymbol, { color: BRAND }]}>₹</ThemedText>
                     <TextInput
                       value={invoiceRupees}
-                      onChangeText={(t) => { setInvoiceRupees(t); setError(null); }}
+                      onChangeText={(t) => {
+                        setInvoiceRupees(t);
+                        setInvoiceEntryDone(false);
+                        setError(null);
+                      }}
                       placeholder="0"
                       placeholderTextColor={theme.textSecondary}
                       keyboardType="decimal-pad"
@@ -724,11 +735,11 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                       testID="input-invoice-amount"
                       autoFocus
                       returnKeyType="done"
-                      onSubmitEditing={() => Keyboard.dismiss()}
+                      onSubmitEditing={finishInvoiceEntry}
                     />
-                    {invoiceRupees ? (
+                    {invoiceRupees && !invoiceEntryDone ? (
                       <Pressable
-                        onPress={() => Keyboard.dismiss()}
+                        onPress={finishInvoiceEntry}
                         style={[styles.invoiceDoneBtn, { backgroundColor: BRAND }]}
                         testID="button-invoice-done"
                       >
