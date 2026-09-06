@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image,
   Platform,
   KeyboardAvoidingView,
   useColorScheme,
@@ -15,13 +16,20 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { getApiUrl } from "@/lib/query-client";
 import { BrandColors, Spacing, BorderRadius } from "@/constants/theme";
 import { formatEventSlotRange } from "@shared/eventSlots";
 
 const BRAND = BrandColors.primary;
+
+const SPECIAL_CATEGORY_IMAGES = {
+  senior_citizen: require("../../attached_assets/person_1788525899674.png"),
+  pregnant_women: require("../../attached_assets/pregnant_1788525899674.png"),
+  infants: require("../../attached_assets/human_1788525899674.png"),
+  specially_abled: require("../../attached_assets/disabled_1788525899674.png"),
+} as const;
 
 interface InputField {
   id: string;
@@ -401,7 +409,13 @@ export function EventManualRegModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
+      <View style={styles.overlay}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close Add Customer"
+        />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1, width: "100%", justifyContent: "flex-end" }}
@@ -425,8 +439,10 @@ export function EventManualRegModal({
               style={[styles.scrollBody, { flex: 1 }]}
               contentContainerStyle={styles.body}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator
               nestedScrollEnabled
+              directionalLockEnabled
               testID="manual-reg-scroll"
             >
               {loadingLocations ? (
@@ -494,25 +510,38 @@ export function EventManualRegModal({
                   ) : null}
 
                   <Field label="Product category *">
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.xs }}>
+                    <View style={styles.tileGrid}>
                       {([
-                        ["electronics", "Electronics", "smartphone"],
-                        ["furniture", "Furniture", "briefcase"],
-                        ["home_appliances", "Home Appliances", "home"],
-                        ["vessels", "Vessels", "anchor"],
-                      ] as const).map(([value, label, icon]) => {
+                        ["electronics", "Electronics"],
+                        ["furniture", "Furniture"],
+                        ["home_appliances", "Home Appliances"],
+                        ["vessels", "Vessels"],
+                      ] as const).map(([value, label]) => {
                         const selected = form.productCategory === value;
                         return (
                           <Pressable
                             key={value}
                             onPress={() => setField({ productCategory: value })}
-                            style={[styles.chip, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : "transparent", flexDirection: "row", alignItems: "center", gap: 6 }]}
+                            style={[styles.categoryTile, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : "transparent" }]}
                             accessibilityRole="radio"
                             accessibilityState={{ selected }}
                             testID={`chip-product-category-${value}`}
                           >
-                            <Feather name={icon} size={14} color={selected ? BRAND : textSecondary} />
-                            <ThemedText style={{ color: selected ? BRAND : text, fontSize: 13, fontWeight: selected ? "700" : "500" }}>
+                            <View style={styles.categoryIconRow}>
+                              {value === "electronics" ? (
+                                <Feather name="smartphone" size={27} color={selected ? BRAND : textSecondary} />
+                              ) : value === "furniture" ? (
+                                <MaterialCommunityIcons name="sofa" size={34} color={selected ? BRAND : textSecondary} />
+                              ) : value === "home_appliances" ? (
+                                <>
+                                  <MaterialCommunityIcons name="fridge-outline" size={29} color={selected ? BRAND : textSecondary} />
+                                  <MaterialCommunityIcons name="blender-outline" size={27} color={selected ? BRAND : textSecondary} />
+                                </>
+                              ) : (
+                                <MaterialCommunityIcons name="bowl-outline" size={32} color={selected ? BRAND : textSecondary} />
+                              )}
+                            </View>
+                            <ThemedText style={{ color: selected ? BRAND : text, fontSize: 12, textAlign: "center", fontWeight: selected ? "800" : "600" }}>
                               {label}
                             </ThemedText>
                           </Pressable>
@@ -522,13 +551,13 @@ export function EventManualRegModal({
                   </Field>
 
                   <Field label="Special access (optional)">
-                    <View style={{ gap: Spacing.xs }}>
+                    <View style={styles.tileGrid}>
                       {([
-                        ["senior_citizen", "Senior Citizen", "user"],
-                        ["pregnant_women", "Pregnant Women", "heart"],
-                        ["infants", "Infants", "smile"],
-                        ["specially_abled", "Specially Abled", "life-buoy"],
-                      ] as const).map(([value, label, icon]) => {
+                        ["senior_citizen", "Senior Citizen"],
+                        ["pregnant_women", "Pregnant Women"],
+                        ["infants", "Infants"],
+                        ["specially_abled", "Specially Abled"],
+                      ] as const).map(([value, label]) => {
                         const selected = form.selectedSpecialCategories.includes(value);
                         return (
                           <Pressable
@@ -545,16 +574,22 @@ export function EventManualRegModal({
                               setShowDateDropdown(false);
                               setShowTimeDropdown(false);
                             }}
-                            style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingVertical: 4 }}
+                            style={[styles.categoryTile, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : "transparent" }]}
                             accessibilityRole="checkbox"
                             accessibilityState={{ checked: selected }}
                             testID={`checkbox-special-category-${value}`}
                           >
-                            <Feather name={icon} size={15} color={selected ? BRAND : textSecondary} />
-                            <View style={[styles.checkboxBox, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND : "transparent" }]}>
+                            <View style={[styles.tileCheck, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND : surface }]}>
                               {selected ? <Feather name="check" size={12} color="#FFF" /> : null}
                             </View>
-                            <ThemedText style={{ color: text, fontSize: 13, fontWeight: selected ? "700" : "500" }}>{label}</ThemedText>
+                            <Image
+                              source={SPECIAL_CATEGORY_IMAGES[value]}
+                              style={[styles.specialCategoryImage, { tintColor: selected ? BRAND : textSecondary }]}
+                              resizeMode="contain"
+                            />
+                            <ThemedText style={{ color: selected ? BRAND : text, fontSize: 12, textAlign: "center", fontWeight: selected ? "800" : "600" }}>
+                              {label}
+                            </ThemedText>
                           </Pressable>
                         );
                       })}
@@ -622,13 +657,6 @@ export function EventManualRegModal({
                     )}
                   </Field>
 
-                  <View style={styles.giftAnnouncement} testID="manual-reg-gift-announcement">
-                    <Feather name="gift" size={19} color="#9A6700" />
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={styles.giftTitle}>A surprise gift awaits!</ThemedText>
-                      <ThemedText style={styles.giftMessage}>Enter and exit the shop within 3 hours to receive a surprise gift.</ThemedText>
-                    </View>
-                  </View>
                   {form.slotDate ? (
                     <Field label="Slot time">
                       {bookableTimes.length === 0 ? (
@@ -677,6 +705,15 @@ export function EventManualRegModal({
                         </>
                       )}
                     </Field>
+                  ) : null}
+                  {form.slotTime ? (
+                    <View style={styles.giftAnnouncement} testID="manual-reg-gift-announcement">
+                      <Feather name="gift" size={21} color="#9A6700" />
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={styles.giftTitle}>A surprise gift awaits!</ThemedText>
+                        <ThemedText style={styles.giftMessage}>Enter and exit the shop within 3 hours to receive a surprise gift.</ThemedText>
+                      </View>
+                    </View>
                   ) : null}
 
                   <Field label="Full name">
@@ -944,7 +981,7 @@ export function EventManualRegModal({
             ) : null}
           </Pressable>
         </KeyboardAvoidingView>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -1077,6 +1114,11 @@ const styles = StyleSheet.create({
   secondaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center", borderWidth: 1.5 },
   input: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 10, fontSize: 14 },
   chip: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 8 },
+  tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
+  categoryTile: { width: "48%", minHeight: 92, borderWidth: 1.5, borderRadius: BorderRadius.md, padding: Spacing.sm, alignItems: "center", justifyContent: "center", gap: 7, position: "relative" },
+  categoryIconRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
+  specialCategoryImage: { width: 38, height: 38 },
+  tileCheck: { position: "absolute", top: 7, right: 7, width: 19, height: 19, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   successBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.lg, alignItems: "center" },
   errorBox: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm },
   paymentBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md },
