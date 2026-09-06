@@ -96,7 +96,8 @@ interface EmptyForm {
   amountCollected: string;
   ticketMethod: "generate" | "preprinted";
   preprintedTicketCode: string;
-  hasSpecialNeeds: boolean;
+  productCategory: "" | "electronics" | "furniture" | "home_appliances" | "vessels";
+  selectedSpecialCategories: string[];
   preferredLanguage: "en" | "ta";
 }
 
@@ -114,7 +115,8 @@ const EMPTY_FORM: EmptyForm = {
   amountCollected: "",
   ticketMethod: "preprinted",
   preprintedTicketCode: "",
-  hasSpecialNeeds: false,
+  productCategory: "",
+  selectedSpecialCategories: [],
   preferredLanguage: "ta",
 };
 
@@ -154,6 +156,7 @@ export function EventManualRegModal({
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraScanned, setCameraScanned] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [regularDateConfirmedFingerprint, setRegularDateConfirmedFingerprint] = useState<string | null>(null);
   const CameraModule = Platform.OS !== "web" ? require("expo-camera") : null;
   const { CameraView, useCameraPermissions } = CameraModule || {
     CameraView: null,
@@ -176,6 +179,7 @@ export function EventManualRegModal({
     setCameraOpen(false);
     setCameraScanned(false);
     setCameraError(null);
+    setRegularDateConfirmedFingerprint(null);
     setEventSlotDurationMinutes(30);
   }, []);
 
@@ -244,6 +248,24 @@ export function EventManualRegModal({
   );
   const lastDate = availableDates.length > 0 ? availableDates[availableDates.length - 1] : null;
   const regularDates = availableDates.length > 1 ? availableDates.slice(0, -1) : availableDates;
+  const formFingerprint = useMemo(() => JSON.stringify(form), [form]);
+
+  // A location can change while the special-access selection is still active.
+  // Clear the old slot immediately, then assign the new location's final
+  // available date once its availability has been resolved.
+  useEffect(() => {
+    if (form.selectedSpecialCategories.length === 0) return;
+    const nextDate = lastDate?.date || "";
+    if (form.slotDate !== nextDate) {
+      setForm((current) => ({
+        ...current,
+        slotDate: nextDate,
+        slotTime: "",
+      }));
+    } else if (!nextDate && form.slotTime) {
+      setForm((current) => ({ ...current, slotTime: "" }));
+    }
+  }, [form.selectedSpecialCategories.length, form.slotDate, form.slotTime, lastDate?.date]);
   const formatDropdownDate = (dateStr: string): string => {
     try {
       const d = new Date(dateStr + "T00:00:00");
@@ -278,6 +300,7 @@ export function EventManualRegModal({
     form.customerPhone.replace(/\D/g, "").length >= 10 &&
     !!form.slotDate &&
     !!form.slotTime &&
+    !!form.productCategory &&
     !missingRequiredField &&
     (!needsPaymentReason || form.paymentReason.trim().length > 1) &&
     (form.paymentMode !== "offline_paid" || balanceDue <= 0) &&
@@ -318,7 +341,7 @@ export function EventManualRegModal({
     setCameraOpen(false);
   }, [cameraScanned, setField]);
 
-  const submit = useCallback(async () => {
+  const performSubmit = useCallback(async () => {
     if (!eventId || !canSubmit) return;
     setSaving(true);
     try {
@@ -331,7 +354,8 @@ export function EventManualRegModal({
         customerPhone: form.customerPhone.trim(),
         customerEmail: form.customerEmail.trim() || null,
         familyMembersCount: parseInt(form.familyMembersCount, 10) || 0,
-        priorityAccess: form.hasSpecialNeeds,
+        priorityAccess: form.selectedSpecialCategories.length > 0,
+        productCategory: form.productCategory,
         preferredLanguage: form.preferredLanguage,
         formData: form.formData,
         paymentMode: form.paymentMode,
@@ -353,6 +377,27 @@ export function EventManualRegModal({
       setSaving(false);
     }
   }, [eventId, canSubmit, selectedLocation, form, amountCollectedNum, onSuccess]);
+
+  const submit = useCallback(() => {
+    if (form.selectedSpecialCategories.length === 0 && regularDateConfirmedFingerprint !== formFingerprint) {
+      Alert.alert(
+        "Special access dates",
+        "Senior citizens, pregnant women, infants, and specially abled visitors are not permitted on regular dates. Please choose the last available event date for priority access.",
+        [
+          { text: "Go back and edit", style: "cancel" },
+          {
+            text: "None apply — continue",
+            onPress: () => {
+              setRegularDateConfirmedFingerprint(formFingerprint);
+              void performSubmit();
+            },
+          },
+        ],
+      );
+      return;
+    }
+    void performSubmit();
+  }, [form.selectedSpecialCategories.length, formFingerprint, regularDateConfirmedFingerprint, performSubmit]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
@@ -448,48 +493,92 @@ export function EventManualRegModal({
                     </Field>
                   ) : null}
 
-                  {/* ── Infant / senior citizens checkbox — shown FIRST ── */}
-                  <Pressable
-                    onPress={() => {
-                      const next = !form.hasSpecialNeeds;
-                      if (next) {
-                        setField({ hasSpecialNeeds: true, slotDate: lastDate?.date || "", slotTime: "" });
-                        setShowDateDropdown(false);
-                      } else {
-                        setField({ hasSpecialNeeds: false, slotDate: "", slotTime: "" });
-                        setShowDateDropdown(false);
-                      }
-                    }}
-                    style={{ flexDirection: "row", alignItems: "flex-start", gap: Spacing.sm, paddingVertical: Spacing.xs }}
-                    testID="checkbox-special-needs"
-                  >
-                    <View style={{
-                      width: 20, height: 20, borderRadius: 4, borderWidth: 2,
-                      borderColor: form.hasSpecialNeeds ? BRAND : border,
-                      backgroundColor: form.hasSpecialNeeds ? BRAND : "transparent",
-                      alignItems: "center", justifyContent: "center", marginTop: 1, flexShrink: 0,
-                    }}>
-                      {form.hasSpecialNeeds && <Feather name="check" size={12} color="#FFF" />}
+                  <Field label="Product category *">
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.xs }}>
+                      {([
+                        ["electronics", "Electronics", "smartphone"],
+                        ["furniture", "Furniture", "briefcase"],
+                        ["home_appliances", "Home Appliances", "home"],
+                        ["vessels", "Vessels", "anchor"],
+                      ] as const).map(([value, label, icon]) => {
+                        const selected = form.productCategory === value;
+                        return (
+                          <Pressable
+                            key={value}
+                            onPress={() => setField({ productCategory: value })}
+                            style={[styles.chip, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : "transparent", flexDirection: "row", alignItems: "center", gap: 6 }]}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected }}
+                            testID={`chip-product-category-${value}`}
+                          >
+                            <Feather name={icon} size={14} color={selected ? BRAND : textSecondary} />
+                            <ThemedText style={{ color: selected ? BRAND : text, fontSize: 13, fontWeight: selected ? "700" : "500" }}>
+                              {label}
+                            </ThemedText>
+                          </Pressable>
+                        );
+                      })}
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={{ color: text, fontSize: 13, fontWeight: "600" }}>
-                        Visiting with infants / senior citizens / pregnant women?
-                      </ThemedText>
-                      <ThemedText style={{ color: textSecondary, fontSize: 11, marginTop: 2 }}>
-                        The last available event date will be auto-selected
-                      </ThemedText>
+                  </Field>
+
+                  <Field label="Special access (optional)">
+                    <View style={{ gap: Spacing.xs }}>
+                      {([
+                        ["senior_citizen", "Senior Citizen", "user"],
+                        ["pregnant_women", "Pregnant Women", "heart"],
+                        ["infants", "Infants", "smile"],
+                        ["specially_abled", "Specially Abled", "life-buoy"],
+                      ] as const).map(([value, label, icon]) => {
+                        const selected = form.selectedSpecialCategories.includes(value);
+                        return (
+                          <Pressable
+                            key={value}
+                            onPress={() => {
+                              const next = selected
+                                ? form.selectedSpecialCategories.filter((category) => category !== value)
+                                : [...form.selectedSpecialCategories, value];
+                              setField({
+                                selectedSpecialCategories: next,
+                                slotDate: next.length > 0 ? (lastDate?.date || "") : "",
+                                slotTime: "",
+                              });
+                              setShowDateDropdown(false);
+                              setShowTimeDropdown(false);
+                            }}
+                            style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingVertical: 4 }}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: selected }}
+                            testID={`checkbox-special-category-${value}`}
+                          >
+                            <Feather name={icon} size={15} color={selected ? BRAND : textSecondary} />
+                            <View style={[styles.checkboxBox, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND : "transparent" }]}>
+                              {selected ? <Feather name="check" size={12} color="#FFF" /> : null}
+                            </View>
+                            <ThemedText style={{ color: text, fontSize: 13, fontWeight: selected ? "700" : "500" }}>{label}</ThemedText>
+                          </Pressable>
+                        );
+                      })}
                     </View>
-                  </Pressable>
+                    <ThemedText style={{ color: textSecondary, fontSize: 11, marginTop: 4 }}>
+                      Selecting any option locks the last available event date.
+                    </ThemedText>
+                  </Field>
 
                   {/* ── Slot date — locked (special needs) or dropdown ── */}
                   <Field label="Slot date">
-                    {form.hasSpecialNeeds ? (
+                    {form.selectedSpecialCategories.length > 0 ? (
                       <View style={[styles.input, { borderColor: border, flexDirection: "row", alignItems: "center", gap: Spacing.sm, opacity: 0.85 }]}>
                         <Feather name="lock" size={14} color={BRAND} />
                         <ThemedText style={{ color: text, flex: 1 }}>
-                          {lastDate ? formatDropdownDate(lastDate.date) : "No dates available"}
+                          {form.slotDate
+                            ? formatDropdownDate(form.slotDate)
+                            : lastDate
+                              ? "Updating available date…"
+                              : "No dates available"}
                         </ThemedText>
-                        <ThemedText style={{ color: textSecondary, fontSize: 11 }}>Last day</ThemedText>
+                        {form.slotDate === lastDate?.date ? (
+                          <ThemedText style={{ color: textSecondary, fontSize: 11 }}>Last day</ThemedText>
+                        ) : null}
                       </View>
                     ) : (
                       <>
@@ -533,6 +622,13 @@ export function EventManualRegModal({
                     )}
                   </Field>
 
+                  <View style={styles.giftAnnouncement} testID="manual-reg-gift-announcement">
+                    <Feather name="gift" size={19} color="#9A6700" />
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={styles.giftTitle}>A surprise gift awaits!</ThemedText>
+                      <ThemedText style={styles.giftMessage}>Enter and exit the shop within 3 hours to receive a surprise gift.</ThemedText>
+                    </View>
+                  </View>
                   {form.slotDate ? (
                     <Field label="Slot time">
                       {bookableTimes.length === 0 ? (
@@ -984,6 +1080,9 @@ const styles = StyleSheet.create({
   successBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.lg, alignItems: "center" },
   errorBox: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm },
   paymentBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md },
+  giftAnnouncement: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.sm, borderWidth: 1.5, borderColor: "#F3BD3E", borderRadius: BorderRadius.md, padding: Spacing.sm, backgroundColor: "#FFF8D9" },
+  giftTitle: { color: "#7A3E00", fontSize: 13, fontWeight: "800", marginBottom: 2 },
+  giftMessage: { color: "#754C13", fontSize: 11, fontWeight: "600", lineHeight: 16 },
   paymentChoice: { flex: 1, minHeight: 34, borderWidth: 1, borderRadius: BorderRadius.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
   methodChoice: { flex: 1, minHeight: 42, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 10 },
   scanTicketButton: { height: 40, borderRadius: BorderRadius.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.xs, marginBottom: Spacing.sm },

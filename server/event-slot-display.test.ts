@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import { formatEventSlotRange } from "@shared/eventSlots";
+import { validateEventPriorityAccessDate } from "./events-routes";
 
 describe("event registration slot display", () => {
   test("formats the slot start and end using the configured duration", () => {
@@ -72,6 +73,29 @@ describe("event registration slot display", () => {
     assert.match(landing, /visibleDays = allAvailDays\.length > 0 \? \[allAvailDays\[allAvailDays\.length - 1\]\] : \[\]/);
     assert.match(landing, /priorityAccess: isSpecialNeeds/);
     assert.match(landing, /"reg\.specialNeeds": "சிறப்புப் பிரிவு"/);
+  });
+
+  test("priority date policy matches zero, one, and multiple available-date UI behavior", () => {
+    assert.match(
+      validateEventPriorityAccessDate([], "2026-09-01", false) || "",
+      /No bookable dates/,
+    );
+
+    // The UI deliberately permits its only available date for either type.
+    assert.equal(validateEventPriorityAccessDate(["2026-09-01"], "2026-09-01", false), null);
+    assert.equal(validateEventPriorityAccessDate(["2026-09-01"], "2026-09-01", true), null);
+
+    const dates = ["2026-09-01", "2026-09-02"];
+    assert.equal(validateEventPriorityAccessDate(dates, "2026-09-01", false), null);
+    assert.match(
+      validateEventPriorityAccessDate(dates, "2026-09-02", false) || "",
+      /reserved for priority access/,
+    );
+    assert.match(
+      validateEventPriorityAccessDate(dates, "2026-09-01", true) || "",
+      /must use the final bookable/,
+    );
+    assert.equal(validateEventPriorityAccessDate(dates, "2026-09-02", true), null);
   });
 
   test("warns before review when no special category is selected", () => {

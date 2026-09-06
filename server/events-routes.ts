@@ -127,6 +127,12 @@ const templatesDir = path.resolve(process.cwd(), "server", "templates");
 // Registration rows stuck in `registration_started` (payment never
 // completed) stop holding slot capacity after this many minutes.
 const PENDING_HOLD_MINUTES = 30;
+const allowedProductCategories = new Set([
+  "electronics",
+  "furniture",
+  "home_appliances",
+  "vessels",
+]);
 
 // ---------------------------------------------------------------
 // Helpers
@@ -241,6 +247,10 @@ function formatPaise(paise: number): string {
 
 function generateOtpCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function normalizeEventProductCategory(value: unknown): string {
+  return String(value || "").trim().toLowerCase();
 }
 
 function formatSlotDate(dateStr: string): string {
@@ -397,6 +407,44 @@ export function buildEventDates(ev: Event): string[] {
     cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return out;
+}
+
+// Matches the landing page's definition of a bookable date: it has at least
+// one remaining-capacity slot that has not started in the location's timezone.
+export function buildBookableEventDates(
+  ev: Event,
+  cfg: LocationEventConfig,
+  usage: Record<string, number>,
+  timeZone: string,
+  now = Date.now(),
+): string[] {
+  const dates = buildEventDates(ev);
+  const times = buildSlotTimesFrom(cfg.operatingHoursStart, cfg.operatingHoursEnd, cfg.slotDurationMinutes);
+  return dates.filter((date) => times.some((time) => {
+    const capacity = cfg.slotCapacityOverrides[`${date}|${time}`] ?? cfg.maxCapacityPerSlot;
+    const available = capacity - (usage[`${date}|${time}`] || 0);
+    return available > 0 && zonedTimeToUtc(date, time, timeZone).getTime() >= now;
+  }));
+}
+
+// The customer UI lets both registration types use a sole bookable date. When
+// there are multiple dates, its last one is reserved for priority access.
+export function validateEventPriorityAccessDate(
+  bookableDates: string[],
+  slotDate: string,
+  priorityAccess: boolean,
+): string | null {
+  if (!bookableDates.length) {
+    return "No bookable dates are available for this location.";
+  }
+  const finalBookableDate = bookableDates[bookableDates.length - 1];
+  if (priorityAccess && slotDate !== finalBookableDate) {
+    return "Priority access registrations must use the final bookable event date.";
+  }
+  if (!priorityAccess && bookableDates.length > 1 && slotDate === finalBookableDate) {
+    return "The final bookable event date is reserved for priority access registrations.";
+  }
+  return null;
 }
 
 const CAPACITY_STATUSES_SQL = dsql`(${eventRegistrations.status} <> 'registration_started' OR ${eventRegistrations.createdAt} > NOW() - INTERVAL '${dsql.raw(String(PENDING_HOLD_MINUTES))} minutes')`;
@@ -1875,8 +1923,7 @@ export function registerEventsRoutes(app: Express) {
       const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
       const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
       const needsPriorityAccess = priorityAccess === true;
-      const normalizedProductCategory = String(productCategory || "").trim().toLowerCase();
-      const allowedProductCategories = new Set(["electronics", "furniture", "home_appliances", "vessels"]);
+      const normalizedProductCategory = normalizeEventProductCategory(productCategory);
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
       if (!allowedProductCategories.has(normalizedProductCategory)) {
@@ -1944,6 +1991,18 @@ export function registerEventsRoutes(app: Express) {
       if (!dates.includes(slotDate) || !times.includes(slotTime)) {
         return res.status(400).json({ error: "Invalid slot selection" });
       }
+      const [branch] = await db.select({ timezone: branches.timezone })
+        .from(branches)
+        .where(eq(branches.id, ev.branchId))
+        .limit(1);
+      const bookableDates = buildBookableEventDates(
+        ev,
+        cfg,
+        await slotUsage(ev.id, chosenLocationId),
+        branch?.timezone || "Asia/Kolkata",
+      );
+      const priorityDateError = validateEventPriorityAccessDate(bookableDates, slotDate, needsPriorityAccess);
+      if (priorityDateError) return res.status(400).json({ error: priorityDateError });
 
       // Validate the location's custom input fields (required + basic typing)
       // and collect a clean formData object keyed by field id.
@@ -2109,7 +2168,7 @@ export function registerEventsRoutes(app: Express) {
     try {
       const {
         eventId, locationId, slotDate, slotTime, customerName, customerPhone,
-        customerEmail, preferredLanguage, familyMembersCount, priorityAccess, formData,
+        customerEmail, productCategory, preferredLanguage, familyMembersCount, priorityAccess, formData,
         paymentMade, amountCollected, paymentMode, paymentReason,
         ticketMethod, preprintedTicketCode,
       } = req.body || {};
@@ -2128,8 +2187,12 @@ export function registerEventsRoutes(app: Express) {
       const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
       const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
       const needsPriorityAccess = priorityAccess === true;
+      const normalizedProductCategory = normalizeEventProductCategory(productCategory);
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
+      if (!allowedProductCategories.has(normalizedProductCategory)) {
+        return res.status(400).json({ error: "A valid product category is required" });
+      }
 
       const allLocationRows = await loadEventLocations(ev.branchId);
       const eventLinked = allLocationRows.filter((s) => (s as any)?.serviceSettings?.event?.eventId === ev.id);
@@ -2150,6 +2213,18 @@ export function registerEventsRoutes(app: Express) {
       if (!dates.includes(slotDate) || !times.includes(slotTime)) {
         return res.status(400).json({ error: "Invalid slot selection" });
       }
+      const [branch] = await db.select({ timezone: branches.timezone })
+        .from(branches)
+        .where(eq(branches.id, ev.branchId))
+        .limit(1);
+      const bookableDates = buildBookableEventDates(
+        ev,
+        cfg,
+        await slotUsage(ev.id, chosenLocationId),
+        branch?.timezone || "Asia/Kolkata",
+      );
+      const priorityDateError = validateEventPriorityAccessDate(bookableDates, slotDate, needsPriorityAccess);
+      if (priorityDateError) return res.status(400).json({ error: priorityDateError });
 
       const cleanForm: Record<string, unknown> = {};
       const fields = Array.isArray(location?.inputFields) ? location.inputFields : [];
@@ -2278,6 +2353,7 @@ export function registerEventsRoutes(app: Express) {
           customerName: name,
           customerPhone: phone,
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
+          productCategory: normalizedProductCategory,
           preferredLanguage: language,
           familyMembersCount: fam,
           priorityAccess: needsPriorityAccess,
