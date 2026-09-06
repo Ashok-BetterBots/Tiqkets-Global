@@ -529,19 +529,19 @@ export function EventManualRegModal({
                           >
                             <View style={styles.categoryIconRow}>
                               {value === "electronics" ? (
-                                <Feather name="smartphone" size={27} color={selected ? BRAND : textSecondary} />
+                                <Feather name="smartphone" size={16} color={selected ? BRAND : textSecondary} />
                               ) : value === "furniture" ? (
-                                <MaterialCommunityIcons name="sofa" size={34} color={selected ? BRAND : textSecondary} />
+                                <MaterialCommunityIcons name="sofa" size={19} color={selected ? BRAND : textSecondary} />
                               ) : value === "home_appliances" ? (
                                 <>
-                                  <MaterialCommunityIcons name="fridge-outline" size={29} color={selected ? BRAND : textSecondary} />
-                                  <MaterialCommunityIcons name="blender-outline" size={27} color={selected ? BRAND : textSecondary} />
+                                  <MaterialCommunityIcons name="fridge-outline" size={17} color={selected ? BRAND : textSecondary} />
+                                  <MaterialCommunityIcons name="blender-outline" size={16} color={selected ? BRAND : textSecondary} />
                                 </>
                               ) : (
-                                <MaterialCommunityIcons name="bowl-outline" size={32} color={selected ? BRAND : textSecondary} />
+                                <MaterialCommunityIcons name="bowl-outline" size={18} color={selected ? BRAND : textSecondary} />
                               )}
                             </View>
-                            <ThemedText style={{ color: selected ? BRAND : text, fontSize: 12, textAlign: "center", fontWeight: selected ? "800" : "600" }}>
+                            <ThemedText style={{ color: selected ? BRAND : text, fontSize: 12, fontWeight: selected ? "800" : "600" }}>
                               {label}
                             </ThemedText>
                           </Pressable>
@@ -580,14 +580,14 @@ export function EventManualRegModal({
                             testID={`checkbox-special-category-${value}`}
                           >
                             <View style={[styles.tileCheck, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND : surface }]}>
-                              {selected ? <Feather name="check" size={12} color="#FFF" /> : null}
+                              {selected ? <Feather name="check" size={9} color="#FFF" /> : null}
                             </View>
                             <Image
                               source={SPECIAL_CATEGORY_IMAGES[value]}
                               style={[styles.specialCategoryImage, { tintColor: selected ? BRAND : textSecondary }]}
                               resizeMode="contain"
                             />
-                            <ThemedText style={{ color: selected ? BRAND : text, fontSize: 12, textAlign: "center", fontWeight: selected ? "800" : "600" }}>
+                            <ThemedText style={{ color: selected ? BRAND : text, fontSize: 12, fontWeight: selected ? "800" : "600" }}>
                               {label}
                             </ThemedText>
                           </Pressable>
@@ -1114,11 +1114,11 @@ const styles = StyleSheet.create({
   secondaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center", borderWidth: 1.5 },
   input: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 10, fontSize: 14 },
   chip: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 8 },
-  tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
-  categoryTile: { width: "48%", minHeight: 92, borderWidth: 1.5, borderRadius: BorderRadius.md, padding: Spacing.sm, alignItems: "center", justifyContent: "center", gap: 7, position: "relative" },
-  categoryIconRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
-  specialCategoryImage: { width: 38, height: 38 },
-  tileCheck: { position: "absolute", top: 7, right: 7, width: 19, height: 19, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.xs },
+  categoryTile: { minHeight: 36, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 10, paddingVertical: 7, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, position: "relative" },
+  categoryIconRow: { minHeight: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 1 },
+  specialCategoryImage: { width: 17, height: 17 },
+  tileCheck: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   successBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.lg, alignItems: "center" },
   errorBox: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm },
   paymentBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md },
