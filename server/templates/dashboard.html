@@ -116,6 +116,14 @@
     /* ---------- Modal ---------- */
     .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.45); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 50; }
     .modal-content { background: var(--surface); border-radius: var(--radius-lg); box-shadow: 0 24px 48px rgba(15,23,42,0.18); max-width: 32rem; width: 100%; margin: 0 16px; max-height: 90vh; overflow-y: auto; border: 1px solid var(--ink-100); }
+    .manual-special-warning { max-width: 27.5rem; padding: 24px; text-align: center; }
+    .manual-special-warning .warning-icon { width: 46px; height: 46px; margin: 0 auto 12px; display: grid; place-items: center; border-radius: 14px; color: #9a6700; background: #fff4ce; }
+    .manual-special-warning .warning-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+    .manual-special-warning .warning-actions button { min-height: 44px; border-radius: 10px; padding: 9px 12px; font-size: 12px; font-weight: 800; cursor: pointer; }
+    @media (max-width: 420px) {
+      .manual-special-warning { padding: 20px 16px; }
+      .manual-special-warning .warning-actions { grid-template-columns: 1fr; }
+    }
 
     /* ---------- Toast ---------- */
     .toast { position: fixed; top: 20px; right: 20px; z-index: 100; padding: 12px 18px; border-radius: var(--radius-md); box-shadow: 0 16px 32px rgba(15,23,42,0.18); color: #fff; font-weight: 600; font-size: 14px; }
@@ -3047,8 +3055,19 @@
           </div>
 
           <!-- Manual (offline) registration modal — admin/billing desk flow -->
-          <div x-show="manualRegModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="closeManualRegModal()">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto" @click.stop>
+          <div x-show="manualRegSpecialWarningOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-y-auto" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="closeManualSpecialWarning()">
+            <div class="bg-white rounded-2xl shadow-2xl w-full manual-special-warning my-auto" role="dialog" aria-modal="true" @click.stop>
+              <div class="warning-icon"><i class="fa-solid fa-triangle-exclamation text-lg"></i></div>
+              <h3 class="text-lg font-extrabold text-gray-900 mb-2">Before you continue</h3>
+              <p class="text-sm leading-6 text-gray-500">Senior citizens, pregnant women, differently abled people, and visitors with infants are not permitted on the regular event dates. If any of these applies to your group, go back and select the appropriate Special category.</p>
+              <div class="warning-actions">
+                <button type="button" class="border-[1.5px] border-brand text-brand bg-white" @click="closeManualSpecialWarning(true)">Go back and edit</button>
+                <button type="button" class="border-[1.5px] border-brand text-white bg-brand" @click="continueManualWithoutSpecialCategory()">None apply — continue</button>
+              </div>
+            </div>
+          </div>
+          <div x-show="manualRegModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="closeManualRegModal()">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto my-auto" @click.stop>
               <div class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
                 <div>
                   <h3 class="font-extrabold text-gray-900">Add customer registration</h3>
@@ -3092,43 +3111,72 @@
                     <div class="space-y-4">
                       <div x-show="manualRegLocations.length > 1">
                         <label class="text-[11px] font-bold text-gray-400 uppercase">Location</label>
-                        <select x-model="manualRegForm.locationId" @change="manualRegForm.slotDate=''; manualRegForm.slotTime=''; manualRegForm.amountCollected = manualRegAmountDue" class="input-field mt-1 text-sm">
+                        <select x-model="manualRegForm.locationId" @change="manualRegLocationChanged()" class="input-field mt-1 text-sm">
                           <option value="">Select location</option>
                           <template x-for="l in manualRegLocations" :key="l.id">
                             <option :value="l.id" x-text="l.name"></option>
                           </template>
                         </select>
                       </div>
-                      <!-- Infant/senior checkbox — auto-selects last available date -->
                       <div>
-                        <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors">
-                          <input type="checkbox" x-model="manualRegSpecialNeeds"
-                                 @change="manualRegForm.slotDate = manualRegSpecialNeeds ? manualRegLastDate : ''; manualRegForm.slotTime = ''"
-                                 class="w-4 h-4 mt-0.5 rounded flex-shrink-0" style="accent-color:#8c1867">
-                          <div>
-                            <p class="text-sm font-bold text-gray-800">Visiting with infants / senior citizens / pregnant women?</p>
-                            <p class="text-[11px] text-gray-400 mt-0.5">Last available event slot will be auto-selected</p>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Product category <span class="text-red-500">*</span></label>
+                        <div class="grid grid-cols-2 gap-2 mt-1" role="group" aria-label="Product category">
+                          <template x-for="category in manualRegProductCategoryOptions" :key="category.value">
+                            <button type="button"
+                                    @click="manualRegForm.productCategory = category.value"
+                                    :aria-pressed="manualRegForm.productCategory === category.value"
+                                    :class="manualRegForm.productCategory === category.value ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"
+                                    class="flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs font-bold transition-colors">
+                              <i :class="category.icon" class="w-4 text-center text-sm"></i>
+                              <span x-text="category.label"></span>
+                            </button>
+                          </template>
+                        </div>
+                      </div>
+                      <!-- Any selected special category auto-selects and locks the last available date. -->
+                      <div>
+                        <div class="p-3 rounded-xl border border-gray-200 bg-gray-50">
+                          <p class="text-sm font-bold text-gray-800">Special category</p>
+                          <p class="text-[11px] text-gray-400 mt-0.5">Select all that apply. The last available event date will be reserved for you.</p>
+                          <div class="grid grid-cols-2 gap-2 mt-3">
+                            <template x-for="category in manualRegSpecialCategoryOptions" :key="category.value">
+                              <button type="button"
+                                      @click="toggleManualSpecialCategory(category.value)"
+                                      :aria-pressed="manualRegSpecialCategories.includes(category.value)"
+                                      :class="manualRegSpecialCategories.includes(category.value) ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"
+                                      class="rounded-lg border px-2 py-2 text-xs font-bold text-left transition-colors"
+                                      >
+                                <i :class="category.icon" class="mr-1.5 text-sm"></i><span x-text="category.label"></span>
+                              </button>
+                            </template>
                           </div>
-                        </label>
+                        </div>
+                      </div>
+                      <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-start gap-2">
+                        <i class="fa-solid fa-gift text-amber-600 mt-0.5"></i>
+                        <div>
+                          <p class="text-xs font-extrabold text-amber-800">A surprise gift awaits!</p>
+                          <p class="text-[11px] leading-4 text-amber-700 mt-0.5">Enter and exit the shop within 3 hours to receive a surprise gift.</p>
+                        </div>
                       </div>
                       <div class="grid grid-cols-2 gap-3">
                         <div>
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot date</label>
                           <!-- Locked to last date when special needs is checked -->
-                          <div x-show="manualRegSpecialNeeds" class="input-field mt-1 text-sm flex items-center gap-2 bg-gray-50 opacity-80 cursor-not-allowed">
+                          <div x-show="manualRegHasSpecialNeeds" class="input-field mt-1 text-sm flex items-center gap-2 bg-gray-50 opacity-80 cursor-not-allowed">
                             <i class="fa-solid fa-lock text-xs" style="color:#8c1867"></i>
                             <span x-text="manualRegLastDate ? manualRegFormatDate({date: manualRegLastDate}) : 'No dates available'" class="flex-1 text-sm"></span>
                             <span class="text-xs text-gray-400">Last day</span>
                           </div>
                           <!-- Dropdown of all dates except last for regular visitors -->
-                          <select x-show="!manualRegSpecialNeeds" x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''" class="input-field mt-1 text-sm">
+                          <select x-show="!manualRegHasSpecialNeeds" x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''" class="input-field mt-1 text-sm">
                             <option value="">Select a date</option>
                             <template x-for="d in manualRegRegularDates" :key="d.date">
                               <option :value="d.date" x-text="manualRegFormatDate(d)"></option>
                             </template>
                           </select>
                           <p class="text-[10px] text-amber-500 font-semibold mt-1"
-                             x-show="!manualRegSpecialNeeds && manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate)">
+                             x-show="!manualRegHasSpecialNeeds && manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate)">
                             This date is fully booked or has passed — pick another.
                           </p>
                         </div>
@@ -7499,10 +7547,24 @@
         manualRegLocations: [],
         manualRegLoadingLocations: false,
         manualRegSaving: false,
+        manualRegSpecialWarningOpen: false,
+        manualRegConfirmedFingerprint: '',
         manualRegPtkResolving: false,
-        manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
+        manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, productCategory: '', formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
         manualRegSuccess: null,
-        manualRegSpecialNeeds: false,
+        manualRegProductCategoryOptions: [
+          { label: 'Electronics', value: 'electronics', icon: 'fa-solid fa-mobile-screen-button' },
+          { label: 'Furniture', value: 'furniture', icon: 'fa-solid fa-couch' },
+          { label: 'Home Appliances', value: 'home_appliances', icon: 'fa-solid fa-house' },
+          { label: 'Vessels', value: 'vessels', icon: 'fa-solid fa-bowl-food' },
+        ],
+        manualRegSpecialCategories: [],
+        manualRegSpecialCategoryOptions: [
+          { label: 'Senior Citizen', value: 'senior_citizen', icon: 'fa-solid fa-person-cane' },
+          { label: 'Pregnant Women', value: 'pregnant_women', icon: 'fa-solid fa-person-pregnant' },
+          { label: 'Infants', value: 'infants', icon: 'fa-solid fa-baby' },
+          { label: 'Specially Abled', value: 'specially_abled', icon: 'fa-solid fa-wheelchair' },
+        ],
         manualRegLang: 'en',
         ptkValidatePanelOpen: false,
         ptkValidateCode: '',
@@ -13928,9 +13990,11 @@
           const ev = this.selectedEvent;
           if (!ev) { this.showToast('Select an event first', 'error'); return; }
           if (ev.status === 'ended') { this.showToast('This event has ended — new registrations are blocked', 'error'); return; }
-          this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' };
+          this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, productCategory: '', formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' };
           this.manualRegSuccess = null;
-          this.manualRegSpecialNeeds = false;
+          this.manualRegSpecialCategories = [];
+          this.manualRegSpecialWarningOpen = false;
+          this.manualRegConfirmedFingerprint = '';
           this.manualRegLang = 'en';
           this.manualRegModalOpen = true;
           this.manualRegLoadingLocations = true;
@@ -13957,6 +14021,60 @@
         closeManualRegModal() {
           this.manualRegModalOpen = false;
           this.manualRegSuccess = null;
+          this.manualRegSpecialWarningOpen = false;
+          this.manualRegConfirmedFingerprint = '';
+        },
+        get manualRegHasSpecialNeeds() {
+          return this.manualRegSpecialCategories.length > 0;
+        },
+        toggleManualSpecialCategory(category) {
+          const index = this.manualRegSpecialCategories.indexOf(category);
+          if (index >= 0) this.manualRegSpecialCategories.splice(index, 1);
+          else this.manualRegSpecialCategories.push(category);
+          this.manualRegForm.slotDate = this.manualRegHasSpecialNeeds ? this.manualRegLastDate : '';
+          this.manualRegForm.slotTime = '';
+        },
+        manualRegLocationChanged() {
+          this.manualRegForm.slotTime = '';
+          this.manualRegForm.amountCollected = this.manualRegAmountDue;
+          // Re-read the selected location's availability after the location
+          // model has updated. A special visitor must never retain a date
+          // from the previous location.
+          this.$nextTick(() => {
+            this.manualRegForm.slotDate = this.manualRegHasSpecialNeeds ? this.manualRegLastDate : '';
+            this.manualRegForm.slotTime = '';
+          });
+        },
+        manualRegConfirmationFingerprint() {
+          const f = this.manualRegForm || {};
+          return JSON.stringify({
+            locationId: f.locationId || '',
+            slotDate: f.slotDate || '',
+            slotTime: f.slotTime || '',
+            customerName: f.customerName || '',
+            customerPhone: f.customerPhone || '',
+            customerEmail: f.customerEmail || '',
+            familyMembersCount: String(f.familyMembersCount ?? ''),
+            productCategory: f.productCategory || '',
+            specialCategories: [...this.manualRegSpecialCategories].sort(),
+            formData: f.formData || {},
+            paymentMode: f.paymentMode || '',
+            paymentReason: f.paymentReason || '',
+            amountCollected: String(f.amountCollected ?? ''),
+            ticketMethod: f.ticketMethod || '',
+            preprintedTicketCode: f.preprintedTicketCode || '',
+            language: this.manualRegLang || 'en',
+          });
+        },
+        closeManualSpecialWarning(focusEdit = false) {
+          this.manualRegSpecialWarningOpen = false;
+          if (focusEdit) this.manualRegConfirmedFingerprint = '';
+        },
+        continueManualWithoutSpecialCategory() {
+          if (this.manualRegSaving) return;
+          this.manualRegSpecialWarningOpen = false;
+          this.manualRegConfirmedFingerprint = this.manualRegConfirmationFingerprint();
+          this.submitManualReg();
         },
         // Resolve any scan value (full URL or PTK ID) to the canonical booking ID.
         // Called by the preprintedTicketCode @change handler so the field always
@@ -14042,7 +14160,7 @@
         },
         get manualRegRegularDates() {
           const avail = this.manualRegSlotDates.filter(d => (d.times || []).some(t => !t.past && t.available > 0));
-          return avail.length > 1 ? avail.slice(0, -1) : avail;
+          return avail.length <= 1 ? avail : avail.slice(0, -1);
         },
         manualRegFormatDate(d) {
           try {
@@ -14075,6 +14193,7 @@
           const f = this.manualRegForm;
           if (this.manualRegSaving) return false;
           if (!f.customerName || !f.customerPhone) return false;
+          if (!['electronics', 'furniture', 'home_appliances', 'vessels'].includes(f.productCategory)) return false;
           if (!f.slotDate || !f.slotTime) return false;
           if (!['offline_paid', 'complimentary', 'unpaid'].includes(f.paymentMode)) return false;
           if (this.manualRegMissingRequiredField) return false;
@@ -14087,12 +14206,19 @@
           const f = this.manualRegForm;
           const ev = this.selectedEvent;
           if (!ev) return;
+          if (this.manualRegSaving) return;
           if (!f.customerName || !f.customerPhone) { this.showToast('Name and phone are required', 'error'); return; }
+          if (!['electronics', 'furniture', 'home_appliances', 'vessels'].includes(f.productCategory)) { this.showToast('Select a product category', 'error'); return; }
           if (!f.slotDate || !f.slotTime) { this.showToast('Pick a slot date and time', 'error'); return; }
           if (this.manualRegMissingRequiredField) { this.showToast('Please fill in all required fields', 'error'); return; }
           if (f.paymentMode === 'offline_paid' && this.manualRegBalanceDue > 0) { this.showToast('Collect the full amount due before registering', 'error'); return; }
           if (f.paymentMode !== 'offline_paid' && !String(f.paymentReason || '').trim()) { this.showToast('Enter a reason for complimentary or unpaid registration', 'error'); return; }
           if (f.ticketMethod === 'preprinted' && !String(f.preprintedTicketCode || '').trim()) { this.showToast('Scan or enter the pre-printed ticket ID', 'error'); return; }
+          const confirmationFingerprint = this.manualRegConfirmationFingerprint();
+          if (!this.manualRegHasSpecialNeeds && this.manualRegConfirmedFingerprint !== confirmationFingerprint) {
+            this.manualRegSpecialWarningOpen = true;
+            return;
+          }
           this.manualRegSaving = true;
           try {
             const loc = this.manualRegSelectedLocation;
@@ -14106,8 +14232,9 @@
                 customerName: f.customerName,
                 customerPhone: f.customerPhone,
                 customerEmail: f.customerEmail || null,
+                productCategory: f.productCategory,
                 familyMembersCount: Number(f.familyMembersCount) || 0,
-                priorityAccess: this.manualRegSpecialNeeds,
+                priorityAccess: this.manualRegHasSpecialNeeds,
                 preferredLanguage: this.manualRegLang,
                 formData: f.formData,
                 paymentMode: f.paymentMode,
@@ -14122,8 +14249,10 @@
             await this.loadEventRegs();
           } catch (e) {
             this.showToast(e.message || 'Failed to create registration', 'error');
+          } finally {
+            this.manualRegSaving = false;
+            this.manualRegConfirmedFingerprint = '';
           }
-          this.manualRegSaving = false;
         },
 
         toggleAnnouncements() {
