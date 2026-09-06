@@ -3123,9 +3123,9 @@
                         <div class="grid grid-cols-2 gap-2 mt-1" role="group" aria-label="Product category">
                           <template x-for="category in manualRegProductCategoryOptions" :key="category.value">
                             <button type="button"
-                                    @click="manualRegForm.productCategory = category.value"
-                                    :aria-pressed="manualRegForm.productCategory === category.value"
-                                    :class="manualRegForm.productCategory === category.value ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"
+                                    @click="toggleManualProductCategory(category.value)"
+                                    :aria-pressed="manualRegForm.productCategories.includes(category.value)"
+                                    :class="manualRegForm.productCategories.includes(category.value) ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"
                                     class="flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs font-bold transition-colors">
                               <i :class="category.icon" class="w-4 text-center text-sm"></i>
                               <span x-text="category.label"></span>
@@ -7550,7 +7550,7 @@
         manualRegSpecialWarningOpen: false,
         manualRegConfirmedFingerprint: '',
         manualRegPtkResolving: false,
-        manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, productCategory: '', formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
+        manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, productCategories: [], formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
         manualRegSuccess: null,
         manualRegProductCategoryOptions: [
           { label: 'Electronics', value: 'electronics', icon: 'fa-solid fa-mobile-screen-button' },
@@ -13990,7 +13990,7 @@
           const ev = this.selectedEvent;
           if (!ev) { this.showToast('Select an event first', 'error'); return; }
           if (ev.status === 'ended') { this.showToast('This event has ended — new registrations are blocked', 'error'); return; }
-          this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, productCategory: '', formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' };
+          this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, productCategories: [], formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' };
           this.manualRegSuccess = null;
           this.manualRegSpecialCategories = [];
           this.manualRegSpecialWarningOpen = false;
@@ -14034,6 +14034,12 @@
           this.manualRegForm.slotDate = this.manualRegHasSpecialNeeds ? this.manualRegLastDate : '';
           this.manualRegForm.slotTime = '';
         },
+        toggleManualProductCategory(category) {
+          const selected = this.manualRegForm.productCategories;
+          const index = selected.indexOf(category);
+          if (index >= 0) selected.splice(index, 1);
+          else selected.push(category);
+        },
         manualRegLocationChanged() {
           this.manualRegForm.slotTime = '';
           this.manualRegForm.amountCollected = this.manualRegAmountDue;
@@ -14055,7 +14061,7 @@
             customerPhone: f.customerPhone || '',
             customerEmail: f.customerEmail || '',
             familyMembersCount: String(f.familyMembersCount ?? ''),
-            productCategory: f.productCategory || '',
+            productCategories: [...(f.productCategories || [])].sort(),
             specialCategories: [...this.manualRegSpecialCategories].sort(),
             formData: f.formData || {},
             paymentMode: f.paymentMode || '',
@@ -14193,7 +14199,7 @@
           const f = this.manualRegForm;
           if (this.manualRegSaving) return false;
           if (!f.customerName || !f.customerPhone) return false;
-          if (!['electronics', 'furniture', 'home_appliances', 'vessels'].includes(f.productCategory)) return false;
+          if (!Array.isArray(f.productCategories) || f.productCategories.length === 0) return false;
           if (!f.slotDate || !f.slotTime) return false;
           if (!['offline_paid', 'complimentary', 'unpaid'].includes(f.paymentMode)) return false;
           if (this.manualRegMissingRequiredField) return false;
@@ -14208,7 +14214,7 @@
           if (!ev) return;
           if (this.manualRegSaving) return;
           if (!f.customerName || !f.customerPhone) { this.showToast('Name and phone are required', 'error'); return; }
-          if (!['electronics', 'furniture', 'home_appliances', 'vessels'].includes(f.productCategory)) { this.showToast('Select a product category', 'error'); return; }
+          if (!Array.isArray(f.productCategories) || f.productCategories.length === 0) { this.showToast('Select at least one product category', 'error'); return; }
           if (!f.slotDate || !f.slotTime) { this.showToast('Pick a slot date and time', 'error'); return; }
           if (this.manualRegMissingRequiredField) { this.showToast('Please fill in all required fields', 'error'); return; }
           if (f.paymentMode === 'offline_paid' && this.manualRegBalanceDue > 0) { this.showToast('Collect the full amount due before registering', 'error'); return; }
@@ -14232,7 +14238,9 @@
                 customerName: f.customerName,
                 customerPhone: f.customerPhone,
                 customerEmail: f.customerEmail || null,
-                productCategory: f.productCategory,
+                productCategories: f.productCategories,
+                productCategory: f.productCategories[0],
+                specialCategories: this.manualRegSpecialCategories,
                 familyMembersCount: Number(f.familyMembersCount) || 0,
                 priorityAccess: this.manualRegHasSpecialNeeds,
                 preferredLanguage: this.manualRegLang,
