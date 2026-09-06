@@ -51,9 +51,17 @@ describe("event registration slot display", () => {
 
     const schema = readFileSync("shared/schema.ts", "utf8");
     const routes = readFileSync("server/events-routes.ts", "utf8");
+    const dashboard = readFileSync("server/templates/dashboard.html", "utf8");
+    const nativeModal = readFileSync("client/components/EventManualRegModal.tsx", "utf8");
     assert.match(schema, /productCategory: text\("product_category"\)/);
+    assert.match(schema, /productCategories: jsonb\("product_categories"\)/);
     assert.match(routes, /productCategory: normalizedProductCategory/);
+    assert.match(routes, /productCategories: normalizedProductCategories/);
     assert.match(routes, /allowedProductCategories/);
+    assert.match(dashboard, /toggleManualProductCategory\(category\.value\)/);
+    assert.match(dashboard, /productCategories: f\.productCategories/);
+    assert.match(nativeModal, /productCategories: selected/);
+    assert.match(nativeModal, /productCategories: form\.productCategories/);
   });
 
   test("special categories use icons and lock the final event date", () => {
@@ -73,6 +81,15 @@ describe("event registration slot display", () => {
     assert.match(landing, /visibleDays = allAvailDays\.length > 0 \? \[allAvailDays\[allAvailDays\.length - 1\]\] : \[\]/);
     assert.match(landing, /priorityAccess: isSpecialNeeds/);
     assert.match(landing, /"reg\.specialNeeds": "சிறப்புப் பிரிவு"/);
+
+    const schema = readFileSync("shared/schema.ts", "utf8");
+    const routes = readFileSync("server/events-routes.ts", "utf8");
+    const dashboard = readFileSync("server/templates/dashboard.html", "utf8");
+    const nativeModal = readFileSync("client/components/EventManualRegModal.tsx", "utf8");
+    assert.match(schema, /specialCategories: jsonb\("special_categories"\)/);
+    assert.match(routes, /specialCategories: normalizedSpecialCategories/);
+    assert.match(dashboard, /specialCategories: this\.manualRegSpecialCategories/);
+    assert.match(nativeModal, /specialCategories: form\.selectedSpecialCategories/);
   });
 
   test("priority date policy matches zero, one, and multiple available-date UI behavior", () => {

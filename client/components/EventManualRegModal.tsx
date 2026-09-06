@@ -104,7 +104,7 @@ interface EmptyForm {
   amountCollected: string;
   ticketMethod: "generate" | "preprinted";
   preprintedTicketCode: string;
-  productCategory: "" | "electronics" | "furniture" | "home_appliances" | "vessels";
+  productCategories: string[];
   selectedSpecialCategories: string[];
   preferredLanguage: "en" | "ta";
 }
@@ -123,7 +123,7 @@ const EMPTY_FORM: EmptyForm = {
   amountCollected: "",
   ticketMethod: "preprinted",
   preprintedTicketCode: "",
-  productCategory: "",
+  productCategories: [],
   selectedSpecialCategories: [],
   preferredLanguage: "ta",
 };
@@ -308,7 +308,7 @@ export function EventManualRegModal({
     form.customerPhone.replace(/\D/g, "").length >= 10 &&
     !!form.slotDate &&
     !!form.slotTime &&
-    !!form.productCategory &&
+    form.productCategories.length > 0 &&
     !missingRequiredField &&
     (!needsPaymentReason || form.paymentReason.trim().length > 1) &&
     (form.paymentMode !== "offline_paid" || balanceDue <= 0) &&
@@ -363,7 +363,9 @@ export function EventManualRegModal({
         customerEmail: form.customerEmail.trim() || null,
         familyMembersCount: parseInt(form.familyMembersCount, 10) || 0,
         priorityAccess: form.selectedSpecialCategories.length > 0,
-        productCategory: form.productCategory,
+        productCategories: form.productCategories,
+        productCategory: form.productCategories[0],
+        specialCategories: form.selectedSpecialCategories,
         preferredLanguage: form.preferredLanguage,
         formData: form.formData,
         paymentMode: form.paymentMode,
@@ -517,14 +519,18 @@ export function EventManualRegModal({
                         ["home_appliances", "Home Appliances"],
                         ["vessels", "Vessels"],
                       ] as const).map(([value, label]) => {
-                        const selected = form.productCategory === value;
+                        const selected = form.productCategories.includes(value);
                         return (
                           <Pressable
                             key={value}
-                            onPress={() => setField({ productCategory: value })}
+                            onPress={() => setField({
+                              productCategories: selected
+                                ? form.productCategories.filter((category) => category !== value)
+                                : [...form.productCategories, value],
+                            })}
                             style={[styles.categoryTile, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : "transparent" }]}
-                            accessibilityRole="radio"
-                            accessibilityState={{ selected }}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: selected }}
                             testID={`chip-product-category-${value}`}
                           >
                             <View style={styles.categoryIconRow}>

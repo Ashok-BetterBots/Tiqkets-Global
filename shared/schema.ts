@@ -1591,6 +1591,9 @@ export const eventRegistrations = pgTable("event_registrations", {
   // Kept as a dedicated column so reporting can group/filter without parsing
   // location-specific custom form data.
   productCategory: text("product_category"),
+  // All product categories selected for this registration. The legacy
+  // productCategory column above retains the first selection for compatibility.
+  productCategories: jsonb("product_categories").$type<string[]>().default([]).notNull(),
   // Language the customer selected at the moment of submission (see
   // shared/languages.ts for the supported-language catalog). Drives which
   // language all downstream WhatsApp/email communications for this
@@ -1602,6 +1605,9 @@ export const eventRegistrations = pgTable("event_registrations", {
   // pregnant women, infants, or specially abled. Used to surface a clear,
   // privacy-respecting marker on the ticket shown at entry.
   priorityAccess: boolean("priority_access").default(false).notNull(),
+  // Exact special-access selections, retained separately from the ticket-safe
+  // priorityAccess marker for authorized reporting and operational use.
+  specialCategories: jsonb("special_categories").$type<string[]>().default([]).notNull(),
   slotDate: text("slot_date").notNull(),
   slotTime: text("slot_time").notNull(),
   status: text("status").default("registration_started").notNull(),

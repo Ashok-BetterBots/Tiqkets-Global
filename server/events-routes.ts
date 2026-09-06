@@ -133,6 +133,12 @@ const allowedProductCategories = new Set([
   "home_appliances",
   "vessels",
 ]);
+const allowedSpecialCategories = new Set([
+  "senior_citizen",
+  "pregnant_women",
+  "infants",
+  "specially_abled",
+]);
 
 // ---------------------------------------------------------------
 // Helpers
@@ -249,8 +255,17 @@ function generateOtpCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-function normalizeEventProductCategory(value: unknown): string {
-  return String(value || "").trim().toLowerCase();
+function normalizeCategorySelections(value: unknown, fallback: unknown, allowed: Set<string>): string[] | null {
+  const raw = Array.isArray(value) ? value : fallback == null ? [] : [fallback];
+  const normalized = [...new Set(raw.map((item) => String(item || "").trim().toLowerCase()).filter(Boolean))];
+  return normalized.length > 0 && normalized.every((item) => allowed.has(item)) ? normalized : null;
+}
+
+function normalizeOptionalCategorySelections(value: unknown, allowed: Set<string>): string[] | null {
+  if (value == null) return [];
+  if (!Array.isArray(value)) return null;
+  const normalized = [...new Set(value.map((item) => String(item || "").trim().toLowerCase()).filter(Boolean))];
+  return normalized.every((item) => allowed.has(item)) ? normalized : null;
 }
 
 function formatSlotDate(dateStr: string): string {
@@ -1911,7 +1926,7 @@ export function registerEventsRoutes(app: Express) {
       if (ev.status === "paused") {
         return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please check back soon.", paused: true });
       }
-      const { customerName, customerPhone, customerEmail, productCategory, preferredLanguage, familyMembersCount, priorityAccess, slotDate, slotTime, locationId, formData } = req.body || {};
+      const { customerName, customerPhone, customerEmail, productCategory, productCategories, specialCategories, preferredLanguage, familyMembersCount, priorityAccess, slotDate, slotTime, locationId, formData } = req.body || {};
       const name = String(customerName || "").trim();
       // Normalize to full international digits (country code + number) —
       // the public web registration form only collects a bare 10-digit
@@ -1922,12 +1937,19 @@ export function registerEventsRoutes(app: Express) {
       const language = isSupportedLanguage(preferredLanguage) ? String(preferredLanguage).toLowerCase() : "en";
       const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
       const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
-      const needsPriorityAccess = priorityAccess === true;
-      const normalizedProductCategory = normalizeEventProductCategory(productCategory);
+      const normalizedProductCategories = normalizeCategorySelections(productCategories, productCategory, allowedProductCategories);
+      const normalizedSpecialCategories = normalizeOptionalCategorySelections(specialCategories, allowedSpecialCategories);
+      const needsPriorityAccess = normalizedSpecialCategories?.length
+        ? true
+        : priorityAccess === true;
+      const normalizedProductCategory = normalizedProductCategories?.[0] || "";
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
-      if (!allowedProductCategories.has(normalizedProductCategory)) {
-        return res.status(400).json({ error: "A valid product category is required" });
+      if (!normalizedProductCategories) {
+        return res.status(400).json({ error: "Select at least one valid product category" });
+      }
+      if (!normalizedSpecialCategories) {
+        return res.status(400).json({ error: "One or more special categories are invalid" });
       }
       if (parseInt(String(familyMembersCount ?? 0), 10) > maxGuests - 1) {
         return res.status(400).json({ error: `This event allows a maximum of ${maxGuests} guests per registration` });
@@ -2075,9 +2097,11 @@ export function registerEventsRoutes(app: Express) {
           customerPhone: phone,
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
           productCategory: normalizedProductCategory,
+          productCategories: normalizedProductCategories,
           preferredLanguage: language,
           familyMembersCount: fam,
           priorityAccess: needsPriorityAccess,
+          specialCategories: normalizedSpecialCategories,
           slotDate,
           slotTime,
           status: "registration_started",
@@ -2168,7 +2192,7 @@ export function registerEventsRoutes(app: Express) {
     try {
       const {
         eventId, locationId, slotDate, slotTime, customerName, customerPhone,
-        customerEmail, productCategory, preferredLanguage, familyMembersCount, priorityAccess, formData,
+        customerEmail, productCategory, productCategories, specialCategories, preferredLanguage, familyMembersCount, priorityAccess, formData,
         paymentMade, amountCollected, paymentMode, paymentReason,
         ticketMethod, preprintedTicketCode,
       } = req.body || {};
@@ -2186,12 +2210,19 @@ export function registerEventsRoutes(app: Express) {
       const language = isSupportedLanguage(preferredLanguage) ? String(preferredLanguage).toLowerCase() : "en";
       const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
       const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
-      const needsPriorityAccess = priorityAccess === true;
-      const normalizedProductCategory = normalizeEventProductCategory(productCategory);
+      const normalizedProductCategories = normalizeCategorySelections(productCategories, productCategory, allowedProductCategories);
+      const normalizedSpecialCategories = normalizeOptionalCategorySelections(specialCategories, allowedSpecialCategories);
+      const needsPriorityAccess = specialCategories === undefined
+        ? priorityAccess === true
+        : Boolean(normalizedSpecialCategories?.length);
+      const normalizedProductCategory = normalizedProductCategories?.[0] || "";
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
-      if (!allowedProductCategories.has(normalizedProductCategory)) {
-        return res.status(400).json({ error: "A valid product category is required" });
+      if (!normalizedProductCategories) {
+        return res.status(400).json({ error: "Select at least one valid product category" });
+      }
+      if (!normalizedSpecialCategories) {
+        return res.status(400).json({ error: "One or more special categories are invalid" });
       }
 
       const allLocationRows = await loadEventLocations(ev.branchId);
@@ -2354,9 +2385,11 @@ export function registerEventsRoutes(app: Express) {
           customerPhone: phone,
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
           productCategory: normalizedProductCategory,
+          productCategories: normalizedProductCategories,
           preferredLanguage: language,
           familyMembersCount: fam,
           priorityAccess: needsPriorityAccess,
+          specialCategories: normalizedSpecialCategories,
           slotDate,
           slotTime,
           status: "payment_completed",
