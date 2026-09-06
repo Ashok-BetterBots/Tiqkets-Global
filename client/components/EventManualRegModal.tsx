@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { getApiUrl } from "@/lib/query-client";
 import { BrandColors, Spacing, BorderRadius } from "@/constants/theme";
 import { formatEventSlotRange } from "@shared/eventSlots";
@@ -191,35 +192,44 @@ export function EventManualRegModal({
     setEventSlotDurationMinutes(30);
   }, []);
 
+  const loadRegistrationAvailability = useCallback(async () => {
+    if (!branchId || !eventId) return;
+    setLoadingLocations(true);
+    setLoadError(null);
+    try {
+      const data: LandingData = await fetchJson(`/api/event/${branchId}/${eventId}?t=${Date.now()}`);
+      const eventFee = Number(data.event?.registrationFee ?? 0);
+      const locs = (data.locations && data.locations.length > 0)
+        ? data.locations.map((location) => ({
+          ...location,
+          registrationFee: location.registrationFee == null ? eventFee : Number(location.registrationFee) || 0,
+        }))
+        : [{ id: "", name: eventName || "Event", registrationFee: eventFee, inputFields: [], slots: data.slots || [] }];
+      setEventSlotDurationMinutes(Math.max(5, Number(data.event?.slotDurationMinutes) || 30));
+      setLocations(locs);
+      setForm((current) => ({
+        ...current,
+        locationId: locs[0]?.id || "",
+        slotDate: "",
+        slotTime: "",
+        amountCollected: String(Number(locs[0]?.registrationFee || 0) / 100),
+        paymentMode: "offline_paid",
+      }));
+    } catch (e: any) {
+      setLoadError(e?.message || "Failed to load event slots");
+    } finally {
+      setLoadingLocations(false);
+    }
+  }, [branchId, eventId, eventName]);
+
   useEffect(() => {
     if (!visible) return;
     resetRegistrationState();
     setSuccess(null);
     if (!branchId || !eventId) return;
-    setLoadingLocations(true);
     setLocations([]);
-    fetchJson(`/api/event/${branchId}/${eventId}?t=${Date.now()}`)
-      .then((data: LandingData) => {
-        const eventFee = Number(data.event?.registrationFee ?? 0);
-        setEventSlotDurationMinutes(Math.max(5, Number(data.event?.slotDurationMinutes) || 30));
-        const locs = (data.locations && data.locations.length > 0)
-          ? data.locations.map((location) => ({
-            ...location,
-            registrationFee: location.registrationFee == null ? eventFee : Number(location.registrationFee) || 0,
-          }))
-          : [{ id: "", name: eventName || "Event", registrationFee: eventFee, inputFields: [], slots: data.slots || [] }];
-        setLocations(locs);
-        const fee = Number(locs[0]?.registrationFee || 0) / 100;
-        setForm((f) => ({
-          ...f,
-          locationId: locs[0]?.id || "",
-          amountCollected: String(fee),
-          paymentMode: "offline_paid",
-        }));
-      })
-      .catch((e: any) => setLoadError(e?.message || "Failed to load event slots"))
-      .finally(() => setLoadingLocations(false));
-  }, [visible, branchId, eventId, resetRegistrationState]);
+    void loadRegistrationAvailability();
+  }, [visible, branchId, eventId, resetRegistrationState, loadRegistrationAvailability]);
 
   const selectedLocation = useMemo(
     () => locations.find((l) => l.id === form.locationId) || locations[0] || null,
@@ -419,7 +429,7 @@ export function EventManualRegModal({
           accessibilityLabel="Close Add Customer"
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1, width: "100%", justifyContent: "flex-end" }}
         >
           <Pressable
@@ -437,7 +447,7 @@ export function EventManualRegModal({
               </Pressable>
             </View>
 
-            <ScrollView
+            <KeyboardAwareScrollViewCompat
               style={[styles.scrollBody, { flex: 1 }]}
               contentContainerStyle={styles.body}
               keyboardShouldPersistTaps="handled"
@@ -445,6 +455,7 @@ export function EventManualRegModal({
               showsVerticalScrollIndicator
               nestedScrollEnabled
               directionalLockEnabled
+              bottomOffset={24}
               testID="manual-reg-scroll"
             >
               {loadingLocations ? (
@@ -472,6 +483,8 @@ export function EventManualRegModal({
                     onPress={() => {
                       resetRegistrationState(locations[0] || null);
                       setSuccess(null);
+                      setLocations([]);
+                      void loadRegistrationAvailability();
                     }}
                     testID="button-add-another"
                   >
@@ -966,7 +979,7 @@ export function EventManualRegModal({
                    </View>
                 </View>
               )}
-            </ScrollView>
+            </KeyboardAwareScrollViewCompat>
 
             {!success && !loadingLocations ? (
               <View style={styles.footer} testID="manual-reg-footer">
