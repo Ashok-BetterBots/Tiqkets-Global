@@ -163,10 +163,14 @@ function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = f
   );
 }
 
+type OrgUserDraft = Omit<OrgUser, "id" | "createdAt" | "organizationId"> & {
+  password?: string;
+};
+
 interface AddUserModalProps {
   visible: boolean;
   onClose: () => void;
-  onSave: (user: Omit<OrgUser, "id" | "createdAt" | "organizationId">) => void;
+  onSave: (user: OrgUserDraft) => void;
   branches: { id: string; name: string }[];
   services: { id: string; name: string; branchId: string }[];
   editingUser?: OrgUser | null;
@@ -181,6 +185,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
   const [name, setName] = useState(editingUser?.name || "");
   const [email, setEmail] = useState(editingUser?.email || "");
   const [phone, setPhone] = useState(editingUser?.phone || "");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState<string>(editingUser?.role || "front_desk");
   const [branchId, setBranchId] = useState(editingUser?.branchId || "");
   const [branchIds, setBranchIds] = useState<string[]>(editingUser?.branchIds || []);
@@ -214,6 +219,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
       setName(editingUser.name);
       setEmail(editingUser.email);
       setPhone(editingUser.phone || "");
+      setPassword("");
       setRole(editingUser.role);
       setBranchId(editingUser.branchId || "");
       setBranchIds(editingUser.branchIds || (editingUser.branchId ? [editingUser.branchId] : []));
@@ -222,6 +228,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
       setName("");
       setEmail("");
       setPhone("");
+      setPassword("");
       setRole("front_desk");
       setBranchId("");
       setBranchIds([]);
@@ -232,6 +239,10 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
   const handleSave = () => {
     if (!name.trim() || !email.trim()) {
       Alert.alert("Error", "Name and email are required");
+      return;
+    }
+    if (!editingUser && password.length < 6) {
+      Alert.alert("Error", "A password of at least 6 characters is required");
       return;
     }
     if (!role) {
@@ -262,6 +273,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim() || undefined,
+      password: editingUser ? undefined : password,
       role,
       branchId: role === "location_manager" ? (branchIds[0] || undefined) : (branchId || undefined),
       branchName: role === "location_manager" ? (selectedBranchNames[0] || undefined) : selectedBranch?.name,
@@ -349,6 +361,23 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
               placeholderTextColor={colors.textSecondary}
             />
           </View>
+
+          {!editingUser ? (
+            <View style={styles.inputGroup}>
+              <ThemedText style={styles.inputLabel}>Password</ThemedText>
+              <TextInput
+                style={styles.input}
+                placeholder="Minimum 6 characters"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="newPassword"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+          ) : null}
 
           <View style={styles.inputGroup}>
             <ThemedText style={styles.inputLabel}>Role</ThemedText>
@@ -546,7 +575,7 @@ export default function UserManagementScreen() {
 
   const filteredUsers = users.filter((u) => filterRole === "all" || u.role === filterRole);
 
-  const handleAddUser = async (userData: Omit<OrgUser, "id" | "createdAt" | "organizationId">) => {
+  const handleAddUser = async (userData: OrgUserDraft) => {
     try {
       await addUser(userData);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -557,7 +586,7 @@ export default function UserManagementScreen() {
     }
   };
 
-  const handleEditUser = async (userData: Omit<OrgUser, "id" | "createdAt" | "organizationId">) => {
+  const handleEditUser = async (userData: OrgUserDraft) => {
     if (!editingUser) return;
     try {
       await updateUser(editingUser.id, userData);

@@ -1,0 +1,10 @@
+{
+  "build": {
+    "production": {
+      "env": {
+        "NODE_ENV": "production",
+        "BABEL_ENV": "production"
+      }
+    }
+  }
+}

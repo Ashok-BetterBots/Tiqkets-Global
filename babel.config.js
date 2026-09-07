@@ -16,9 +16,8 @@ module.exports = function (api) {
         },
       ],
       "react-native-reanimated/plugin",
-      // Strip console.log/debug/info in production builds to reduce output and
-      // prevent accidental data leakage. console.warn and console.error are kept
-      // so runtime errors are still surfaced.
+      // Strip client log/debug/info output from production bundles while
+      // preserving warnings and errors. Development keeps the full console.
       ...(isProduction
         ? [["transform-remove-console", { exclude: ["error", "warn"] }]]
         : []),

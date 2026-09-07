@@ -1,11 +1,11 @@
 {
-  "id": "31a3f957-d8c6-40ad-94da-1a556e5214be",
-  "createdAt": "2026-09-07T18:17:11.505Z",
+  "id": "ca89f1cd-a0ea-4a60-a472-06aabc8aae10",
+  "createdAt": "2026-09-07T19:22:26.722Z",
   "runtimeVersion": "exposdk:57.0.0",
   "launchAsset": {
-    "key": "bundle-1788805031505-3045",
+    "key": "bundle-1788808946722-5176",
     "contentType": "application/javascript",
-    "url": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/1788805031505-3045/_expo/static/js/ios/bundle.js"
+    "url": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/1788808946722-5176/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -23,6 +23,14 @@
         "supportsTablet": true,
         "bundleIdentifier": "com.tiqkets.app",
         "infoPlist": {
+          "ITSAppUsesNonExemptEncryption": false,
+          "NSAppTransportSecurity": {
+            "NSAllowsArbitraryLoads": false
+          },
+          "NSCameraUsageDescription": "Tiqkets uses your camera to scan queue and ticket QR codes.",
+          "NSLocationWhenInUseUsageDescription": "Tiqkets uses your location to show nearby queues and services and verify in-person access.",
+          "NSPhotoLibraryUsageDescription": "Tiqkets accesses your photos so you can set profile and event images.",
+          "NSPhotoLibraryAddUsageDescription": "Tiqkets saves ticket QR codes to your photo library when you choose to save them.",
           "UIBackgroundModes": [
             "audio"
           ]
@@ -32,13 +40,20 @@
         "adaptiveIcon": {
           "backgroundColor": "#8c1867",
           "foregroundImage": "./assets/images/icon.png",
-          "foregroundImageUrl": "http://tiqkets-mtrjeqbi-1951-1.ngrok.io/assets/./assets/images/icon.png"
+          "foregroundImageUrl": "http://tiqkets-mtrlkcqg-3969-1.ngrok.io/assets/./assets/images/icon.png"
         },
         "predictiveBackGestureEnabled": false,
         "package": "com.tiqkets.app",
+        "blockedPermissions": [
+          "android.permission.RECORD_AUDIO",
+          "android.permission.READ_MEDIA_VIDEO",
+          "android.permission.READ_MEDIA_AUDIO",
+          "android.permission.SYSTEM_ALERT_WINDOW"
+        ],
         "permissions": [
           "android.permission.CAMERA",
-          "android.permission.RECORD_AUDIO",
+          "android.permission.ACCESS_COARSE_LOCATION",
+          "android.permission.ACCESS_FINE_LOCATION",
           "android.permission.MODIFY_AUDIO_SETTINGS",
           "android.permission.FOREGROUND_SERVICE",
           "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
@@ -65,7 +80,27 @@
         [
           "expo-camera",
           {
-            "cameraPermission": "Allow TIQKETS to access your camera to scan QR codes and join queues."
+            "cameraPermission": "Tiqkets uses your camera to scan queue and ticket QR codes.",
+            "microphonePermission": false,
+            "recordAudioAndroid": false
+          }
+        ],
+        [
+          "expo-image-picker",
+          {
+            "photosPermission": "Tiqkets accesses your photos so you can set profile and event images.",
+            "microphonePermission": false
+          }
+        ],
+        [
+          "expo-location",
+          {
+            "locationAlwaysAndWhenInUsePermission": false,
+            "locationAlwaysPermission": false,
+            "locationWhenInUsePermission": "Tiqkets uses your location to show nearby queues and services and verify in-person access.",
+            "motionUsagePermission": false,
+            "isIosBackgroundLocationEnabled": false,
+            "isAndroidBackgroundLocationEnabled": false
           }
         ],
         "expo-localization",
@@ -74,8 +109,26 @@
         "expo-image",
         "expo-sharing",
         "expo-status-bar",
-        "expo-audio",
-        "expo-asset"
+        [
+          "expo-audio",
+          {
+            "microphonePermission": false,
+            "recordAudioAndroid": false,
+            "enableBackgroundRecording": false,
+            "enableBackgroundPlayback": true
+          }
+        ],
+        [
+          "expo-build-properties",
+          {
+            "android": {
+              "compileSdkVersion": 36,
+              "targetSdkVersion": 36
+            }
+          }
+        ],
+        "expo-asset",
+        "./plugins/with-store-compliance"
       ],
       "_internal": {
         "isDebug": false,
@@ -95,6 +148,14 @@
           "expo-camera": {
             "name": "expo-camera",
             "version": "57.0.4"
+          },
+          "expo-image-picker": {
+            "name": "expo-image-picker",
+            "version": "57.0.16"
+          },
+          "expo-location": {
+            "name": "expo-location",
+            "version": "57.0.16"
           },
           "expo-font": {
             "name": "expo-font",
@@ -128,7 +189,7 @@
         "android",
         "web"
       ],
-      "iconUrl": "http://tiqkets-mtrjeqbi-1951-1.ngrok.io/assets/./assets/images/icon.png",
+      "iconUrl": "http://tiqkets-mtrlkcqg-3969-1.ngrok.io/assets/./assets/images/icon.png",
       "hostUri": "d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev"
     },
     "expoGo": {
