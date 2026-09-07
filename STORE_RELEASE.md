@@ -94,6 +94,12 @@ Repository variables:
 Use a company-managed Google service account, enable the Google Play Android
 Developer API on its project, and invite its service-account email to Play
 Console with permissions limited to this app and the required release tracks.
+The configured publisher is
+`github-store-release@tiqkets-global-publishing.iam.gserviceaccount.com` in
+Google Cloud project `tiqkets-global-publishing`. Its JSON key is installed in
+GitHub as `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, and
+`devops.betterbots@gmail.com` has the Google Cloud permissions needed to manage
+the service account and rotate its key without relying on the original creator.
 Use an Apple **team API key**, created by an Account Holder/Admin. The key needs
 the permissions required for App Store delivery and certificate/profile setup.
 Store key files through GitHub Secrets, never in source, release assets, logs, or
@@ -194,7 +200,7 @@ Do not use `match nuke` or delete existing company certificates.
 6. Test the available Android internal build and iOS TestFlight build. Once both
    are approved, publish a stable GitHub Release to submit to both stores.
 
-### Google Play setup status — September 5, 2026
+### Google Play setup status — September 7, 2026
 
 - The default English (United States) store listing is saved and ready to send
   for review. It includes the description, a 512×512 icon, a 1024×500 feature
@@ -205,13 +211,15 @@ Do not use `match nuke` or delete existing company certificates.
   declarations state that this app has no ads, does not use Advertising ID, is
   not a government app, does not provide regulated financial features, and has
   no health features.
-- Remaining Play questionnaires are **Sign in details**, **Content rating**,
-  **Target audience**, and **Data safety**. A stable non-production reviewer
-  account is required before target-audience setup can continue. The content
-  rating form is prepared as **All Other App Types** with
-  `support@tiqkets.in`, but an authorized person must accept the IARC Terms of
-  Use before the questionnaire can proceed. Privacy/data answers must be
-  confirmed against actual production practices before certification.
+- Permanent organization and event reviewer accounts are saved in the private
+  **Sign in details** declaration, and the target audience is saved as
+  **18 and over**. The content-rating form still requires an authorized person
+  to accept the IARC Terms of Use. The verified first page of Data Safety is
+  saved as a draft; it cannot continue until the public account-deletion URL is
+  deployed, and an authorized representative must make the final certification.
+- A non-personal Google service account now has app-scoped production, testing,
+  and store-presence permissions. Its JSON is installed in GitHub Actions, so
+  future GitHub Releases can upload to Play without a personal login.
 - Account deletion is available inside both customer and organization settings.
   The public request form is
   `https://tiqketsglobal.replit.app/account-deletion`; it creates a high-priority

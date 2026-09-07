@@ -1,6 +1,6 @@
 # TIQKETS Global client handoff
 
-Prepared on September 5, 2026.
+Prepared on September 7, 2026.
 
 ## What is delivered
 
@@ -65,6 +65,11 @@ Release credentials are designed for company ownership rather than one laptop:
 - The company App Store Connect team key **TIQKETS GitHub Releases** is installed
   in GitHub Actions with App Manager access. It does not depend on a personal
   Apple login or app-specific password.
+- Google Play publishing uses the non-personal service account
+  `github-store-release@tiqkets-global-publishing.iam.gserviceaccount.com` in
+  project `tiqkets-global-publishing`. Its key is installed in GitHub Actions,
+  it has app-scoped release permissions, and `devops.betterbots@gmail.com` can
+  manage the service account and rotate the key.
 - `MATCH_PASSWORD`, the Android recovery material, Apple API key, and Google
   service-account JSON must also be stored in the client's company password
   manager with access for at least two authorized maintainers.
@@ -75,13 +80,15 @@ The detailed recovery procedure and the exact GitHub secret names are in
 
 ## Client actions required before public launch
 
-1. Provide a stable non-production reviewer login and clear review instructions.
+1. Keep the two permanent reviewer accounts active; both are now saved privately
+   in Apple and Google with role-specific navigation instructions.
 2. Store the Apple API `.p8` recovery file and `MATCH_PASSWORD` in the company
    password manager with access for at least two authorized maintainers.
-3. Create and authorize a company Google Play service account and install its JSON
-   as the `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` GitHub Actions secret.
-4. Have an authorized representative accept the IARC terms and complete content
-   rating, target audience, Data Safety, and remaining privacy declarations.
+3. Store a recovery copy of the Google service-account JSON in the company
+   password manager. If it is unavailable, the designated DevOps maintainer can
+   rotate the key in Google Cloud and replace the GitHub secret.
+4. Have an authorized representative accept the IARC terms, complete content
+   rating, certify Data Safety, and complete remaining privacy declarations.
 5. Deploy the current server commit so the public account-deletion URL returns
    successfully; the available Replit login opened a new personal account and
    does not own the existing deployment.
