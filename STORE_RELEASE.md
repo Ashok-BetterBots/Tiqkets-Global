@@ -93,7 +93,8 @@ Repository variables:
 
 Use a company-managed Google service account, enable the Google Play Android
 Developer API on its project, and invite its service-account email to Play
-Console with permissions limited to this app and the required release tracks.
+Console with permissions limited to this app. The publisher currently has
+app-level Admin access for TIQKETS only, not account-wide access.
 The configured publisher is
 `github-store-release@tiqkets-global-publishing.iam.gserviceaccount.com` in
 Google Cloud project `tiqkets-global-publishing`. Its JSON key is installed in
@@ -180,17 +181,16 @@ Do not use `match nuke` or delete existing company certificates.
 
 1. Production API URL `https://tiqketsglobal.replit.app` is verified and stored
    in the `EXPO_PUBLIC_API_URL` GitHub variable.
-2. Install the company Google Play API credential in GitHub Secrets. The Apple
-   API and signing credentials are installed, so do not run Apple setup again
-   unless rotating or renewing credentials.
-3. The current Android build completed successfully in GitHub Actions
-   ([run 33964123854](https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33964123854)).
-   Draft release `v1.0.0-rc.2` contains `tiqkets-1.0.0-210771865.aab`; its SHA-256 is
-   `c8e59dc6074a09b54c67afb9eff458002e5d3364c49c18c560d4705e1e8432ce`.
+2. Apple and Google API credentials and signing material are installed. Do not
+   run setup again unless rotating or renewing credentials.
+3. The corrected Android build completed successfully in GitHub Actions
+   ([run 34111367362](https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/34111367362)).
+   Draft release `v1.0.1` contains `tiqkets-1.0.1-210939941.aab`; its SHA-256 is
+   `5a8ebc744dc700ed896a0e12be339e3691c75090e542bf7299e5710db33c16f5`.
    Independent verification confirms package `com.tiqkets.app` and signer
    `TIQKETS Upload` / BetterBots AI Solutions Private Limited.
-4. The bundle is accepted by Play Console as version code `210771865` (version
-   `1.0.0`, target SDK 36) and released to the active internal-testing track.
+4. The bundle is accepted by Play Console as version code `210939941` (version
+   `1.0.1`, target SDK 36) and released to the active internal-testing track.
    The **TIQKETS Internal Testers** list currently has one tester. Later releases
    can upload
    through Fastlane after the Google service-account secret is installed.
@@ -207,7 +207,7 @@ Do not use `match nuke` or delete existing company certificates.
   graphic, and six ordered 1080×1920 phone screenshots.
 - The app is categorized as **Business**. Public support details are
   `hello@tiqkets.in`, `+91 91500 86103`, and `https://www.tiqkets.in`.
-- Seven of the eleven initial Play setup tasks are complete. The saved policy
+- Nine of the eleven initial Play setup tasks are complete. The saved policy
   declarations state that this app has no ads, does not use Advertising ID, is
   not a government app, does not provide regulated financial features, and has
   no health features.
@@ -217,8 +217,8 @@ Do not use `match nuke` or delete existing company certificates.
   to accept the IARC Terms of Use. All Data Safety answers are completed and
   saved as a draft, including the verified public deletion-information URL; an
   authorized representative must make the final certification.
-- A non-personal Google service account now has app-scoped production, testing,
-  and store-presence permissions. Its JSON is installed in GitHub Actions, so
+- A non-personal Google service account now has Admin permission for the TIQKETS
+  app only (no account-wide access). Its JSON is installed in GitHub Actions, so
   future GitHub Releases can upload to Play without a personal login.
 - Account deletion is available inside both customer and organization settings.
   The public deletion instructions are deployed at
@@ -227,9 +227,9 @@ Do not use `match nuke` or delete existing company certificates.
   project. The URL is verified and saved in the Data Safety draft. Run
   `npx firebase-tools deploy --only hosting --project tiqkets-global-publishing`
   after changing the page.
-- Internal release **TIQKETS 1.0.0 (210771865)** is published with version code `210771865`
-  and the GitHub Store notes. Play accepted the signed bundle and reports a
-  34.9 MB new-install download. The track is active with the **TIQKETS Internal
+- Internal release **1.0.1 (210939941)** is available to testers with the GitHub
+  Store notes. This build removes broad Android photo/video permissions and uses
+  the system photo picker. The track is active with the **TIQKETS Internal
   Testers** list selected; its opt-in URL is
   `https://play.google.com/apps/internaltest/4701748236699726598`.
 
@@ -239,10 +239,10 @@ is not required. Normal releases preserve the screenshots already in App Store
 Connect. The artwork should still receive a final human review: images 1 and 3
 contain Android status indicators inside iPhone frames.
 
-Apple build `8.1` is selected for App Store version `1.0`. App Store Connect's
-**Add for Review** validation reports three remaining blockers: Content Rights
-must be set, an Admin must publish the prepared App Privacy answers, and a stable
-reviewer username and password must be supplied.
+Apple build `8.1` is selected for App Store version `1.0`. Permanent reviewer
+credentials and contact details are saved. App Store Connect's **Add for Review**
+validation now reports two remaining blockers: Content Rights must be set and an
+Admin must publish the prepared App Privacy answers.
 
 ## Validation
 

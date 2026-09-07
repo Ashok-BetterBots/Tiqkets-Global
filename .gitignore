@@ -1,5 +1,6 @@
 node_modules/
 .expo/
+.firebase/
 .release-credentials/
 dist/
 server_dist/

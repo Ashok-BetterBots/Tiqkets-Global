@@ -1,1 +1,1 @@
-Initial TIQKETS release with queue, token, and WhatsApp notification improvements.
+Improved Android photo selection and store compatibility.

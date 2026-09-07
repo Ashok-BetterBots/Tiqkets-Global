@@ -60,10 +60,12 @@ platform :android do
       aab: File.expand_path(aab_path, ROOT),
       track: ENV.fetch("PLAY_TRACK"),
       release_status: ENV.fetch("PLAY_STATUS"),
-      release_name: "TIQKETS #{ENV.fetch('RELEASE_VERSION')}",
       metadata_path: File.join(ROOT, "fastlane/metadata/android"),
+      # Store listing assets are managed separately; releases only need the
+      # signed bundle and the changelog generated from the GitHub Release.
+      skip_upload_metadata: true,
       skip_upload_images: true,
-      skip_upload_screenshots: false
+      skip_upload_screenshots: true
     )
   end
 

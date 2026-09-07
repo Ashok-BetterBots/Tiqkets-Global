@@ -22,13 +22,13 @@ production environment secrets.
 
 ### Android
 
-- File: `tiqkets-1.0.0-210771865.aab`
+- File: `tiqkets-1.0.1-210939941.aab`
 - Package: `com.tiqkets.app`
-- Version: `1.0.0` (`210771865`)
+- Version: `1.0.1` (`210939941`)
 - Signer: TIQKETS Upload, BetterBots AI Solutions Private Limited
-- SHA-256: `c8e59dc6074a09b54c67afb9eff458002e5d3364c49c18c560d4705e1e8432ce`
-- GitHub Actions run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33964123854>
-- Status: published to the active Google Play internal-testing track; the
+- SHA-256: `5a8ebc744dc700ed896a0e12be339e3691c75090e542bf7299e5710db33c16f5`
+- GitHub Actions run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/34111367362>
+- Status: available on the active Google Play internal-testing track; the
   **TIQKETS Internal Testers** list contains one authorized tester
 
 ### iOS
@@ -68,7 +68,8 @@ Release credentials are designed for company ownership rather than one laptop:
 - Google Play publishing uses the non-personal service account
   `github-store-release@tiqkets-global-publishing.iam.gserviceaccount.com` in
   project `tiqkets-global-publishing`. Its key is installed in GitHub Actions,
-  it has app-scoped release permissions, and `devops.betterbots@gmail.com` can
+  it has Admin access to TIQKETS only (not account-wide access), and
+  `devops.betterbots@gmail.com` can
   manage the service account and rotate the key.
 - `MATCH_PASSWORD`, the Android recovery material, Apple API key, and Google
   service-account JSON must also be stored in the client's company password
@@ -93,9 +94,9 @@ The detailed recovery procedure and the exact GitHub secret names are in
    from `docs/account-deletion.html` whenever the deletion process changes.
 6. Visually approve the uploaded App Store iPhone screenshots; two supplied
    images contain Android status indicators inside iPhone frames.
-7. Have an Apple Admin publish the prepared privacy answers, set Content Rights,
-   and provide the reviewer username and password. These are the three blockers
-   App Store Connect reported when **Add for Review** was checked.
+7. Have an Apple Admin publish the prepared privacy answers and set Content
+   Rights. Reviewer credentials and contact details are already saved; these are
+   the two blockers App Store Connect reported when **Add for Review** was checked.
 8. Test the internal Android build and iOS TestFlight build before publishing the
    stable GitHub Release.
 
