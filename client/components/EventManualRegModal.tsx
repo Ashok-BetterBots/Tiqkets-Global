@@ -177,6 +177,7 @@ export function EventManualRegModal({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [regularDateConfirmedFingerprint, setRegularDateConfirmedFingerprint] = useState<string | null>(null);
   const [hasSpecialMembers, setHasSpecialMembers] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const CameraModule = Platform.OS !== "web" ? require("expo-camera") : null;
   const { CameraView, useCameraPermissions } = CameraModule || {
     CameraView: null,
@@ -201,6 +202,7 @@ export function EventManualRegModal({
     setCameraError(null);
     setRegularDateConfirmedFingerprint(null);
     setHasSpecialMembers(false);
+    setStep(1);
     setEventSlotDurationMinutes(30);
   }, []);
 
@@ -278,7 +280,14 @@ export function EventManualRegModal({
   );
   const lastDate = availableDates.length > 0 ? availableDates[availableDates.length - 1] : null;
   const regularDates = availableDates.length > 1 ? availableDates.slice(0, -1) : availableDates;
-  const formFingerprint = useMemo(() => JSON.stringify(form), [form]);
+  const step1Fingerprint = useMemo(() => JSON.stringify({
+    locationId: form.locationId,
+    productCategories: [...form.productCategories].sort(),
+    specialCategories: [...form.selectedSpecialCategories].sort(),
+    slotDate: form.slotDate,
+    slotTime: form.slotTime,
+    hasSpecialMembers,
+  }), [form.locationId, form.productCategories, form.selectedSpecialCategories, form.slotDate, form.slotTime, hasSpecialMembers]);
 
   // A location can change while the special-access selection is still active.
   // Clear the old slot immediately, then assign the new location's final
@@ -336,6 +345,16 @@ export function EventManualRegModal({
     (!needsPaymentReason || form.paymentReason.trim().length > 1) &&
     (form.paymentMode !== "offline_paid" || balanceDue <= 0) &&
     (form.ticketMethod !== "preprinted" || form.preprintedTicketCode.trim().length > 0);
+
+  const canContinueStep1 =
+    form.productCategories.length > 0 &&
+    (!hasSpecialMembers || form.selectedSpecialCategories.length > 0) &&
+    !!form.slotDate &&
+    !!form.slotTime;
+  const canContinueStep2 =
+    form.customerName.trim().length > 1 &&
+    form.customerPhone.replace(/\D/g, "").length >= 10 &&
+    !missingRequiredField;
 
   const setField = useCallback((patch: Partial<EmptyForm>) => setForm((f) => ({ ...f, ...patch })), []);
   const setCustomField = useCallback((fid: string, value: any) => {
@@ -411,8 +430,9 @@ export function EventManualRegModal({
     }
   }, [eventId, canSubmit, selectedLocation, form, amountCollectedNum, onSuccess]);
 
-  const submit = useCallback(() => {
-    if (!hasSpecialMembers && regularDateConfirmedFingerprint !== formFingerprint) {
+  const continueFromStep1 = useCallback(() => {
+    if (!canContinueStep1) return;
+    if (!hasSpecialMembers && regularDateConfirmedFingerprint !== step1Fingerprint) {
       Alert.alert(
         "Please confirm before continuing",
         "For safety reasons, senior citizens, pregnant women, specially abled visitors, and visitors with infants are not permitted on regular event days. If anyone in the group belongs to one of these categories, go back and select Yes so the appropriate special-access date can be assigned.",
@@ -421,16 +441,20 @@ export function EventManualRegModal({
           {
             text: "Confirm No & continue",
             onPress: () => {
-              setRegularDateConfirmedFingerprint(formFingerprint);
-              void performSubmit();
+              setRegularDateConfirmedFingerprint(step1Fingerprint);
+              setStep(2);
             },
           },
         ],
       );
       return;
     }
+    setStep(2);
+  }, [canContinueStep1, hasSpecialMembers, regularDateConfirmedFingerprint, step1Fingerprint]);
+
+  const submit = useCallback(() => {
     void performSubmit();
-  }, [hasSpecialMembers, formFingerprint, regularDateConfirmedFingerprint, performSubmit]);
+  }, [performSubmit]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
@@ -447,7 +471,7 @@ export function EventManualRegModal({
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={[styles.card, { backgroundColor: surface, flex: 1, maxHeight: screenHeight - insets.top - insets.bottom - 24 }]}
+            style={[styles.card, { backgroundColor: surface, height: Math.min(screenHeight * 0.75, screenHeight - insets.top - insets.bottom - 24) }]}
             testID="manual-reg-sheet"
           >
             <View style={[styles.handle, { backgroundColor: border }]} />
@@ -456,9 +480,33 @@ export function EventManualRegModal({
                 {success ? "Registered" : "Add Customer"}
               </ThemedText>
               <Pressable onPress={onClose} hitSlop={12} testID="button-close-manual-reg">
-                <Feather name="x" size={22} color={textSecondary} />
+                <ThemedText style={{ color: BRAND, fontSize: 13, fontWeight: "800" }}>Cancel</ThemedText>
               </Pressable>
             </View>
+            {!success && !loadingLocations ? (
+              <View style={styles.progressWrap}>
+                {[["Visit details", 1], ["Customer", 2], ["Ticket & payment", 3]].map(([label, number], index) => {
+                  const n = number as 1 | 2 | 3;
+                  const active = step === n;
+                  const complete = step > n;
+                  return (
+                    <React.Fragment key={n}>
+                      {index > 0 ? <View style={[styles.progressLine, { backgroundColor: complete || active ? BRAND : border }]} /> : null}
+                      <View style={styles.progressItem}>
+                        <View style={[styles.progressDot, { backgroundColor: active || complete ? BRAND : bg, borderColor: active || complete ? BRAND : border }]}>
+                          {complete ? <Feather name="check" size={11} color="#FFF" /> : (
+                            <ThemedText style={{ color: active ? "#FFF" : textSecondary, fontSize: 11, fontWeight: "800" }}>{n}</ThemedText>
+                          )}
+                        </View>
+                        <ThemedText style={{ color: active ? text : textSecondary, fontSize: 10, fontWeight: active ? "800" : "600", textAlign: "center" }}>
+                          {label}
+                        </ThemedText>
+                      </View>
+                    </React.Fragment>
+                  );
+                })}
+              </View>
+            ) : null}
 
             <KeyboardAwareScrollViewCompat
               style={[styles.scrollBody, { flex: 1 }]}
@@ -512,6 +560,8 @@ export function EventManualRegModal({
                     </View>
                   ) : null}
 
+                  {step === 1 ? (
+                    <>
                   {locations.length > 1 ? (
                     <Field label="Location">
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.xs }}>
@@ -790,7 +840,11 @@ export function EventManualRegModal({
                       </View>
                     </View>
                   ) : null}
+                    </>
+                  ) : null}
 
+                  {step === 2 ? (
+                    <>
                   <Field label="Full name">
                     <TextInput
                       value={form.customerName}
@@ -870,6 +924,10 @@ export function EventManualRegModal({
                       colors={{ text, textSecondary, border }}
                     />
                   ))}
+                    </>
+                  ) : null}
+                  {step === 3 ? (
+                    <>
                   <Field label="Ticket method">
                     <View style={{ flexDirection: "row", gap: Spacing.sm }}>
                       {([
@@ -972,8 +1030,8 @@ export function EventManualRegModal({
                              ? "Record offline payment or issue a complimentary/unpaid ticket."
                              : "Free entry — tap Register to proceed."}
                          </ThemedText>
-                       </View>
-                     </View>
+                        </View>
+                      </View>
 
                      {amountDue > 0 ? (
                        <View style={{ flexDirection: "row", gap: Spacing.xs, marginTop: Spacing.sm }}>
@@ -1014,7 +1072,7 @@ export function EventManualRegModal({
                              style={[styles.input, { color: text, borderColor: border, paddingVertical: 6, marginTop: 2 }]}
                              testID="input-amount-collected"
                            />
-                         </View>
+                          </View>
                        </View>
                      ) : null}
                      {amountDue > 0 && form.paymentMode === "offline_paid" ? (
@@ -1032,24 +1090,34 @@ export function EventManualRegModal({
                          testID="input-payment-reason"
                        />
                      ) : null}
-                   </View>
+                    </View>
+                    </>
+                  ) : null}
                 </View>
               )}
             </KeyboardAwareScrollViewCompat>
 
             {!success && !loadingLocations ? (
               <View style={styles.footer} testID="manual-reg-footer">
-                <Pressable style={[styles.secondaryBtn, { borderColor: BRAND }]} onPress={onClose}>
-                  <ThemedText style={{ color: BRAND, fontWeight: "700" }}>Cancel</ThemedText>
-                </Pressable>
+                {step > 1 ? (
+                  <Pressable style={[styles.secondaryBtn, { borderColor: BRAND }]} onPress={() => setStep((step - 1) as 1 | 2)}>
+                    <ThemedText style={{ color: BRAND, fontWeight: "700" }}>Back</ThemedText>
+                  </Pressable>
+                ) : null}
                 <Pressable
-                  style={[styles.primaryBtn, { backgroundColor: BRAND }, (!canSubmit || saving) ? { opacity: 0.5 } : null]}
-                  onPress={submit}
-                  disabled={!canSubmit || saving}
-                  testID="button-submit-manual-reg"
+                  style={[
+                    styles.primaryBtn,
+                    { backgroundColor: BRAND },
+                    ((step === 1 && !canContinueStep1) || (step === 2 && !canContinueStep2) || (step === 3 && (!canSubmit || saving)))
+                      ? { opacity: 0.5 }
+                      : null,
+                  ]}
+                  onPress={() => step === 1 ? continueFromStep1() : step === 2 ? setStep(3) : submit()}
+                  disabled={(step === 1 && !canContinueStep1) || (step === 2 && !canContinueStep2) || (step === 3 && (!canSubmit || saving))}
+                  testID={step === 3 ? "button-submit-manual-reg" : "button-next-manual-reg"}
                 >
                   <ThemedText style={{ color: "#FFF", fontWeight: "700" }}>
-                    {saving ? "Registering…" : "Register"}
+                    {step === 3 ? (saving ? "Registering…" : "Register") : "Next"}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -1178,10 +1246,14 @@ function CustomFieldInput({
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end", paddingHorizontal: 10, paddingBottom: 20 },
-  card: { borderRadius: 28, overflow: "hidden" },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  card: { width: "100%", borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: "hidden" },
   handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 4 },
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, gap: 8 },
+  progressWrap: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 24, paddingBottom: 14 },
+  progressItem: { width: 76, alignItems: "center", gap: 5 },
+  progressDot: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  progressLine: { flex: 1, height: 2, marginTop: 12 },
   scrollBody: { flex: 1 },
   body: { paddingHorizontal: 20, paddingBottom: Spacing.lg, gap: Spacing.md },
   footer: { flexDirection: "row", gap: Spacing.sm, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
