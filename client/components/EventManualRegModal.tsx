@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -178,6 +178,16 @@ export function EventManualRegModal({
   const [regularDateConfirmedFingerprint, setRegularDateConfirmedFingerprint] = useState<string | null>(null);
   const [hasSpecialMembers, setHasSpecialMembers] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const formScrollRef = useRef<any>(null);
+  const formScrollOffsetRef = useRef(0);
+  const gentlyScrollAfterSlotSelection = useCallback((distance = 96) => {
+    requestAnimationFrame(() => {
+      formScrollRef.current?.scrollTo?.({
+        y: formScrollOffsetRef.current + distance,
+        animated: true,
+      });
+    });
+  }, []);
   const CameraModule = Platform.OS !== "web" ? require("expo-camera") : null;
   const { CameraView, useCameraPermissions } = CameraModule || {
     CameraView: null,
@@ -509,6 +519,7 @@ export function EventManualRegModal({
             ) : null}
 
             <KeyboardAwareScrollViewCompat
+              ref={formScrollRef}
               style={[styles.scrollBody, { flex: 1 }]}
               contentContainerStyle={styles.body}
               keyboardShouldPersistTaps="handled"
@@ -517,6 +528,10 @@ export function EventManualRegModal({
               nestedScrollEnabled
               directionalLockEnabled
               bottomOffset={24}
+              onScroll={(event: any) => {
+                formScrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+              }}
+              scrollEventThrottle={16}
               testID="manual-reg-scroll"
             >
               {loadingLocations ? (
@@ -757,6 +772,7 @@ export function EventManualRegModal({
                                     setField({ slotDate: d.date, slotTime: "" });
                                     setShowDateDropdown(false);
                                     setShowTimeDropdown(false);
+                                    gentlyScrollAfterSlotSelection();
                                   }}
                                   style={[{ paddingHorizontal: Spacing.md, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: Spacing.sm, backgroundColor: sel ? BRAND + "15" : surface }, idx > 0 ? { borderTopWidth: 1, borderTopColor: border } : {}]}
                                 >
@@ -798,6 +814,7 @@ export function EventManualRegModal({
                                     onPress={() => {
                                       setField({ slotTime: t.time });
                                       setShowTimeDropdown(false);
+                                      gentlyScrollAfterSlotSelection(72);
                                     }}
                                     style={[
                                       { paddingHorizontal: Spacing.md, paddingVertical: 11, flexDirection: "row", alignItems: "center", gap: Spacing.sm, backgroundColor: sel ? BRAND + "15" : surface },

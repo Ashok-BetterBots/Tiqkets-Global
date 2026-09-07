@@ -3121,7 +3121,7 @@
                       </template>
                     </div>
                   </div>
-                  <div class="flex-1 min-h-0 overflow-y-auto px-6 py-5">
+                  <div x-ref="manualRegScroll" class="flex-1 min-h-0 overflow-y-auto px-6 py-5">
                   <template x-if="manualRegLoadingLocations">
                     <p class="text-center text-gray-400 text-sm py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading slots...</p>
                   </template>
@@ -3222,7 +3222,7 @@
                               </template>
                               <template x-for="d in manualRegRegularDates" :key="d.date">
                                 <button type="button"
-                                        @click="manualRegForm.slotDate=d.date; manualRegForm.slotTime=''; manualRegDateDropdownOpen=false; manualRegTimeDropdownOpen=false"
+                                        @click="manualRegForm.slotDate=d.date; manualRegForm.slotTime=''; manualRegDateDropdownOpen=false; manualRegTimeDropdownOpen=false; scrollManualRegAfterSlotSelection(96)"
                                         class="flex w-full items-center justify-between border-b border-gray-100 px-3 py-2.5 text-left text-xs font-semibold last:border-0"
                                         :class="manualRegForm.slotDate === d.date ? 'bg-brand/5 text-brand' : 'text-gray-700 hover:bg-gray-50'">
                                   <span x-text="manualRegFormatDate(d)"></span>
@@ -3251,7 +3251,7 @@
                                  class="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-52 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
                               <template x-for="t in manualRegSlotTimes" :key="t.time">
                                 <button type="button"
-                                        @click="manualRegForm.slotTime=t.time; manualRegTimeDropdownOpen=false"
+                                        @click="manualRegForm.slotTime=t.time; manualRegTimeDropdownOpen=false; scrollManualRegAfterSlotSelection(72)"
                                         class="flex w-full items-center justify-between border-b border-gray-100 px-3 py-2.5 text-left text-xs font-semibold last:border-0"
                                         :class="manualRegForm.slotTime === t.time ? 'bg-brand/5 text-brand' : 'text-gray-700 hover:bg-gray-50'">
                                   <span x-text="t.label + ' · ' + t.available + ' left'"></span>
@@ -14319,6 +14319,12 @@
             this.manualRegStep = 2;
           }
           else if (this.manualRegStep === 2 && this.manualRegCanContinueStep2) this.manualRegStep = 3;
+        },
+        scrollManualRegAfterSlotSelection(distance = 96) {
+          this.$nextTick(() => {
+            const scroller = this.$refs.manualRegScroll;
+            if (scroller) scroller.scrollBy({ top: distance, behavior: 'smooth' });
+          });
         },
         get manualRegCanSubmit() {
           const f = this.manualRegForm;
