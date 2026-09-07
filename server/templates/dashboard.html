@@ -3066,14 +3066,14 @@
               </div>
             </div>
           </div>
-          <div x-show="manualRegModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="closeManualRegModal()">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto my-auto" @click.stop>
-              <div class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+          <div x-show="manualRegModalOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center overflow-hidden" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="closeManualRegModal()">
+            <div class="bg-white rounded-t-3xl shadow-2xl w-full max-w-2xl h-[75vh] flex flex-col overflow-hidden" @click.stop>
+              <div class="bg-white border-b border-gray-100 px-6 pt-4 pb-3 flex items-center justify-between rounded-t-3xl z-10">
                 <div>
                   <h3 class="font-extrabold text-gray-900">Add customer registration</h3>
                   <p class="text-xs text-gray-400 mt-0.5" x-text="selectedEvent ? selectedEvent.name : ''"></p>
                 </div>
-                <button @click="closeManualRegModal()" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                <button @click="closeManualRegModal()" class="px-3 py-2 rounded-lg hover:bg-gray-50 text-brand text-xs font-extrabold">Cancel</button>
               </div>
 
               <!-- Success screen -->
@@ -3095,7 +3095,7 @@
                     <button @click="printEventTicket(manualRegSuccess.qrToken, 'thermal')" class="btn-secondary text-xs"><i class="fa-solid fa-receipt mr-1"></i>Print (thermal)</button>
                   </div>
                   <div class="flex gap-2">
-                    <button @click="manualRegSuccess = null" class="btn-secondary text-xs flex-1">Add another</button>
+                    <button @click="openManualRegModal()" class="btn-secondary text-xs flex-1">Add another</button>
                     <button @click="closeManualRegModal()" class="btn-primary text-xs flex-1">Done</button>
                   </div>
                 </div>
@@ -3103,12 +3103,31 @@
 
               <!-- Form -->
               <template x-if="!manualRegSuccess">
-                <div class="px-6 py-5">
+                <div class="flex-1 min-h-0 flex flex-col">
+                  <div x-show="!manualRegLoadingLocations" class="px-6 py-3 border-b border-gray-100">
+                    <div class="flex items-start">
+                      <template x-for="(item, index) in [{label:'Visit details', step:1}, {label:'Customer', step:2}, {label:'Ticket & payment', step:3}]" :key="item.step">
+                        <div class="contents">
+                          <div x-show="index > 0" class="flex-1 h-0.5 mt-3" :class="manualRegStep >= item.step ? 'bg-brand' : 'bg-gray-200'"></div>
+                          <div class="w-24 flex flex-col items-center gap-1.5">
+                            <div class="w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-extrabold"
+                                 :class="manualRegStep >= item.step ? 'bg-brand border-brand text-white' : 'bg-gray-50 border-gray-200 text-gray-400'">
+                              <i x-show="manualRegStep > item.step" class="fa-solid fa-check"></i>
+                              <span x-show="manualRegStep <= item.step" x-text="item.step"></span>
+                            </div>
+                            <span class="text-[10px] text-center font-bold" :class="manualRegStep === item.step ? 'text-gray-800' : 'text-gray-400'" x-text="item.label"></span>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <div class="flex-1 min-h-0 overflow-y-auto px-6 py-5">
                   <template x-if="manualRegLoadingLocations">
                     <p class="text-center text-gray-400 text-sm py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading slots...</p>
                   </template>
                   <template x-if="!manualRegLoadingLocations">
                     <div class="space-y-4">
+                      <div x-show="manualRegStep === 1" class="space-y-4">
                       <div x-show="manualRegLocations.length > 1">
                         <label class="text-[11px] font-bold text-gray-400 uppercase">Location</label>
                         <select x-model="manualRegForm.locationId" @change="manualRegLocationChanged()" class="input-field mt-1 text-sm">
@@ -3215,6 +3234,8 @@
                           </select>
                         </div>
                       </div>
+                      </div>
+                      <div x-show="manualRegStep === 2" class="space-y-4">
                       <div>
                         <label class="text-[11px] font-bold text-gray-400 uppercase">Customer name</label>
                         <input x-model="manualRegForm.customerName" placeholder="Full name" class="input-field mt-1 text-sm" autocomplete="off">
@@ -3272,7 +3293,9 @@
                           </template>
                         </div>
                       </template>
+                      </div>
 
+                      <div x-show="manualRegStep === 3" class="space-y-4">
                       <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
                         <p class="text-sm font-extrabold text-gray-800">Ticket method</p>
                         <div class="grid grid-cols-2 gap-2">
@@ -3319,12 +3342,21 @@
                         <p class="text-xs font-bold" :class="manualRegBalanceDue > 0 ? 'text-amber-700' : 'text-green-700'" x-show="manualRegAmountDue > 0 && manualRegForm.paymentMode === 'offline_paid'" x-text="manualRegBalanceDue > 0 ? ('Balance remaining: ₹' + manualRegBalanceDue) : 'Fully paid'"></p>
                         <input x-show="manualRegForm.paymentMode !== 'offline_paid'" x-model="manualRegForm.paymentReason" placeholder="Reason for complimentary/unpaid registration" class="input-field text-sm">
                       </div>
-
-                      <button @click="submitManualReg()" class="btn-primary text-sm w-full" :disabled="!manualRegCanSubmit || manualRegSaving">
-                        <i class="fa-solid mr-1.5" :class="manualRegSaving ? 'fa-spinner fa-spin' : 'fa-circle-check'"></i>Register
-                      </button>
+                      </div>
                     </div>
                   </template>
+                  </div>
+                  <div x-show="!manualRegLoadingLocations" class="border-t border-gray-100 bg-white px-6 py-4 flex gap-2">
+                    <button type="button" @click="closeManualRegModal()" class="btn-secondary text-sm">Cancel</button>
+                    <button x-show="manualRegStep > 1" type="button" @click="manualRegStep--" class="btn-secondary text-sm flex-1">Back</button>
+                    <button x-show="manualRegStep < 3" type="button" @click="nextManualRegStep()" class="btn-primary text-sm flex-1"
+                            :disabled="(manualRegStep === 1 && !manualRegCanContinueStep1) || (manualRegStep === 2 && !manualRegCanContinueStep2)">
+                      Next
+                    </button>
+                    <button x-show="manualRegStep === 3" type="button" @click="submitManualReg()" class="btn-primary text-sm flex-1" :disabled="!manualRegCanSubmit || manualRegSaving">
+                      <i class="fa-solid mr-1.5" :class="manualRegSaving ? 'fa-spinner fa-spin' : 'fa-circle-check'"></i>Register
+                    </button>
+                  </div>
                 </div>
               </template>
             </div>
@@ -7574,6 +7606,7 @@
         manualRegSaving: false,
         manualRegSpecialWarningOpen: false,
         manualRegConfirmedFingerprint: '',
+        manualRegStep: 1,
         manualRegPtkResolving: false,
         manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, productCategories: [], formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
         manualRegSuccess: null,
@@ -14022,6 +14055,7 @@
           this.manualRegHasSpecialMembers = false;
           this.manualRegSpecialWarningOpen = false;
           this.manualRegConfirmedFingerprint = '';
+          this.manualRegStep = 1;
           this.manualRegLang = 'en';
           this.manualRegModalOpen = true;
           this.manualRegLoadingLocations = true;
@@ -14093,20 +14127,9 @@
             locationId: f.locationId || '',
             slotDate: f.slotDate || '',
             slotTime: f.slotTime || '',
-            customerName: f.customerName || '',
-            customerPhone: f.customerPhone || '',
-            customerEmail: f.customerEmail || '',
-            familyMembersCount: String(f.familyMembersCount ?? ''),
             productCategories: [...(f.productCategories || [])].sort(),
             specialCategories: [...this.manualRegSpecialCategories].sort(),
             hasSpecialMembers: this.manualRegHasSpecialMembers,
-            formData: f.formData || {},
-            paymentMode: f.paymentMode || '',
-            paymentReason: f.paymentReason || '',
-            amountCollected: String(f.amountCollected ?? ''),
-            ticketMethod: f.ticketMethod || '',
-            preprintedTicketCode: f.preprintedTicketCode || '',
-            language: this.manualRegLang || 'en',
           });
         },
         closeManualSpecialWarning(focusEdit = false) {
@@ -14117,7 +14140,7 @@
           if (this.manualRegSaving) return;
           this.manualRegSpecialWarningOpen = false;
           this.manualRegConfirmedFingerprint = this.manualRegConfirmationFingerprint();
-          this.submitManualReg();
+          this.manualRegStep = 2;
         },
         // Resolve any scan value (full URL or PTK ID) to the canonical booking ID.
         // Called by the preprintedTicketCode @change handler so the field always
@@ -14232,6 +14255,31 @@
             return v === undefined || v === null || String(v).trim() === '';
           });
         },
+        get manualRegCanContinueStep1() {
+          const f = this.manualRegForm;
+          return Array.isArray(f.productCategories)
+            && f.productCategories.length > 0
+            && (!this.manualRegHasSpecialMembers || this.manualRegHasSpecialNeeds)
+            && Boolean(f.slotDate)
+            && Boolean(f.slotTime);
+        },
+        get manualRegCanContinueStep2() {
+          const f = this.manualRegForm;
+          return Boolean(String(f.customerName || '').trim())
+            && String(f.customerPhone || '').replace(/\D/g, '').length >= 10
+            && !this.manualRegMissingRequiredField;
+        },
+        nextManualRegStep() {
+          if (this.manualRegStep === 1 && this.manualRegCanContinueStep1) {
+            const confirmationFingerprint = this.manualRegConfirmationFingerprint();
+            if (!this.manualRegHasSpecialMembers && this.manualRegConfirmedFingerprint !== confirmationFingerprint) {
+              this.manualRegSpecialWarningOpen = true;
+              return;
+            }
+            this.manualRegStep = 2;
+          }
+          else if (this.manualRegStep === 2 && this.manualRegCanContinueStep2) this.manualRegStep = 3;
+        },
         get manualRegCanSubmit() {
           const f = this.manualRegForm;
           if (this.manualRegSaving) return false;
@@ -14259,11 +14307,6 @@
           if (f.paymentMode === 'offline_paid' && this.manualRegBalanceDue > 0) { this.showToast('Collect the full amount due before registering', 'error'); return; }
           if (f.paymentMode !== 'offline_paid' && !String(f.paymentReason || '').trim()) { this.showToast('Enter a reason for complimentary or unpaid registration', 'error'); return; }
           if (f.ticketMethod === 'preprinted' && !String(f.preprintedTicketCode || '').trim()) { this.showToast('Scan or enter the pre-printed ticket ID', 'error'); return; }
-          const confirmationFingerprint = this.manualRegConfirmationFingerprint();
-          if (!this.manualRegHasSpecialMembers && this.manualRegConfirmedFingerprint !== confirmationFingerprint) {
-            this.manualRegSpecialWarningOpen = true;
-            return;
-          }
           this.manualRegSaving = true;
           try {
             const loc = this.manualRegSelectedLocation;

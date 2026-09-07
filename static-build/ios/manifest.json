@@ -1,11 +1,11 @@
 {
-  "id": "015a49df-eb9b-4658-89ce-632f411fbcf6",
-  "createdAt": "2026-09-05T12:22:26.209Z",
+  "id": "31a3f957-d8c6-40ad-94da-1a556e5214be",
+  "createdAt": "2026-09-07T18:17:11.505Z",
   "runtimeVersion": "exposdk:57.0.0",
   "launchAsset": {
-    "key": "bundle-1788610946209-2515",
+    "key": "bundle-1788805031505-3045",
     "contentType": "application/javascript",
-    "url": "https://example.invalid/1788610946209-2515/_expo/static/js/ios/bundle.js"
+    "url": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/1788805031505-3045/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -32,7 +32,7 @@
         "adaptiveIcon": {
           "backgroundColor": "#8c1867",
           "foregroundImage": "./assets/images/icon.png",
-          "foregroundImageUrl": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/assets/./assets/images/icon.png"
+          "foregroundImageUrl": "http://tiqkets-mtrjeqbi-1951-1.ngrok.io/assets/./assets/images/icon.png"
         },
         "predictiveBackGestureEnabled": false,
         "package": "com.tiqkets.app",
@@ -128,11 +128,11 @@
         "android",
         "web"
       ],
-      "iconUrl": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/assets/./assets/images/icon.png",
-      "hostUri": "example.invalid"
+      "iconUrl": "http://tiqkets-mtrjeqbi-1951-1.ngrok.io/assets/./assets/images/icon.png",
+      "hostUri": "d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev"
     },
     "expoGo": {
-      "debuggerHost": "example.invalid",
+      "debuggerHost": "d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev",
       "developer": {
         "tool": "expo-cli",
         "projectRoot": "/home/runner/workspace"
@@ -143,6 +143,6 @@
       "mainModuleName": "client/index",
       "username": "thiagu.r"
     },
-    "scopeKey": "@anonymous/tiqkets-5a5ad2cc-d30b-40f6-a8f3-a2679c2d10d3"
+    "scopeKey": "@anonymous/tiqkets-bfffd236-12c0-4006-80d9-6c361a90ea32"
   }
 }
