@@ -65,7 +65,12 @@ interface Registration {
 }
 
 async function fetchJson(path: string): Promise<any> {
-  const res = await fetch(new URL(path, getApiUrl()), { credentials: "include" });
+  let res: Response;
+  try {
+    res = await fetch(new URL(path, getApiUrl()), { credentials: "include" });
+  } catch {
+    throw new Error("Unable to reach the server. Please check your connection and try again.");
+  }
   if (!res.ok) {
     const t = await res.text().catch(() => "");
     let b: any = null;
@@ -76,12 +81,17 @@ async function fetchJson(path: string): Promise<any> {
 }
 
 async function postJson(path: string, body: any): Promise<any> {
-  const res = await fetch(new URL(path, getApiUrl()), {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(new URL(path, getApiUrl()), {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error("Unable to reach the server. Please check your connection and try again.");
+  }
   const t = await res.text().catch(() => "");
   let data: any = null;
   try { data = JSON.parse(t); } catch {}
