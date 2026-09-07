@@ -176,6 +176,7 @@ export function EventManualRegModal({
   const [cameraScanned, setCameraScanned] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [regularDateConfirmedFingerprint, setRegularDateConfirmedFingerprint] = useState<string | null>(null);
+  const [hasSpecialMembers, setHasSpecialMembers] = useState(false);
   const CameraModule = Platform.OS !== "web" ? require("expo-camera") : null;
   const { CameraView, useCameraPermissions } = CameraModule || {
     CameraView: null,
@@ -199,6 +200,7 @@ export function EventManualRegModal({
     setCameraScanned(false);
     setCameraError(null);
     setRegularDateConfirmedFingerprint(null);
+    setHasSpecialMembers(false);
     setEventSlotDurationMinutes(30);
   }, []);
 
@@ -329,6 +331,7 @@ export function EventManualRegModal({
     !!form.slotDate &&
     !!form.slotTime &&
     form.productCategories.length > 0 &&
+    (!hasSpecialMembers || form.selectedSpecialCategories.length > 0) &&
     !missingRequiredField &&
     (!needsPaymentReason || form.paymentReason.trim().length > 1) &&
     (form.paymentMode !== "offline_paid" || balanceDue <= 0) &&
@@ -409,14 +412,14 @@ export function EventManualRegModal({
   }, [eventId, canSubmit, selectedLocation, form, amountCollectedNum, onSuccess]);
 
   const submit = useCallback(() => {
-    if (form.selectedSpecialCategories.length === 0 && regularDateConfirmedFingerprint !== formFingerprint) {
+    if (!hasSpecialMembers && regularDateConfirmedFingerprint !== formFingerprint) {
       Alert.alert(
-        "Special access dates",
-        "Senior citizens, pregnant women, infants, and specially abled visitors are not permitted on regular dates. Please choose the last available event date for priority access.",
+        "Please confirm before continuing",
+        "For safety reasons, senior citizens, pregnant women, specially abled visitors, and visitors with infants are not permitted on regular event days. If anyone in the group belongs to one of these categories, go back and select Yes so the appropriate special-access date can be assigned.",
         [
-          { text: "Go back and edit", style: "cancel" },
+          { text: "Go back and change", style: "cancel" },
           {
-            text: "None apply — continue",
+            text: "Confirm No & continue",
             onPress: () => {
               setRegularDateConfirmedFingerprint(formFingerprint);
               void performSubmit();
@@ -427,7 +430,7 @@ export function EventManualRegModal({
       return;
     }
     void performSubmit();
-  }, [form.selectedSpecialCategories.length, formFingerprint, regularDateConfirmedFingerprint, performSubmit]);
+  }, [hasSpecialMembers, formFingerprint, regularDateConfirmedFingerprint, performSubmit]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
@@ -579,8 +582,46 @@ export function EventManualRegModal({
                     </View>
                   </Field>
 
-                  <Field label="Special access (optional)">
-                    <View style={styles.tileGrid}>
+                  <Field label="Visiting with any of the below members?">
+                    <View style={styles.yesNoRow}>
+                      {([false, true] as const).map((answer) => {
+                        const selected = hasSpecialMembers === answer;
+                        return (
+                          <Pressable
+                            key={String(answer)}
+                            onPress={() => {
+                              setHasSpecialMembers(answer);
+                              setRegularDateConfirmedFingerprint(null);
+                              if (!answer) {
+                                setField({ selectedSpecialCategories: [], slotDate: "", slotTime: "" });
+                                setShowDateDropdown(false);
+                                setShowTimeDropdown(false);
+                              }
+                            }}
+                            style={[
+                              styles.yesNoOption,
+                              { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "12" : surface },
+                            ]}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: selected }}
+                            testID={`radio-special-members-${answer ? "yes" : "no"}`}
+                          >
+                            <View style={[styles.radioOuter, { borderColor: selected ? BRAND : border }]}>
+                              {selected ? <View style={styles.radioInner} /> : null}
+                            </View>
+                            <ThemedText style={{ color: selected ? BRAND : text, fontWeight: "800" }}>
+                              {answer ? "Yes" : "No"}
+                            </ThemedText>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    {hasSpecialMembers ? (
+                      <View style={[styles.specialMembersPanel, { borderColor: border, backgroundColor: bg }]}>
+                        <ThemedText style={{ color: text, fontSize: 13, fontWeight: "800", marginBottom: Spacing.sm }}>
+                          Select all that apply
+                        </ThemedText>
+                        <View style={styles.tileGrid}>
                       {([
                         ["senior_citizen", "Senior Citizen"],
                         ["pregnant_women", "Pregnant Women"],
@@ -603,7 +644,7 @@ export function EventManualRegModal({
                               setShowDateDropdown(false);
                               setShowTimeDropdown(false);
                             }}
-                            style={[styles.categoryTile, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : "transparent" }]}
+                            style={[styles.categoryTile, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : surface }]}
                             accessibilityRole="checkbox"
                             accessibilityState={{ checked: selected }}
                             testID={`checkbox-special-category-${value}`}
@@ -622,10 +663,12 @@ export function EventManualRegModal({
                           </Pressable>
                         );
                       })}
-                    </View>
-                    <ThemedText style={{ color: textSecondary, fontSize: 11, marginTop: 4 }}>
-                      Selecting any option locks the last available event date.
-                    </ThemedText>
+                        </View>
+                        <ThemedText style={{ color: textSecondary, fontSize: 11, marginTop: Spacing.sm }}>
+                          Selecting a category reserves the last available event date for special access.
+                        </ThemedText>
+                      </View>
+                    ) : null}
                   </Field>
 
                   {/* ── Slot date — locked (special needs) or dropdown ── */}
@@ -1145,6 +1188,11 @@ const styles = StyleSheet.create({
   chip: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 8 },
   tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.xs },
   categoryTile: { minHeight: 36, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 10, paddingVertical: 7, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, position: "relative" },
+  yesNoRow: { flexDirection: "row", gap: Spacing.sm },
+  yesNoOption: { flex: 1, minHeight: 46, borderWidth: 1.5, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm },
+  radioOuter: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: BRAND },
+  specialMembersPanel: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md, marginTop: Spacing.sm },
   categoryIconRow: { minHeight: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 1 },
   specialCategoryImage: { width: 17, height: 17 },
   tileCheck: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, alignItems: "center", justifyContent: "center" },

@@ -3059,10 +3059,10 @@
             <div class="bg-white rounded-2xl shadow-2xl w-full manual-special-warning my-auto" role="dialog" aria-modal="true" @click.stop>
               <div class="warning-icon"><i class="fa-solid fa-triangle-exclamation text-lg"></i></div>
               <h3 class="text-lg font-extrabold text-gray-900 mb-2">Before you continue</h3>
-              <p class="text-sm leading-6 text-gray-500">Senior citizens, pregnant women, differently abled people, and visitors with infants are not permitted on the regular event dates. If any of these applies to your group, go back and select the appropriate Special category.</p>
+              <p class="text-sm leading-6 text-gray-500">For safety reasons, senior citizens, pregnant women, specially abled visitors, and visitors with infants are not permitted on regular event days. If anyone in the group belongs to one of these categories, go back and select Yes so the appropriate special-access date can be assigned.</p>
               <div class="warning-actions">
-                <button type="button" class="border-[1.5px] border-brand text-brand bg-white" @click="closeManualSpecialWarning(true)">Go back and edit</button>
-                <button type="button" class="border-[1.5px] border-brand text-white bg-brand" @click="continueManualWithoutSpecialCategory()">None apply — continue</button>
+                <button type="button" class="border-[1.5px] border-brand text-brand bg-white" @click="closeManualSpecialWarning(true)">Go back and change</button>
+                <button type="button" class="border-[1.5px] border-brand text-white bg-brand" @click="continueManualWithoutSpecialCategory()">Confirm No &amp; continue</button>
               </div>
             </div>
           </div>
@@ -3133,11 +3133,35 @@
                           </template>
                         </div>
                       </div>
-                      <!-- Any selected special category auto-selects and locks the last available date. -->
                       <div>
-                        <div class="p-3 rounded-xl border border-gray-200 bg-gray-50">
-                          <p class="text-sm font-bold text-gray-800">Special category</p>
-                          <p class="text-[11px] text-gray-400 mt-0.5">Select all that apply. The last available event date will be reserved for you.</p>
+                        <p class="text-sm font-extrabold text-gray-800">Visiting with any of the below members?</p>
+                        <div class="grid grid-cols-2 gap-2 mt-2" role="radiogroup" aria-label="Visiting with special-access members">
+                          <button type="button"
+                                  @click="setManualSpecialMembers(false)"
+                                  :aria-checked="!manualRegHasSpecialMembers"
+                                  :class="!manualRegHasSpecialMembers ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"
+                                  class="flex items-center justify-center gap-2 rounded-xl border-[1.5px] px-3 py-3 text-sm font-extrabold transition-colors"
+                                  role="radio">
+                            <span class="w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center" :class="!manualRegHasSpecialMembers ? 'border-brand' : 'border-gray-300'">
+                              <span x-show="!manualRegHasSpecialMembers" class="w-2 h-2 rounded-full bg-brand"></span>
+                            </span>
+                            No
+                          </button>
+                          <button type="button"
+                                  @click="setManualSpecialMembers(true)"
+                                  :aria-checked="manualRegHasSpecialMembers"
+                                  :class="manualRegHasSpecialMembers ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"
+                                  class="flex items-center justify-center gap-2 rounded-xl border-[1.5px] px-3 py-3 text-sm font-extrabold transition-colors"
+                                  role="radio">
+                            <span class="w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center" :class="manualRegHasSpecialMembers ? 'border-brand' : 'border-gray-300'">
+                              <span x-show="manualRegHasSpecialMembers" class="w-2 h-2 rounded-full bg-brand"></span>
+                            </span>
+                            Yes
+                          </button>
+                        </div>
+                        <div x-show="manualRegHasSpecialMembers" x-transition class="p-3 rounded-xl border border-gray-200 bg-gray-50 mt-3">
+                          <p class="text-sm font-bold text-gray-800">Select all that apply</p>
+                          <p class="text-[11px] text-gray-400 mt-0.5">The last available event date will be reserved for special access.</p>
                           <div class="grid grid-cols-2 gap-2 mt-3">
                             <template x-for="category in manualRegSpecialCategoryOptions" :key="category.value">
                               <button type="button"
@@ -7559,6 +7583,7 @@
           { label: 'Vessels', value: 'vessels', icon: 'fa-solid fa-bowl-food' },
         ],
         manualRegSpecialCategories: [],
+        manualRegHasSpecialMembers: false,
         manualRegSpecialCategoryOptions: [
           { label: 'Senior Citizen', value: 'senior_citizen', icon: 'fa-solid fa-person-cane' },
           { label: 'Pregnant Women', value: 'pregnant_women', icon: 'fa-solid fa-person-pregnant' },
@@ -13993,6 +14018,7 @@
           this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, productCategories: [], formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' };
           this.manualRegSuccess = null;
           this.manualRegSpecialCategories = [];
+          this.manualRegHasSpecialMembers = false;
           this.manualRegSpecialWarningOpen = false;
           this.manualRegConfirmedFingerprint = '';
           this.manualRegLang = 'en';
@@ -14026,6 +14052,15 @@
         },
         get manualRegHasSpecialNeeds() {
           return this.manualRegSpecialCategories.length > 0;
+        },
+        setManualSpecialMembers(hasMembers) {
+          this.manualRegHasSpecialMembers = Boolean(hasMembers);
+          this.manualRegConfirmedFingerprint = '';
+          if (!this.manualRegHasSpecialMembers) {
+            this.manualRegSpecialCategories = [];
+            this.manualRegForm.slotDate = '';
+            this.manualRegForm.slotTime = '';
+          }
         },
         toggleManualSpecialCategory(category) {
           const index = this.manualRegSpecialCategories.indexOf(category);
@@ -14063,6 +14098,7 @@
             familyMembersCount: String(f.familyMembersCount ?? ''),
             productCategories: [...(f.productCategories || [])].sort(),
             specialCategories: [...this.manualRegSpecialCategories].sort(),
+            hasSpecialMembers: this.manualRegHasSpecialMembers,
             formData: f.formData || {},
             paymentMode: f.paymentMode || '',
             paymentReason: f.paymentReason || '',
@@ -14200,6 +14236,7 @@
           if (this.manualRegSaving) return false;
           if (!f.customerName || !f.customerPhone) return false;
           if (!Array.isArray(f.productCategories) || f.productCategories.length === 0) return false;
+          if (this.manualRegHasSpecialMembers && !this.manualRegHasSpecialNeeds) return false;
           if (!f.slotDate || !f.slotTime) return false;
           if (!['offline_paid', 'complimentary', 'unpaid'].includes(f.paymentMode)) return false;
           if (this.manualRegMissingRequiredField) return false;
@@ -14215,13 +14252,14 @@
           if (this.manualRegSaving) return;
           if (!f.customerName || !f.customerPhone) { this.showToast('Name and phone are required', 'error'); return; }
           if (!Array.isArray(f.productCategories) || f.productCategories.length === 0) { this.showToast('Select at least one product category', 'error'); return; }
+          if (this.manualRegHasSpecialMembers && !this.manualRegHasSpecialNeeds) { this.showToast('Select at least one applicable member category', 'error'); return; }
           if (!f.slotDate || !f.slotTime) { this.showToast('Pick a slot date and time', 'error'); return; }
           if (this.manualRegMissingRequiredField) { this.showToast('Please fill in all required fields', 'error'); return; }
           if (f.paymentMode === 'offline_paid' && this.manualRegBalanceDue > 0) { this.showToast('Collect the full amount due before registering', 'error'); return; }
           if (f.paymentMode !== 'offline_paid' && !String(f.paymentReason || '').trim()) { this.showToast('Enter a reason for complimentary or unpaid registration', 'error'); return; }
           if (f.ticketMethod === 'preprinted' && !String(f.preprintedTicketCode || '').trim()) { this.showToast('Scan or enter the pre-printed ticket ID', 'error'); return; }
           const confirmationFingerprint = this.manualRegConfirmationFingerprint();
-          if (!this.manualRegHasSpecialNeeds && this.manualRegConfirmedFingerprint !== confirmationFingerprint) {
+          if (!this.manualRegHasSpecialMembers && this.manualRegConfirmedFingerprint !== confirmationFingerprint) {
             this.manualRegSpecialWarningOpen = true;
             return;
           }
