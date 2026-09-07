@@ -140,7 +140,7 @@ export function BottomSheetModal({
                 88% of the screen; content taller than this will scroll.
               */}
               <ScrollView
-                style={{ flex: 1, maxHeight: scrollMaxHeight }}
+                style={{ maxHeight: scrollMaxHeight }}
                 contentContainerStyle={styles.body}
                 showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
