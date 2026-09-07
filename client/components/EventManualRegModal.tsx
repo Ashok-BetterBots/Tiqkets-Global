@@ -583,6 +583,9 @@ export function EventManualRegModal({
                   </Field>
 
                   <Field label="Visiting with any of the below members?">
+                    <ThemedText style={{ color: textSecondary, fontSize: 11, lineHeight: 16, marginBottom: Spacing.xs }}>
+                      Infants, Senior Citizens, Pregnant Women or Differently Abled
+                    </ThemedText>
                     <View style={styles.yesNoRow}>
                       {([false, true] as const).map((answer) => {
                         const selected = hasSpecialMembers === answer;
