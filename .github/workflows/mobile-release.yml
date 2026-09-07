@@ -112,6 +112,8 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Cache Gradle dependencies and build outputs
+        uses: gradle/actions/setup-gradle@v5
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
