@@ -481,13 +481,6 @@ export default function EventDashboardScreen() {
                   <ThemedText type="small" style={{ color: "#FFF", fontWeight: "700" }}>Add</ThemedText>
                 </Pressable>
 
-                {isOwner ? <Pressable
-                  onPress={() => navigation.navigate("OrgEventManage")}
-                  style={[styles.manageBtn, styles.manageBtnIconOnly, { backgroundColor: BRAND + "15", borderColor: BRAND + "40" }]}
-                  testID="button-event-manage"
-                >
-                  <Feather name="settings" size={16} color={BRAND} />
-                </Pressable> : null}
               </View>
             ) : null}
           </View>
