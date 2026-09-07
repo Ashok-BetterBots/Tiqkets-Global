@@ -564,13 +564,16 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xl,
   },
   otpRow: {
+    alignSelf: "stretch",
     flexDirection: "row",
     justifyContent: "center",
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     marginBottom: Spacing.md,
   },
   otpBox: {
-    width: 46,
+    flex: 1,
+    maxWidth: 46,
+    minWidth: 0,
     height: 54,
     borderWidth: 1.5,
     borderRadius: BorderRadius.sm,

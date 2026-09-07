@@ -71,6 +71,9 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
         ) : null}
         <Feather name={iconName} size={20} color={color} />
         <ThemedText
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
           style={[
             styles.tabLabel,
             { color, fontWeight: isFocused ? "700" : "500" },
@@ -199,5 +202,7 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 10,
+    maxWidth: "100%",
+    textAlign: "center",
   },
 });
