@@ -2124,6 +2124,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   settingsBranchInfo: {
     flex: 1,
+    minWidth: 0,
   },
   settingsBranchLabel: {
     fontSize: 12,

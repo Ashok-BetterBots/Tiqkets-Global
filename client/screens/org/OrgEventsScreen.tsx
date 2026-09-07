@@ -315,8 +315,8 @@ export default function OrgEventsScreen() {
             {selectedEvent ? (
               <View style={[styles.card, { backgroundColor: cardBg }]}>
                 <View style={styles.eventHeaderRow}>
-                  <View style={{ flex: 1 }}>
-                    <ThemedText type="h4" testID="text-event-name">
+                  <View style={styles.eventHeaderContent}>
+                    <ThemedText type="h4" numberOfLines={2} testID="text-event-name">
                       {selectedEvent.name}
                     </ThemedText>
                     <ThemedText type="small" style={{ color: theme.textSecondary }}>
@@ -910,6 +910,7 @@ const styles = StyleSheet.create({
   },
   emptyCard: { alignItems: "center", gap: Spacing.md, paddingVertical: Spacing["3xl"] },
   eventHeaderRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
+  eventHeaderContent: { flex: 1, minWidth: 0 },
   statusPill: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,

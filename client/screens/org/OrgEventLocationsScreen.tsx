@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Switch,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -68,6 +69,8 @@ function readConfig(svc: OrgService): EventConfig {
 
 export default function OrgEventLocationsScreen() {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const isNarrowScreen = screenWidth < 380;
   const { theme, isDark } = useTheme();
   const {
     getAccessibleBranches,
@@ -323,8 +326,8 @@ export default function OrgEventLocationsScreen() {
             return (
               <View key={svc.id} style={[styles.card, { backgroundColor: cardBg }]} testID={`card-location-${svc.id}`}>
                 <View style={styles.eventHeaderRow}>
-                  <View style={{ flex: 1 }}>
-                    <ThemedText type="h4" testID={`text-location-name-${svc.id}`}>
+                  <View style={styles.eventHeaderContent}>
+                    <ThemedText type="h4" numberOfLines={2} testID={`text-location-name-${svc.id}`}>
                       {svc.name}
                     </ThemedText>
                     {svc.description ? (
@@ -378,7 +381,7 @@ export default function OrgEventLocationsScreen() {
         onConfirm={saveSettings}
         confirmLoading={settingsSaving}
       >
-        <View style={styles.twoCol}>
+        <View style={[styles.twoCol, isNarrowScreen && styles.twoColNarrow]}>
           <View style={{ flex: 1 }}>
             <Field label="Opens" value={config.operatingHoursStart} onChangeText={(t) => setConfig((c) => ({ ...c, operatingHoursStart: t }))} placeholder="09:00" testID="input-cfg-open" />
           </View>
@@ -386,7 +389,7 @@ export default function OrgEventLocationsScreen() {
             <Field label="Closes" value={config.operatingHoursEnd} onChangeText={(t) => setConfig((c) => ({ ...c, operatingHoursEnd: t }))} placeholder="21:00" testID="input-cfg-close" />
           </View>
         </View>
-        <View style={styles.twoCol}>
+        <View style={[styles.twoCol, isNarrowScreen && styles.twoColNarrow]}>
           <View style={{ flex: 1 }}>
             <Field label="Slot minutes" value={config.slotDurationMinutes} onChangeText={(t) => setConfig((c) => ({ ...c, slotDurationMinutes: t }))} keyboardType="number-pad" testID="input-cfg-slot" />
           </View>
@@ -635,6 +638,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: BorderRadius.lg, padding: Spacing.lg },
   emptyCard: { alignItems: "center", gap: Spacing.md, paddingVertical: Spacing["3xl"] },
   eventHeaderRow: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.md },
+  eventHeaderContent: { flex: 1, minWidth: 0 },
   actionRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginTop: Spacing.md },
   actionBtn: {
     flexDirection: "row",
@@ -647,6 +651,7 @@ const styles = StyleSheet.create({
   },
   field: { marginBottom: Spacing.md },
   twoCol: { flexDirection: "row", gap: Spacing.md },
+  twoColNarrow: { flexDirection: "column", gap: 0 },
   refundPolicyBox: { flexDirection: "row", alignItems: "center", gap: Spacing.md, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md },
   refundToggle: { flexDirection: "row", gap: Spacing.xs },
   refundOption: { minWidth: 42, alignItems: "center", borderWidth: 1, borderRadius: BorderRadius.sm, paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm },
