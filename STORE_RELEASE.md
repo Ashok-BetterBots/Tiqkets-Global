@@ -214,17 +214,19 @@ Do not use `match nuke` or delete existing company certificates.
 - Permanent organization and event reviewer accounts are saved in the private
   **Sign in details** declaration, and the target audience is saved as
   **18 and over**. The content-rating form still requires an authorized person
-  to accept the IARC Terms of Use. The verified first page of Data Safety is
-  saved as a draft; it cannot continue until the public account-deletion URL is
-  deployed, and an authorized representative must make the final certification.
+  to accept the IARC Terms of Use. All Data Safety answers are completed and
+  saved as a draft, including the verified public deletion-information URL; an
+  authorized representative must make the final certification.
 - A non-personal Google service account now has app-scoped production, testing,
   and store-presence permissions. Its JSON is installed in GitHub Actions, so
   future GitHub Releases can upload to Play without a personal login.
 - Account deletion is available inside both customer and organization settings.
-  The public request form is
-  `https://tiqketsglobal.replit.app/account-deletion`; it creates a high-priority
-  support ticket for identity verification and deletion. Verify the deployed URL
-  before entering it in Data Safety.
+  The public deletion instructions are deployed at
+  `https://tiqkets-global-publishing.web.app/account-deletion` from
+  `docs/account-deletion.html` using Firebase Hosting in the shared publishing
+  project. The URL is verified and saved in the Data Safety draft. Run
+  `npx firebase-tools deploy --only hosting --project tiqkets-global-publishing`
+  after changing the page.
 - Internal release **TIQKETS 1.0.0 (210771865)** is published with version code `210771865`
   and the GitHub Store notes. Play accepted the signed bundle and reports a
   34.9 MB new-install download. The track is active with the **TIQKETS Internal

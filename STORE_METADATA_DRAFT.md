@@ -74,7 +74,7 @@ moment it's their turn, no app download needed.
 - Privacy policy URL: https://www.tiqkets.in/privacy-policy
 - Support URL:
 - Marketing URL: https://www.tiqkets.in/
-- Account deletion URL:
+- Account deletion URL: https://tiqkets-global-publishing.web.app/account-deletion
 - Support email:
 - Support phone:
 - Copyright owner and year:

@@ -89,9 +89,8 @@ The detailed recovery procedure and the exact GitHub secret names are in
    rotate the key in Google Cloud and replace the GitHub secret.
 4. Have an authorized representative accept the IARC terms, complete content
    rating, certify Data Safety, and complete remaining privacy declarations.
-5. Deploy the current server commit so the public account-deletion URL returns
-   successfully; the available Replit login opened a new personal account and
-   does not own the existing deployment.
+5. Keep the Firebase-hosted deletion-information page available and update it
+   from `docs/account-deletion.html` whenever the deletion process changes.
 6. Visually approve the uploaded App Store iPhone screenshots; two supplied
    images contain Android status indicators inside iPhone frames.
 7. Have an Apple Admin publish the prepared privacy answers, set Content Rights,
@@ -101,8 +100,8 @@ The detailed recovery procedure and the exact GitHub secret names are in
    stable GitHub Release.
 
 The Google Play account-deletion URL is
-`https://tiqketsglobal.replit.app/account-deletion`. Deploy the current server
-commit and verify this URL before saving the Data Safety form.
+`https://tiqkets-global-publishing.web.app/account-deletion`. It is deployed in
+the shared Google Cloud/Firebase project and is already saved in Data Safety.
 
 ## Normal release process
 

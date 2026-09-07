@@ -1,0 +1,19 @@
+{
+  "hosting": {
+    "public": "docs",
+    "ignore": ["CLIENT_HANDOFF.md", "**/.*"],
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "headers": [
+      {
+        "source": "/account-deletion",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=300"
+          }
+        ]
+      }
+    ]
+  }
+}
