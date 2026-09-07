@@ -1,0 +1,61 @@
+Proceed with the following fixes only. Do not touch anything listed 
+under "Business decisions required" in your audit (Privacy Policy/Terms 
+links, account deletion, notification UX, icon asset switch) — I'll 
+approve those separately. Do not modify any screen, navigation flow, 
+working feature, or business logic beyond what's specified below.
+
+SECURITY FIXES (treat as priority, separate from store compliance):
+
+1. Remove the hardcoded fallback passwords `changeme123` and 
+   `password123` from the user-creation and organization-user-creation 
+   paths. Do NOT silently generate a new fallback — instead, either:
+   (a) require a password to be explicitly provided at creation time 
+   with no default, or (b) generate a cryptographically random 
+   temporary password that must be changed on first login. Tell me 
+   which of these the current code structure supports with the least 
+   change, and implement that. Do not alter any other part of the 
+   account-creation flow.
+
+2. Confirm whether `NSAllowsArbitraryLoads: true` appears in an actual 
+   EAS release build output (not just managed/dev config). If it does 
+   survive into release, remove it, since all current API calls are 
+   HTTPS. If it's dev-tooling-only and doesn't reach release, leave it 
+   and just report that finding.
+
+STORE COMPLIANCE FIXES:
+
+3. Add "ITSAppUsesNonExemptEncryption": false to app.json's iOS config.
+
+4. Explicitly configure targetSdkVersion/compileSdkVersion for Android 
+   16 (API 36) via expo-build-properties, without changing 
+   minSdkVersion unless required — flag if it is.
+
+5. Remove these confirmed-unused permissions/descriptions only:
+   - RECORD_AUDIO (Android) and the microphone usage description (iOS)
+   - READ_MEDIA_VIDEO, READ_MEDIA_AUDIO (Android)
+   - SYSTEM_ALERT_WINDOW (Android) — confirm first this isn't a dev 
+     dependency artifact before removing
+   - The motion/activity usage description (iOS)
+   - The "Always" location usage description (iOS) — keep the 
+     foreground-only location description, since that's the only mode 
+     actually used
+   Do NOT remove CAMERA, ACCESS_COARSE/FINE_LOCATION, foreground 
+   location description, photo/media descriptions, VIBRATE, 
+   MODIFY_AUDIO_SETTINGS, or FOREGROUND_SERVICE — these are confirmed 
+   active.
+
+6. Replace the generic camera, photo-library, and foreground-location 
+   usage description strings with specific text describing the actual 
+   feature (e.g., "Tiqkets uses your camera to scan queue and ticket 
+   QR codes," "Tiqkets accesses your photos so you can set a profile 
+   picture," "Tiqkets uses your location to show nearby queues and 
+   services"). Do not change any other config values.
+
+7. Configure production-only client-side console log stripping 
+   (confirm babel-plugin-transform-remove-console is wired into the 
+   EAS production build profile). Do not touch development builds or 
+   any server-side logging.
+
+After each numbered item, confirm the app still builds/runs and no 
+existing feature changed. Report every file touched, and stop and ask 
+me if anything is ambiguous rather than guessing.
