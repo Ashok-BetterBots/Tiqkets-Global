@@ -79,7 +79,7 @@ interface OrganizationContextType {
   }>;
   registerOrganization: (
     data: Partial<RegisteredOrganization> & {
-      password?: string;
+      password: string;
       // Event-account signup extras (accountType === "event").
       eventName?: string;
       eventDescription?: string;
@@ -1608,7 +1608,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, [setLiveBranchMeta]);
 
   const registerOrganization = useCallback(async (data: Partial<RegisteredOrganization> & {
-    password?: string;
+    password: string;
     eventName?: string;
     eventDescription?: string;
     eventStartDate?: string;
@@ -1628,7 +1628,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       const response = await apiRequest("POST", "/api/organizations/register", {
         name: data.name,
         email: data.email,
-        password: data.password || "password123",
+        password: data.password,
         phone: data.phone,
         address: data.address,
         country: data.country,

@@ -74,3 +74,4 @@
 - [Expo SDK 57 Worklets deduplication](expo-57-worklets-dedup.md) — nested Worklets patch versions can crash Android Hermes after bundling; pin the whole tree to Expo Go’s bundled version.
 - [Expo Go SDK 57 module compatibility](expo-go-57-module-compat.md) — static notifications and MediaLibrary Next imports can abort Android startup; gate notifications and use MediaLibrary legacy.
 - [Expo static-build API domain](expo-static-build-api-domain.md) — prefer Replit’s current internal deployment domain over a manually configured APP_DOMAIN when embedding the mobile API host.
+- [Expo permission blocking order](expo-permission-blocking-order.md) — auto-linked plugins can re-add blocked Android permissions; apply final manifest removal directives after package plugins.

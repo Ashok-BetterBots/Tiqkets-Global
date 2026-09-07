@@ -1179,6 +1179,9 @@ export function registerBillingRoutes(app: Express) {
       if (!organizationId || !name || !email || !password || !role) {
         return res.status(400).json({ error: "organizationId, name, email, password, and role are required" });
       }
+      if (typeof password !== "string" || password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
       if (!await assertOrgOwnership(req, res, organizationId)) return;
       const ctx = await getCallerContext(req);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });

@@ -7075,7 +7075,7 @@
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">Password <span x-show="!userForm.id">*</span></label>
             <div class="relative">
-              <input :type="showUserPassword ? 'text' : 'password'" x-model="userForm.password" class="input-field pr-10" :placeholder="userForm.id ? 'Leave blank to keep current' : 'Min 6 characters'" autocomplete="new-password" name="staff-password-field" data-lpignore="true">
+              <input :type="showUserPassword ? 'text' : 'password'" x-model="userForm.password" class="input-field pr-10" :placeholder="userForm.id ? 'Leave blank to keep current' : 'Min 6 characters'" :required="!userForm.id" minlength="6" autocomplete="new-password" name="staff-password-field" data-lpignore="true">
               <button type="button" @click="showUserPassword = !showUserPassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <i :class="showUserPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" class="text-xs"></i>
               </button>
@@ -10757,6 +10757,10 @@
             const validRoles = this.getCreatableRoles().map(r => r.value);
             if (!this.userForm.role || !validRoles.includes(this.userForm.role)) {
               this.showToast('Please select a role', 'error');
+              return;
+            }
+            if (!this.userForm.id && (!this.userForm.password || this.userForm.password.length < 6)) {
+              this.showToast('Password must be at least 6 characters', 'error');
               return;
             }
             const role = this.userForm.role;

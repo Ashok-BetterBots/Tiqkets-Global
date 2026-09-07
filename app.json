@@ -11,6 +11,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.tiqkets.app",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false
+        },
+        "NSCameraUsageDescription": "Tiqkets uses your camera to scan queue and ticket QR codes.",
+        "NSLocationWhenInUseUsageDescription": "Tiqkets uses your location to show nearby queues and services and verify in-person access.",
+        "NSPhotoLibraryUsageDescription": "Tiqkets accesses your photos so you can set profile and event images.",
+        "NSPhotoLibraryAddUsageDescription": "Tiqkets saves ticket QR codes to your photo library when you choose to save them.",
         "UIBackgroundModes": [
           "audio"
         ]
@@ -22,7 +30,13 @@
         "foregroundImage": "./assets/images/icon.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.tiqkets.app"
+      "package": "com.tiqkets.app",
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "web": {
       "output": "single",
@@ -45,7 +59,27 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow TIQKETS to access your camera to scan QR codes and join queues."
+          "cameraPermission": "Tiqkets uses your camera to scan queue and ticket QR codes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Tiqkets accesses your photos so you can set profile and event images.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "locationWhenInUsePermission": "Tiqkets uses your location to show nearby queues and services and verify in-person access.",
+          "motionUsagePermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
         }
       ],
       "expo-localization",
@@ -54,8 +88,26 @@
       "expo-image",
       "expo-sharing",
       "expo-status-bar",
-      "expo-audio",
-      "expo-asset"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
+          }
+        }
+      ],
+      "expo-asset",
+      "./plugins/with-store-compliance"
     ]
   }
 }

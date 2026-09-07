@@ -1240,6 +1240,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         eventName, eventDescription, eventStartDate, eventEndDate, locationName,
       } = req.body;
 
+      if (typeof password !== "string" || password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+
       // Account flavour: "organization" (default) or "event". Anything else
       // is rejected rather than silently coerced so the client learns about
       // the typo immediately.
@@ -4483,12 +4487,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       if (!await assertCanCreateOrgUser(req, res, organizationId)) return;
+      if (typeof password !== "string" || password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
       const user = await storage.createOrgUser({
         organizationId,
         name,
         email,
         phone,
-        password: password || "changeme123",
+        password,
         role: roleRow.key,
         roleId: roleRow.id,
         branchId: branchIdNorm,
