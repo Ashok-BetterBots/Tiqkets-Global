@@ -3135,6 +3135,8 @@
                       </div>
                       <div>
                         <p class="text-sm font-extrabold text-gray-800">Visiting with any of the below members?</p>
+                        <p class="text-[11px] leading-4 text-gray-500 mt-1"
+                           x-text="manualRegLang === 'ta' ? 'கைக்குழந்தைகள், மூத்த குடிமக்கள், கர்ப்பிணிப் பெண்கள் அல்லது மாற்றுத்திறனாளிகள்' : 'Infants, Senior Citizens, Pregnant Women or Differently Abled'"></p>
                         <div class="grid grid-cols-2 gap-2 mt-2" role="radiogroup" aria-label="Visiting with special-access members">
                           <button type="button"
                                   @click="setManualSpecialMembers(false)"
