@@ -240,16 +240,18 @@ export default function OrgStackNavigator() {
             }}
             {...(shellLayout ? { layout: shellLayout } : {})}
           />
-          <Stack.Screen
-            name="OrgEventManage"
-            component={GuardedOrgEventManage}
-            options={{
-              headerTitle: "Events",
-              headerBackTitle: "Back",
-              headerShown: !isWeb,
-            }}
-            {...(shellLayout ? { layout: shellLayout } : {})}
-          />
+          {isWeb ? (
+            <Stack.Screen
+              name="OrgEventManage"
+              component={GuardedOrgEventManage}
+              options={{
+                headerTitle: "Events",
+                headerBackTitle: "Back",
+                headerShown: false,
+              }}
+              {...(shellLayout ? { layout: shellLayout } : {})}
+            />
+          ) : null}
           <Stack.Screen
             name="OrgEventLocations"
             component={GuardedOrgEventLocations}
