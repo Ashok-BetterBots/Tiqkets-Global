@@ -561,9 +561,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   checkoutAlertIconHalo: {
-    width: 128,
-    height: 128,
-    borderRadius: 64,
+    width: 144,
+    height: 144,
+    borderRadius: 72,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.lg,
