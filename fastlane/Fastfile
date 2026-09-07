@@ -139,10 +139,14 @@ platform :ios do
       wait_processing_timeout_duration: 1800
     )
     if destination == "production"
+      # The first App Store record was created as 1.0 while the binary uses
+      # 1.0.0. Apple accepts that binary on the 1.0 record, so normalize only a
+      # trailing patch-zero when selecting or creating the App Store version.
+      store_version = ENV.fetch("RELEASE_VERSION").sub(/\.0\z/, "")
       upload_to_app_store(
         api_key: key,
         app_identifier: "com.tiqkets.app",
-        app_version: ENV.fetch("RELEASE_VERSION"),
+        app_version: store_version,
         build_number: ENV.fetch("IOS_BUILD_NUMBER"),
         skip_binary_upload: true,
         metadata_path: File.join(ROOT, "fastlane/metadata/ios"),
