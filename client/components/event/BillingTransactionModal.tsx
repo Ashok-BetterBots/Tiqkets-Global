@@ -260,6 +260,22 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     if (invoiceRupees.trim()) setInvoiceEntryDone(true);
   }, [invoiceRupees]);
 
+  const handleInvoiceAmountChange = useCallback((rawValue: string) => {
+    let nextValue = rawValue.replace(/[^0-9.]/g, "");
+
+    // Some Android numeric keyboards append to a selected initial value
+    // instead of replacing it. Treat the no-advance default "0" like a
+    // placeholder when the first digit is entered, while preserving decimals
+    // intentionally entered as 0.x.
+    if (invoiceRupees === "0" && /^0\d/.test(nextValue)) {
+      nextValue = nextValue.slice(1);
+    }
+
+    setInvoiceRupees(nextValue);
+    setInvoiceEntryDone(false);
+    setError(null);
+  }, [invoiceRupees]);
+
   const handleResendOtp = useCallback(async () => {
     if (resendCooldown > 0 || otpSending) return;
     setOtpSent(false);
@@ -723,17 +739,14 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                     <ThemedText style={[styles.rupeeSymbol, { color: BRAND }]}>₹</ThemedText>
                     <TextInput
                       value={invoiceRupees}
-                      onChangeText={(t) => {
-                        setInvoiceRupees(t);
-                        setInvoiceEntryDone(false);
-                        setError(null);
-                      }}
+                      onChangeText={handleInvoiceAmountChange}
                       placeholder="0"
                       placeholderTextColor={theme.textSecondary}
                       keyboardType="decimal-pad"
                       style={[styles.invoiceInput, { color: theme.text }]}
                       testID="input-invoice-amount"
                       autoFocus
+                      selectTextOnFocus={invoiceRupees === "0"}
                       returnKeyType="done"
                       onSubmitEditing={finishInvoiceEntry}
                     />
