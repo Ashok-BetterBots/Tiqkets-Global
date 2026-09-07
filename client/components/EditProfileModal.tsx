@@ -145,9 +145,13 @@ export function EditProfileModal({
   const handlePickImage = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      return;
+    // Android's system photo picker grants access only to the selected image,
+    // so broad photo/video library permissions are unnecessary there.
+    if (Platform.OS === "ios") {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        return;
+      }
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
