@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -177,7 +178,8 @@ export function TicketScanResultModal({
   confirming = false,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const { theme } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
+  const { theme, isDark } = useTheme();
 
   // Derive the initial guest count from the scan data
   const registeredGuests = data?.guests ?? (
@@ -212,6 +214,7 @@ export function TicketScanResultModal({
   const vc = VALIDITY_CONFIG[validityKey];
 
   const suppressValidBanner = action === "exit" && mode === "result" && validityKey === "valid";
+  const showCheckoutSurprise = suppressValidBanner && !!data.checkoutAlert;
 
   // Whether to show the guest count adjuster
   const showGuestAdjuster = action === "checkin" && mode === "preview";
@@ -228,7 +231,14 @@ export function TicketScanResultModal({
     >
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable
-          style={[styles.sheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.xl }]}
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: theme.surface,
+              paddingBottom: insets.bottom + Spacing.xl,
+              minHeight: showCheckoutSurprise ? Math.max(420, windowHeight * 0.52) : undefined,
+            },
+          ]}
           onPress={() => {}}
         >
           {/* Drag handle */}
@@ -237,7 +247,10 @@ export function TicketScanResultModal({
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: Spacing.md }}
+            contentContainerStyle={[
+              { paddingBottom: Spacing.md },
+              showCheckoutSurprise && styles.surpriseScrollContent,
+            ]}
           >
             {/* ── 1. Validity banner ── */}
             {!suppressValidBanner ? (
@@ -262,15 +275,28 @@ export function TicketScanResultModal({
             ) : null}
 
             {action === "exit" && mode === "result" && data.checkoutAlert ? (
-              <View style={[styles.checkoutAlert, { backgroundColor: BRAND + "0D", borderColor: BRAND + "35" }]} testID="checkout-duration-alert">
-                <Image
-                  source={{ uri: new URL(data.checkoutAlert.iconUrl, getApiUrl()).toString() }}
-                  style={styles.checkoutAlertIcon}
-                  resizeMode="cover"
-                />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <ThemedText style={[styles.checkoutAlertTitle, { color: BRAND }]}>{data.checkoutAlert.title}</ThemedText>
-                  <ThemedText style={[styles.checkoutAlertMessage, { color: theme.text }]}>{data.checkoutAlert.message}</ThemedText>
+              <View
+                style={[
+                  styles.checkoutAlert,
+                  { backgroundColor: isDark ? "#2B1825" : "#FFF4FA", borderColor: isDark ? "#71365D" : "#E7BDD6" },
+                ]}
+                testID="checkout-duration-alert"
+              >
+                <View style={[styles.checkoutAlertIconHalo, { backgroundColor: isDark ? "#45203A" : "#F8DDEA" }]}>
+                  <Image
+                    source={{ uri: new URL(data.checkoutAlert.iconUrl, getApiUrl()).toString() }}
+                    style={styles.checkoutAlertIcon}
+                    resizeMode="cover"
+                  />
+                </View>
+                <ThemedText style={[styles.checkoutAlertTitle, { color: BRAND }]}>
+                  {data.checkoutAlert.title}
+                </ThemedText>
+                <ThemedText style={[styles.checkoutAlertMessage, { color: theme.text }]}>
+                  {data.checkoutAlert.message}
+                </ThemedText>
+                <View style={[styles.checkoutAlertMetaPill, { backgroundColor: isDark ? "#3B2634" : "#FFFFFF" }]}>
+                  <Feather name="clock" size={13} color={theme.textSecondary} />
                   <ThemedText style={[styles.checkoutAlertMeta, { color: theme.textSecondary }]}>
                     {fmtDuration(data.checkoutAlert.elapsedMinutes)} since check-in · limit {fmtDuration(data.checkoutAlert.maxDurationMinutes)}
                   </ThemedText>
@@ -521,18 +547,55 @@ const styles = StyleSheet.create({
   },
   /* ── Time summary ── */
   checkoutAlert: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing["2xl"],
+    borderRadius: 28,
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+    overflow: "hidden",
+  },
+  surpriseScrollContent: {
+    flexGrow: 1,
+    justifyContent: "space-between",
+  },
+  checkoutAlertIconHalo: {
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
+  },
+  checkoutAlertIcon: {
+    width: 108,
+    height: 108,
+    borderRadius: 26,
+  },
+  checkoutAlertTitle: {
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: "900",
+    textAlign: "center",
+    marginBottom: Spacing.sm,
+  },
+  checkoutAlertMessage: {
+    fontSize: 18,
+    lineHeight: 25,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: Spacing.lg,
+  },
+  checkoutAlertMetaPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
   },
-  checkoutAlertIcon: { width: 60, height: 60, borderRadius: 16, flexShrink: 0 },
-  checkoutAlertTitle: { fontSize: 17, lineHeight: 22, fontWeight: "800", marginBottom: 3 },
-  checkoutAlertMessage: { fontSize: 14, lineHeight: 19, fontWeight: "500" },
-  checkoutAlertMeta: { fontSize: 11, lineHeight: 16, fontWeight: "600", marginTop: 5 },
+  checkoutAlertMeta: { fontSize: 12, lineHeight: 16, fontWeight: "600" },
   timeSummaryRow: {
     flexDirection: "row",
     alignItems: "center",
