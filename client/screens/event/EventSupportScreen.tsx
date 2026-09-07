@@ -572,7 +572,7 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function EventSupportScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { selectedEventId } = useEventSelection();
@@ -886,21 +886,33 @@ export default function EventSupportScreen() {
 
             {/* Current status */}
             {selected.checkoutAlertSnapshot ? (
-              <View style={[styles.card, { backgroundColor: BRAND + "0D", borderColor: BRAND + "35" }]} testID="support-checkout-alert">
+              <View
+                style={[
+                  styles.card,
+                  styles.checkoutAlertCard,
+                  {
+                    backgroundColor: isDark ? "#2B1825" : "#FFF4FA",
+                    borderColor: isDark ? "#71365D" : "#E7BDD6",
+                  },
+                ]}
+                testID="support-checkout-alert"
+              >
                 <View style={[styles.sectionHeader, { marginBottom: Spacing.md }]}>
                   <Image
                     source={{ uri: new URL(selected.checkoutAlertSnapshot.iconUrl, getApiUrl()).toString() }}
-                    style={{ width: 52, height: 52, borderRadius: 14, marginRight: Spacing.md }}
+                    style={styles.checkoutAlertIcon}
                   />
-                  <View style={{ flex: 1 }}>
-                    <ThemedText type="h4" style={{ color: BRAND }}>{selected.checkoutAlertSnapshot.title}</ThemedText>
-                    <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  <View style={styles.checkoutAlertHeaderContent}>
+                    <ThemedText type="h4" style={[styles.transparentText, { color: BRAND }]}>
+                      {selected.checkoutAlertSnapshot.title}
+                    </ThemedText>
+                    <ThemedText type="small" style={[styles.transparentText, { color: theme.textSecondary }]}>
                       Checkout message shown {fmtTs(selected.checkoutAlertSnapshot.capturedAt)}
                     </ThemedText>
                   </View>
                 </View>
-                <ThemedText type="body">{selected.checkoutAlertSnapshot.message}</ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+                <ThemedText type="body" style={styles.transparentText}>{selected.checkoutAlertSnapshot.message}</ThemedText>
+                <ThemedText type="small" style={[styles.transparentText, { color: theme.textSecondary, marginTop: Spacing.sm }]}>
                   {selected.checkoutAlertSnapshot.elapsedMinutes} min since check-in · {selected.checkoutAlertSnapshot.maxDurationMinutes} min limit
                 </ThemedText>
               </View>
@@ -1099,6 +1111,25 @@ const styles = StyleSheet.create({
     padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, marginBottom: Spacing.md,
   },
   sectionHeader: { flexDirection: "row", alignItems: "center" },
+  checkoutAlertCard: {
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  checkoutAlertIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    marginRight: Spacing.md,
+    backgroundColor: "transparent",
+  },
+  checkoutAlertHeaderContent: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: "transparent",
+  },
+  transparentText: {
+    backgroundColor: "transparent",
+  },
   resultRow: {
     flexDirection: "row", alignItems: "center", gap: Spacing.md,
     padding: Spacing.lg, borderRadius: BorderRadius.lg,
