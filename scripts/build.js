@@ -39,12 +39,12 @@ function stripProtocol(domain) {
 }
 
 function getDeploymentDomain() {
-  if (process.env.APP_DOMAIN) {
-    return stripProtocol(process.env.APP_DOMAIN);
-  }
-
   if (process.env.REPLIT_INTERNAL_APP_DOMAIN) {
     return stripProtocol(process.env.REPLIT_INTERNAL_APP_DOMAIN);
+  }
+
+  if (process.env.APP_DOMAIN) {
+    return stripProtocol(process.env.APP_DOMAIN);
   }
 
   if (process.env.REPLIT_DEV_DOMAIN) {
