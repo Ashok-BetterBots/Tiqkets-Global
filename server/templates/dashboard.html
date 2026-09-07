@@ -3106,7 +3106,7 @@
                 <div class="flex-1 min-h-0 flex flex-col">
                   <div x-show="!manualRegLoadingLocations" class="px-6 py-3 border-b border-gray-100">
                     <div class="flex items-start">
-                      <template x-for="(item, index) in [{label:'Visit details', step:1}, {label:'Customer', step:2}, {label:'Ticket & payment', step:3}]" :key="item.step">
+                      <template x-for="(item, index) in [{label:'Visit details', step:1}, {label:'Customer', step:2}, {label:'Issue Ticket', step:3}]" :key="item.step">
                         <div class="contents">
                           <div x-show="index > 0" class="flex-1 h-0.5 mt-3" :class="manualRegStep >= item.step ? 'bg-brand' : 'bg-gray-200'"></div>
                           <div class="w-24 flex flex-col items-center gap-1.5">
@@ -3204,7 +3204,7 @@
                         </div>
                       </div>
                       <div class="grid grid-cols-2 gap-3">
-                        <div>
+                        <div class="relative">
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot date</label>
                           <!-- Locked to last date when special needs is checked -->
                           <div x-show="manualRegHasSpecialNeeds" class="input-field mt-1 text-sm flex items-center gap-2 bg-gray-50 opacity-80 cursor-not-allowed">
@@ -3212,26 +3212,62 @@
                             <span x-text="manualRegLastDate ? manualRegFormatDate({date: manualRegLastDate}) : 'No dates available'" class="flex-1 text-sm"></span>
                             <span class="text-xs text-gray-400">Last day</span>
                           </div>
-                          <!-- Dropdown of all dates except last for regular visitors -->
-                          <select x-show="!manualRegHasSpecialNeeds" x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''" class="input-field mt-1 text-sm">
-                            <option value="">Select a date</option>
-                            <template x-for="d in manualRegRegularDates" :key="d.date">
-                              <option :value="d.date" x-text="manualRegFormatDate(d)"></option>
-                            </template>
-                          </select>
+                          <!-- Upward-opening dropdown of all dates except last for regular visitors -->
+                          <div x-show="!manualRegHasSpecialNeeds" class="relative mt-1">
+                            <div x-show="manualRegDateDropdownOpen"
+                                 @click.outside="manualRegDateDropdownOpen = false"
+                                 class="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-52 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+                              <template x-if="manualRegRegularDates.length === 0">
+                                <p class="px-3 py-2.5 text-xs text-gray-400">No dates available</p>
+                              </template>
+                              <template x-for="d in manualRegRegularDates" :key="d.date">
+                                <button type="button"
+                                        @click="manualRegForm.slotDate=d.date; manualRegForm.slotTime=''; manualRegDateDropdownOpen=false; manualRegTimeDropdownOpen=false"
+                                        class="flex w-full items-center justify-between border-b border-gray-100 px-3 py-2.5 text-left text-xs font-semibold last:border-0"
+                                        :class="manualRegForm.slotDate === d.date ? 'bg-brand/5 text-brand' : 'text-gray-700 hover:bg-gray-50'">
+                                  <span x-text="manualRegFormatDate(d)"></span>
+                                  <i x-show="manualRegForm.slotDate === d.date" class="fa-solid fa-check text-[10px]"></i>
+                                </button>
+                              </template>
+                            </div>
+                            <button type="button"
+                                    @click="manualRegDateDropdownOpen = !manualRegDateDropdownOpen; manualRegTimeDropdownOpen = false"
+                                    class="input-field text-sm flex w-full items-center justify-between gap-2 text-left">
+                              <span x-text="manualRegForm.slotDate ? manualRegFormatDate({date: manualRegForm.slotDate}) : 'Select a date'"
+                                    :class="manualRegForm.slotDate ? 'text-gray-700' : 'text-gray-400'"></span>
+                              <i class="fa-solid fa-chevron-up text-[10px] text-gray-400"></i>
+                            </button>
+                          </div>
                           <p class="text-[10px] text-amber-500 font-semibold mt-1"
                              x-show="!manualRegHasSpecialNeeds && manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate)">
                             This date is fully booked or has passed — pick another.
                           </p>
                         </div>
-                        <div>
+                        <div class="relative">
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot time</label>
-                          <select x-model="manualRegForm.slotTime" class="input-field mt-1 text-sm" :disabled="!manualRegForm.slotDate || manualRegSlotTimes.length === 0">
-                            <option value="" x-text="manualRegSlotTimes.length === 0 ? 'No times available' : 'Select time'"></option>
-                            <template x-for="t in manualRegSlotTimes" :key="t.time">
-                              <option :value="t.time" x-text="t.label + ' · ' + t.available + ' left'"></option>
-                            </template>
-                          </select>
+                          <div class="relative mt-1">
+                            <div x-show="manualRegTimeDropdownOpen"
+                                 @click.outside="manualRegTimeDropdownOpen = false"
+                                 class="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-52 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+                              <template x-for="t in manualRegSlotTimes" :key="t.time">
+                                <button type="button"
+                                        @click="manualRegForm.slotTime=t.time; manualRegTimeDropdownOpen=false"
+                                        class="flex w-full items-center justify-between border-b border-gray-100 px-3 py-2.5 text-left text-xs font-semibold last:border-0"
+                                        :class="manualRegForm.slotTime === t.time ? 'bg-brand/5 text-brand' : 'text-gray-700 hover:bg-gray-50'">
+                                  <span x-text="t.label + ' · ' + t.available + ' left'"></span>
+                                  <i x-show="manualRegForm.slotTime === t.time" class="fa-solid fa-check text-[10px]"></i>
+                                </button>
+                              </template>
+                            </div>
+                            <button type="button"
+                                    @click="if (manualRegForm.slotDate && manualRegSlotTimes.length > 0) { manualRegTimeDropdownOpen = !manualRegTimeDropdownOpen; manualRegDateDropdownOpen = false }"
+                                    :disabled="!manualRegForm.slotDate || manualRegSlotTimes.length === 0"
+                                    class="input-field text-sm flex w-full items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60">
+                              <span x-text="manualRegForm.slotTime ? ((manualRegSlotTimes.find(t => t.time === manualRegForm.slotTime) || {}).label || manualRegForm.slotTime) : (manualRegSlotTimes.length === 0 ? 'No times available' : 'Select time')"
+                                    :class="manualRegForm.slotTime ? 'text-gray-700' : 'text-gray-400'"></span>
+                              <i class="fa-solid fa-chevron-up text-[10px] text-gray-400"></i>
+                            </button>
+                          </div>
                         </div>
                       </div>
                       </div>
@@ -7577,6 +7613,8 @@
         eventsSupportBusy: false,
         // ===== Manual (offline) registration — desk/counter payment flow =====
         manualRegModalOpen: false,
+        manualRegDateDropdownOpen: false,
+        manualRegTimeDropdownOpen: false,
         preprintedTicketModalOpen: false,
         preprintedTicketEvent: null,
         preprintedTicketBatches: [],
@@ -14056,6 +14094,8 @@
           this.manualRegSpecialWarningOpen = false;
           this.manualRegConfirmedFingerprint = '';
           this.manualRegStep = 1;
+          this.manualRegDateDropdownOpen = false;
+          this.manualRegTimeDropdownOpen = false;
           this.manualRegLang = 'en';
           this.manualRegModalOpen = true;
           this.manualRegLoadingLocations = true;

@@ -485,7 +485,7 @@ export function EventManualRegModal({
             </View>
             {!success && !loadingLocations ? (
               <View style={styles.progressWrap}>
-                {[["Visit details", 1], ["Customer", 2], ["Ticket & payment", 3]].map(([label, number], index) => {
+                {[["Visit details", 1], ["Customer", 2], ["Issue Ticket", 3]].map(([label, number], index) => {
                   const n = number as 1 | 2 | 3;
                   const active = step === n;
                   const complete = step > n;
@@ -742,6 +742,31 @@ export function EventManualRegModal({
                       </View>
                     ) : (
                       <>
+                        {showDateDropdown && (
+                          <View style={{ borderWidth: 1, borderColor: border, borderRadius: 10, marginBottom: 4, overflow: "hidden" }}>
+                            {regularDates.length === 0 ? (
+                              <View style={{ padding: Spacing.md }}>
+                                <ThemedText style={{ color: textSecondary, fontSize: 13 }}>No dates available</ThemedText>
+                              </View>
+                            ) : regularDates.map((d, idx) => {
+                              const sel = d.date === form.slotDate;
+                              return (
+                                <Pressable
+                                  key={d.date}
+                                   onPress={() => {
+                                    setField({ slotDate: d.date, slotTime: "" });
+                                    setShowDateDropdown(false);
+                                    setShowTimeDropdown(false);
+                                  }}
+                                  style={[{ paddingHorizontal: Spacing.md, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: Spacing.sm, backgroundColor: sel ? BRAND + "15" : surface }, idx > 0 ? { borderTopWidth: 1, borderTopColor: border } : {}]}
+                                >
+                                  <ThemedText style={{ color: sel ? BRAND : text, fontWeight: sel ? "700" : "500", flex: 1 }}>{formatDropdownDate(d.date)}</ThemedText>
+                                  {sel && <Feather name="check" size={14} color={BRAND} />}
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        )}
                         <Pressable
                           onPress={() => setShowDateDropdown((v) => !v)}
                           style={[styles.input, { borderColor: showDateDropdown ? BRAND : border, flexDirection: "row", alignItems: "center", gap: Spacing.sm }]}
@@ -753,31 +778,6 @@ export function EventManualRegModal({
                           </ThemedText>
                           <Feather name={showDateDropdown ? "chevron-up" : "chevron-down"} size={15} color={textSecondary} />
                         </Pressable>
-                        {showDateDropdown && (
-                          <View style={{ borderWidth: 1, borderColor: border, borderRadius: 10, marginTop: 4, overflow: "hidden" }}>
-                            {regularDates.length === 0 ? (
-                              <View style={{ padding: Spacing.md }}>
-                                <ThemedText style={{ color: textSecondary, fontSize: 13 }}>No dates available</ThemedText>
-                              </View>
-                            ) : regularDates.map((d, idx) => {
-                              const sel = d.date === form.slotDate;
-                              return (
-                                <Pressable
-                                  key={d.date}
-                                   onPress={() => {
-                                     setField({ slotDate: d.date, slotTime: "" });
-                                     setShowDateDropdown(false);
-                                     setShowTimeDropdown(false);
-                                   }}
-                                  style={[{ paddingHorizontal: Spacing.md, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: Spacing.sm, backgroundColor: sel ? BRAND + "15" : surface }, idx > 0 ? { borderTopWidth: 1, borderTopColor: border } : {}]}
-                                >
-                                  <ThemedText style={{ color: sel ? BRAND : text, fontWeight: sel ? "700" : "500", flex: 1 }}>{formatDropdownDate(d.date)}</ThemedText>
-                                  {sel && <Feather name="check" size={14} color={BRAND} />}
-                                </Pressable>
-                              );
-                            })}
-                          </View>
-                        )}
                       </>
                     )}
                   </Field>
@@ -788,21 +788,8 @@ export function EventManualRegModal({
                         <ThemedText style={{ color: textSecondary, fontSize: 13 }}>No available times for this date</ThemedText>
                       ) : (
                         <>
-                          <Pressable
-                            onPress={() => setShowTimeDropdown((v) => !v)}
-                            style={[styles.input, { borderColor: showTimeDropdown ? BRAND : border, flexDirection: "row", alignItems: "center", gap: Spacing.sm }]}
-                            testID="button-manual-reg-time"
-                          >
-                            <Feather name="clock" size={15} color={BRAND} />
-                            <ThemedText style={{ color: form.slotTime ? text : textSecondary, flex: 1 }}>
-                              {form.slotTime
-                                ? formatSlotOption(bookableTimes.find((t) => t.time === form.slotTime) || bookableTimes[0])
-                                : "Select a time slot"}
-                            </ThemedText>
-                            <Feather name={showTimeDropdown ? "chevron-up" : "chevron-down"} size={15} color={textSecondary} />
-                          </Pressable>
                           {showTimeDropdown && (
-                            <View style={{ borderWidth: 1, borderColor: border, borderRadius: 10, marginTop: 4, overflow: "hidden" }}>
+                            <View style={{ borderWidth: 1, borderColor: border, borderRadius: 10, marginBottom: 4, overflow: "hidden" }}>
                               {bookableTimes.map((t, idx) => {
                                 const sel = t.time === form.slotTime;
                                 return (
@@ -827,6 +814,19 @@ export function EventManualRegModal({
                               })}
                             </View>
                           )}
+                          <Pressable
+                            onPress={() => setShowTimeDropdown((v) => !v)}
+                            style={[styles.input, { borderColor: showTimeDropdown ? BRAND : border, flexDirection: "row", alignItems: "center", gap: Spacing.sm }]}
+                            testID="button-manual-reg-time"
+                          >
+                            <Feather name="clock" size={15} color={BRAND} />
+                            <ThemedText style={{ color: form.slotTime ? text : textSecondary, flex: 1 }}>
+                              {form.slotTime
+                                ? formatSlotOption(bookableTimes.find((t) => t.time === form.slotTime) || bookableTimes[0])
+                                : "Select a time slot"}
+                            </ThemedText>
+                            <Feather name={showTimeDropdown ? "chevron-up" : "chevron-down"} size={15} color={textSecondary} />
+                          </Pressable>
                         </>
                       )}
                     </Field>
