@@ -29,11 +29,17 @@ describe("event registration slot display", () => {
   test("shows the three-hour gift notice in the selected registration language", () => {
     const landing = readFileSync("server/templates/event-landing.html", "utf8");
 
-    assert.match(landing, /class="schedule-gift-card"/);
+    assert.match(landing, /id="scheduleGiftCard" class="schedule-gift-card hidden"/);
     assert.match(landing, /data-i18n="reg\.giftTitle"/);
     assert.match(landing, /data-i18n="reg\.giftMessage"/);
     assert.match(landing, /Enter and exit the shop within 3 hours to receive a surprise gift\./);
     assert.match(landing, /கடைக்குள் நுழைந்த 3 மணி நேரத்திற்குள் வெளியேறினால்/);
+    assert.match(landing, /schedule-gift-icon" aria-hidden="true">\s*<svg/);
+    assert.match(landing, /handleTimeSelectChange[\s\S]*scheduleGiftCard[\s\S]*classList\.toggle\("hidden", !selectedTime\)/);
+    assert.ok(
+      landing.indexOf('id="scheduleGiftCard"') > landing.indexOf('id="timeSelect"'),
+      "gift notice should render below the time slot selector",
+    );
   });
 
   test("collects a bilingual icon product category for reporting", () => {
@@ -47,6 +53,9 @@ describe("event registration slot display", () => {
     assert.match(landing, /class="product-category-icon"[^>]*aria-hidden="true"><svg/);
     assert.doesNotMatch(landing, /"reg\.productCategoryElectronics": "📱/);
     assert.match(landing, /productCategory: productCategory/);
+    assert.match(landing, /var selectedProductCategories = \[\]/);
+    assert.match(landing, /toggleProductCategory/);
+    assert.match(landing, /productCategories: selectedProductCategories\.slice\(\)/);
     assert.match(landing, /"reg\.productCategory": "நீங்கள் எந்த தயாரிப்பு வகையைத் தேடுகிறீர்கள்\?"/);
 
     const schema = readFileSync("shared/schema.ts", "utf8");
@@ -72,6 +81,11 @@ describe("event registration slot display", () => {
     assert.match(landing, /data-special-category="pregnant_women"/);
     assert.match(landing, /data-special-category="infants"/);
     assert.match(landing, /data-special-category="specially_abled"/);
+    assert.match(landing, /Visiting with any of the below members\?/);
+    assert.match(landing, /Infants, Senior Citizens, Pregnant Woman or Differently Abled/);
+    assert.match(landing, /id="specialCategoryNo" aria-pressed="true"/);
+    assert.match(landing, /id="specialCategoryOptions" class="special-category-options hidden"/);
+    assert.match(landing, /setVisitingWithSpecialCategory/);
     assert.match(landing, /data-special-category="senior_citizen"[\s\S]*?src="\/assets\/special-categories\/person_1788525899674\.png"/);
     assert.match(landing, /data-special-category="pregnant_women"[\s\S]*?src="\/assets\/special-categories\/pregnant_1788525899674\.png"/);
     assert.match(landing, /data-special-category="infants"[\s\S]*?src="\/assets\/special-categories\/human_1788525899674\.png"/);
@@ -80,6 +94,7 @@ describe("event registration slot display", () => {
     assert.match(landing, /sel\.disabled = isSpecialNeeds/);
     assert.match(landing, /visibleDays = allAvailDays\.length > 0 \? \[allAvailDays\[allAvailDays\.length - 1\]\] : \[\]/);
     assert.match(landing, /priorityAccess: isSpecialNeeds/);
+    assert.match(landing, /specialCategories: selectedSpecialCategories\.slice\(\)/);
     assert.match(landing, /"reg\.specialNeeds": "சிறப்புப் பிரிவு"/);
 
     const schema = readFileSync("shared/schema.ts", "utf8");
@@ -115,17 +130,14 @@ describe("event registration slot display", () => {
     assert.equal(validateEventPriorityAccessDate(dates, "2026-09-02", true), null);
   });
 
-  test("warns before review when no special category is selected", () => {
+  test("uses an explicit default-No special-category gate before review", () => {
     const landing = readFileSync("server/templates/event-landing.html", "utf8");
 
-    assert.match(landing, /id="specialCategoryWarningModal"[^>]*role="dialog"[^>]*aria-modal="true"/);
-    assert.match(landing, /if \(!isSpecialNeeds\) \{\s*openSpecialCategoryWarning\(\);\s*return;/);
-    assert.match(landing, /id="specialWarningEditBtn"/);
-    assert.match(landing, /id="specialWarningContinueBtn"/);
-    assert.match(landing, /closeSpecialCategoryWarning\(\);\s*goToStep\(3\)/);
-    assert.match(landing, /"reg\.specialWarningTitle": "Before you continue"/);
-    assert.match(landing, /"reg\.specialWarningContinue": "None apply — continue"/);
-    assert.match(landing, /"reg\.specialWarningTitle": "தொடர்வதற்கு முன்"/);
-    assert.match(landing, /"reg\.specialWarningEdit": "திரும்பிச் சென்று திருத்தவும்"/);
+    assert.match(landing, /var visitingWithSpecialCategory = false/);
+    assert.match(landing, /id="specialCategoryNo" aria-pressed="true"/);
+    assert.match(landing, /id="specialCategoryYes" aria-pressed="false"/);
+    assert.match(landing, /specialCategoryOptions"\)\.classList\.toggle\("hidden", !visitingWithSpecialCategory\)/);
+    assert.match(landing, /if \(visitingWithSpecialCategory && selectedSpecialCategories\.length === 0\)/);
+    assert.doesNotMatch(landing, /if \(!isSpecialNeeds\) \{\s*openSpecialCategoryWarning\(\)/);
   });
 });
