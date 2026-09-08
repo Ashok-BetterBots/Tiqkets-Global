@@ -227,10 +227,7 @@ export default function OrgEventManageScreen() {
   });
   const payoutProfile = payoutProfileQuery.data?.profile;
   const razorpayProductId = String(payoutProfile?.productId || "").trim();
-  const registrationFeesReady = Boolean(
-    /^acc_prd_[A-Za-z0-9]+$/.test(razorpayProductId) &&
-    String(payoutProfile.productStatus || "").toLowerCase() === "completed",
-  );
+  const registrationFeesReady = /^acc_prd_[A-Za-z0-9]+$/.test(razorpayProductId);
 
   // ── Create / edit form ──────────────────────────────────────────────────
   const [editing, setEditing] = useState<EventRow | null>(null);
@@ -658,7 +655,7 @@ export default function OrgEventManageScreen() {
             <ThemedText type="small" style={{ color: "#92400E", flex: 1, fontWeight: "700" }}>
               {payoutProfileQuery.isLoading
                 ? "Checking payout setup before enabling registration fees..."
-                : "Create Payout setup before adding fees details. A Razorpay Product ID and completed Route product status are required."}
+                : "Create Payout setup before adding fee details. A valid Razorpay Product ID is required."}
             </ThemedText>
           </View>
         ) : null}

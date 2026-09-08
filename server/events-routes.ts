@@ -106,8 +106,7 @@ export function canConfigureEventRegistrationFee(profile: {
   productStatus?: string | null;
 } | null | undefined): boolean {
   return !!profile &&
-    isValidRazorpayProviderId(profile.providerProductId, "acc_prd_") &&
-    String(profile.productStatus || "").toLowerCase() === "completed";
+    isValidRazorpayProviderId(profile.providerProductId, "acc_prd_");
 }
 // Admin (org.events.manage) or Billing (org.events.billing) only — used for
 // the desk/counter manual registration flow.
