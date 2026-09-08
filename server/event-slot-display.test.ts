@@ -10,6 +10,18 @@ describe("event registration slot display", () => {
     assert.equal(formatEventSlotRange("12:30", 45), "12:30 PM to 1:15 PM");
   });
 
+  test("keeps event fee gating enforced across create and edit surfaces", () => {
+    const mobile = readFileSync("client/screens/org/OrgEventManageScreen.tsx", "utf8");
+    const dashboard = readFileSync("server/templates/dashboard.html", "utf8");
+    const routes = readFileSync("server/events-routes.ts", "utf8");
+
+    assert.match(mobile, /editable=\{registrationFeesReady\}/);
+    assert.match(mobile, /registrationFee: !registrationFeesReady\s*\?\s*0/);
+    assert.match(dashboard, /:disabled="!eventRegistrationFeesReady\(\)"/);
+    assert.match(dashboard, /registrationFee: !this\.eventRegistrationFeesReady\(\)\s*\?\s*0/);
+    assert.match(routes, /patch\.registrationFee = canConfigureEventRegistrationFee\(payoutProfile\)/);
+  });
+
   test("keeps both registration surfaces as dropdown selectors", () => {
     const nativeModal = readFileSync("client/components/EventManualRegModal.tsx", "utf8");
     const landing = readFileSync("server/templates/event-landing.html", "utf8");
