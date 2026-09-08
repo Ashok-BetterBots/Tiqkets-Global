@@ -100,6 +100,15 @@ function requireAnyEventsPerm() {
   (fn as any).__permissionKey = "org.events.* (any)";
   return fn;
 }
+
+export function canConfigureEventRegistrationFee(profile: {
+  providerProductId?: string | null;
+  productStatus?: string | null;
+} | null | undefined): boolean {
+  return !!profile &&
+    isValidRazorpayProviderId(profile.providerProductId, "acc_prd_") &&
+    String(profile.productStatus || "").toLowerCase() === "completed";
+}
 // Admin (org.events.manage) or Billing (org.events.billing) only — used for
 // the desk/counter manual registration flow.
 function requireEventsManageOrBilling() {
@@ -3129,6 +3138,14 @@ export function registerEventsRoutes(app: Express) {
       } catch (e) {
         return res.status(400).json({ error: (e as Error).message });
       }
+      const requestedRegistrationFee = Math.max(0, parseInt(String(b.registrationFee || 0), 10) || 0);
+      const [payoutProfile] = await db.select({
+        providerProductId: organizerPayoutProfiles.providerProductId,
+        productStatus: organizerPayoutProfiles.productStatus,
+      }).from(organizerPayoutProfiles)
+        .where(eq(organizerPayoutProfiles.organizationId, String(b.organizationId)))
+        .limit(1);
+      const registrationFeesReady = canConfigureEventRegistrationFee(payoutProfile);
       const [ev] = await db.insert(events).values({
         branchId: b.branchId,
         organizationId: b.organizationId,
@@ -3143,7 +3160,7 @@ export function registerEventsRoutes(app: Express) {
         slotDurationMinutes: Math.max(5, parseInt(String(b.slotDurationMinutes || 30), 10) || 30),
         maxCapacityPerSlot: Math.max(1, parseInt(String(b.maxCapacityPerSlot || 50), 10) || 50),
         maxGuestsPerRegistration: Math.max(1, parseInt(String(b.maxGuestsPerRegistration || 10), 10) || 10),
-        registrationFee: Math.max(0, parseInt(String(b.registrationFee || 0), 10) || 0),
+        registrationFee: registrationFeesReady ? requestedRegistrationFee : 0,
         registrationFeeCustomText: normalizeRegistrationFeeCustomText(b.registrationFeeCustomText),
         refundable: refundPolicy.refundable,
         refundMessage: refundPolicy.refundMessage,
