@@ -1564,12 +1564,15 @@
         container.appendChild(div);
       });
 
-      // Auto-skip the "select a service" step when the branch only offers one
-      // selectable option. The customer goes straight to the details form.
+      // Auto-skip the "select a service" step only when the branch has exactly
+      // one active service and that service is currently selectable. If the
+      // branch has multiple services, keep step 1 visible even when only one is
+      // currently available, so customers can see and deliberately choose from
+      // the branch's service list.
       // We still render the (now single) service tile so it is in the DOM —
       // selectService() relies on the matching element existing — but the
       // user never sees it because we immediately advance to step 2.
-      if (enabledEntries.length === 1) {
+      if (branchData.services.length === 1 && enabledEntries.length === 1) {
         const only = enabledEntries[0];
         selectService(only.service, only.element);
         // Hide the Back button on the details step: there is no meaningful
