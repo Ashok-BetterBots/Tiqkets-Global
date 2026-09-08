@@ -159,6 +159,13 @@ interface EventForm {
   };
 }
 
+interface PayoutProfileResponse {
+  profile?: {
+    productId?: string | null;
+    productStatus?: string | null;
+  } | null;
+}
+
 const EMPTY_FORM: EventForm = {
   name: "",
   description: "",
@@ -211,6 +218,18 @@ export default function OrgEventManageScreen() {
     enabled: !!activeBranchId,
   });
   const events = data?.events ?? [];
+  const payoutProfileQuery = useQuery<PayoutProfileResponse>({
+    queryKey: ["/api/dashboard/payouts", organization?.id, "profile", "event-fee-gate"],
+    enabled: !!organization?.id,
+    queryFn: async () => (
+      await apiRequest("GET", `/api/dashboard/payouts/${organization!.id}/profile`)
+    ).json(),
+  });
+  const payoutProfile = payoutProfileQuery.data?.profile;
+  const registrationFeesReady = Boolean(
+    payoutProfile?.productId &&
+    String(payoutProfile.productStatus || "").toLowerCase() === "completed",
+  );
 
   // ── Create / edit form ──────────────────────────────────────────────────
   const [editing, setEditing] = useState<EventRow | null>(null);
@@ -280,6 +299,12 @@ export default function OrgEventManageScreen() {
     setFormError(null);
     setShowForm(true);
   };
+
+  useEffect(() => {
+    if (showForm && !editing && !registrationFeesReady && form.registrationFee !== "0") {
+      setForm((current) => ({ ...current, registrationFee: "0" }));
+    }
+  }, [showForm, editing, registrationFeesReady, form.registrationFee]);
 
   const openEdit = (ev: EventRow) => {
     setEditing(ev);
@@ -405,7 +430,9 @@ export default function OrgEventManageScreen() {
         operatingHoursEnd: form.operatingHoursEnd.trim() || "21:00",
         slotDurationMinutes: parseInt(form.slotDurationMinutes, 10) || 30,
         maxCapacityPerSlot: parseInt(form.maxCapacityPerSlot, 10) || 50,
-        registrationFee: Math.max(0, Math.round((parseFloat(form.registrationFee) || 0) * 100)),
+        registrationFee: !editing && !registrationFeesReady
+          ? 0
+          : Math.max(0, Math.round((parseFloat(form.registrationFee) || 0) * 100)),
         registrationFeeCustomText: form.registrationFeeCustomText.trim(),
         refundable: form.refundable,
         refundMessage: form.refundMessage.trim(),
@@ -612,9 +639,28 @@ export default function OrgEventManageScreen() {
           <View style={{ flex: 1 }}><Field label="Capacity / slot" value={form.maxCapacityPerSlot} onChangeText={(t) => setForm((f) => ({ ...f, maxCapacityPerSlot: t }))} keyboardType="number-pad" testID="input-event-capacity" /></View>
         </View>
         <View style={styles.twoCol}>
-          <View style={{ flex: 1 }}><Field label={"Fee (\u20B9)"} value={form.registrationFee} onChangeText={(t) => setForm((f) => ({ ...f, registrationFee: t }))} keyboardType="decimal-pad" testID="input-event-fee" /></View>
+          <View style={{ flex: 1 }}>
+            <Field
+              label={"Fee (\u20B9)"}
+              value={!editing && !registrationFeesReady ? "0" : form.registrationFee}
+              onChangeText={(t) => setForm((f) => ({ ...f, registrationFee: t }))}
+              keyboardType="decimal-pad"
+              editable={!!editing || registrationFeesReady}
+              testID="input-event-fee"
+            />
+          </View>
           <View style={{ flex: 1 }}><Field label="Parking spaces" value={form.parkingTotalSpaces} onChangeText={(t) => setForm((f) => ({ ...f, parkingTotalSpaces: t }))} keyboardType="number-pad" testID="input-event-parking" /></View>
         </View>
+        {!editing && !registrationFeesReady ? (
+          <View style={[styles.payoutSetupNotice, { borderColor: "#F59E0B", backgroundColor: "#FFFBEB" }]}>
+            <Feather name="alert-circle" size={18} color="#B45309" />
+            <ThemedText type="small" style={{ color: "#92400E", flex: 1, fontWeight: "700" }}>
+              {payoutProfileQuery.isLoading
+                ? "Checking payout setup before enabling registration fees..."
+                : "Create Payout setup before adding fees details. A Razorpay Product ID and completed Route product status are required."}
+            </ThemedText>
+          </View>
+        ) : null}
         <Field
           label="Registration fee custom text"
           value={form.registrationFeeCustomText}
@@ -1118,10 +1164,10 @@ function ActionBtn({ icon, label, iconColor, onPress, busy, testID }: {
   );
 }
 
-function Field({ label, value, onChangeText, placeholder, keyboardType, multiline, testID }: {
+function Field({ label, value, onChangeText, placeholder, keyboardType, multiline, editable = true, testID }: {
   label: string; value: string; onChangeText: (t: string) => void;
   placeholder?: string; keyboardType?: "default" | "number-pad" | "decimal-pad";
-  multiline?: boolean; testID: string;
+  multiline?: boolean; editable?: boolean; testID: string;
 }) {
   const { theme } = useTheme();
   return (
@@ -1134,7 +1180,8 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, multilin
         placeholderTextColor={theme.textSecondary}
         keyboardType={keyboardType}
         multiline={multiline}
-        style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceMuted }, multiline ? { minHeight: 64, textAlignVertical: "top" } : null]}
+        editable={editable}
+        style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceMuted, opacity: editable ? 1 : 0.55 }, multiline ? { minHeight: 64, textAlignVertical: "top" } : null]}
         testID={testID}
       />
     </View>
@@ -1193,6 +1240,7 @@ const styles = StyleSheet.create({
   actionBtn: { flexDirection: "row", alignItems: "center", gap: Spacing.xs, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1 },
   field: { marginBottom: Spacing.md },
   twoCol: { flexDirection: "row", gap: Spacing.md },
+  payoutSetupNotice: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.sm, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md },
   refundPolicyBox: { flexDirection: "row", alignItems: "center", gap: Spacing.md, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md },
   refundToggle: { flexDirection: "row", gap: Spacing.xs },
   refundOption: { minWidth: 42, alignItems: "center", borderWidth: 1, borderRadius: BorderRadius.sm, paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm },

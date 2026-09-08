@@ -76,3 +76,4 @@
 - [Expo static-build API domain](expo-static-build-api-domain.md) — prefer Replit’s current internal deployment domain over a manually configured APP_DOMAIN when embedding the mobile API host.
 - [Expo permission blocking order](expo-permission-blocking-order.md) — auto-linked plugins can re-add blocked Android permissions; apply final manifest removal directives after package plugins.
 - [Public event registration OTP is mandatory](event-registration-otp-mandatory.md) — Screen 1 must always lead to WhatsApp OTP; only successful verification may open Schedule.
+- [New event fee payout gate](event-fee-payout-gate.md) — new event fees require a valid Razorpay Product ID and Route product status "completed"; otherwise force zero.

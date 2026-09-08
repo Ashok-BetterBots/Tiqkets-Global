@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import { formatEventSlotRange } from "@shared/eventSlots";
-import { validateEventPriorityAccessDate } from "./events-routes";
+import { canConfigureEventRegistrationFee, validateEventPriorityAccessDate } from "./events-routes";
 
 describe("event registration slot display", () => {
   test("formats the slot start and end using the configured duration", () => {
@@ -138,5 +138,21 @@ describe("event registration slot display", () => {
     assert.match(landing, /function toggleProductCategory\(value\)/);
     assert.match(landing, /productCategory: productCategory/);
     assert.match(landing, /productCategories: selectedProductCategories\.slice\(\)/);
+  });
+
+  test("new event fees require a Razorpay Product ID with completed Route status", () => {
+    assert.equal(canConfigureEventRegistrationFee(null), false);
+    assert.equal(canConfigureEventRegistrationFee({
+      providerProductId: "acc_prd_123456",
+      productStatus: "pending",
+    }), false);
+    assert.equal(canConfigureEventRegistrationFee({
+      providerProductId: null,
+      productStatus: "completed",
+    }), false);
+    assert.equal(canConfigureEventRegistrationFee({
+      providerProductId: "acc_prd_123456",
+      productStatus: "completed",
+    }), true);
   });
 });
