@@ -137,9 +137,9 @@ Do not use `match nuke` or delete existing company certificates.
 
 - The release maintainer now has Admin and Certificates, Identifiers & Profiles
   access for team `FF43UTULMB`.
-- `com.tiqkets.app` is registered as **TIQKETS Global**, with Push Notifications
+- `com.tiqkets.app` is registered as **TIQKETS**, with Push Notifications
   enabled. This does not configure notification delivery credentials by itself.
-- App Store Connect record **TIQKETS Global**, Apple ID `6808904758`, SKU
+- App Store Connect record **TIQKETS**, Apple ID `6808904758`, SKU
   `TIQKETS-GLOBAL-IOS`, is bound to `com.tiqkets.app` with full team access.
 - An existing **TIQKETS** draft, Apple ID `6764407653`, uses
   `app.replit.tiqkets` and SKU `EX1777404717595`. It is not the `com.tiqkets.app`

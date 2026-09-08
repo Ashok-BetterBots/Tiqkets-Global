@@ -1,13 +1,13 @@
-# TIQKETS Global
+# TIQKETS
 
-TIQKETS Global is the separate TIQKETS mobile application for queue management,
+TIQKETS is the separate mobile application for queue management,
 event check-in, customer notifications, and service reporting. The React Native
 application uses Expo as its framework, while native store builds and delivery
 run through Fastlane and GitHub Actions.
 
 ## Project identifiers
 
-- App name: **TIQKETS Global**
+- App name: **TIQKETS**
 - Apple bundle identifier: `com.tiqkets.app`
 - Android package: `com.tiqkets.app`
 - Production API: `https://tiqketsglobal.replit.app`
@@ -56,4 +56,3 @@ release submits production builds; a prerelease targets internal testing; a
 manual build run only creates signed artifacts. See [STORE_RELEASE.md](STORE_RELEASE.md)
 for the complete process and [docs/CLIENT_HANDOFF.md](docs/CLIENT_HANDOFF.md) for
 the current ownership and launch checklist.
-

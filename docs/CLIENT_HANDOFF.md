@@ -1,4 +1,4 @@
-# TIQKETS Global client handoff
+# TIQKETS client handoff
 
 Prepared on September 7, 2026.
 
@@ -45,7 +45,7 @@ production environment secrets.
 
 ## Store records
 
-- App Store Connect: **TIQKETS Global**, Apple ID `6808904758`, SKU
+- App Store Connect: **TIQKETS**, Apple ID `6808904758`, SKU
   `TIQKETS-GLOBAL-IOS`, bundle `com.tiqkets.app`.
 - Google Play: **TIQKETS**, package `com.tiqkets.app`.
 - Google Play internal-test opt-in:
