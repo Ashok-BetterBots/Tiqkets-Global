@@ -1795,9 +1795,6 @@ export function registerEventsRoutes(app: Express) {
     try {
       const ev = await loadEventById(eventId, { publishedOnly: true });
       if (!ev) return res.status(404).json({ error: "No active event" });
-      if (!isEventRegistrationOtpEnabled(ev)) {
-        return res.json({ sent: false, otpRequired: false });
-      }
       const rawPhone = String(req.body?.phone || "");
       const phone = normalizeIndianPhone(rawPhone);
       if (!phone || phone.replace(/\D/g, "").length < 10) {
@@ -1854,9 +1851,6 @@ export function registerEventsRoutes(app: Express) {
     try {
       const ev = await loadEventById(eventId, { publishedOnly: true });
       if (!ev) return res.status(404).json({ error: "No active event" });
-      if (!isEventRegistrationOtpEnabled(ev)) {
-        return res.json({ verified: true, otpRequired: false, verificationToken: null });
-      }
       const rawPhone = String(req.body?.phone || "");
       const code = String(req.body?.otp || "").trim();
       const phone = normalizeIndianPhone(rawPhone);
@@ -1959,30 +1953,28 @@ export function registerEventsRoutes(app: Express) {
       // Customers must verify their WhatsApp number before completing online
       // registration. The verification token is issued by /verify-phone-otp and
       // is valid for 30 minutes from the moment they completed the OTP check.
-      if (isEventRegistrationOtpEnabled(ev)) {
-        const verificationToken = String(req.body?.verificationToken || "").trim();
-        if (!verificationToken) {
-          return res.status(400).json({
-            error: "WhatsApp verification required. Please verify your number before registering.",
-            requiresVerification: true,
-          });
-        }
-        const verificationCutoff = new Date(Date.now() - 30 * 60_000);
-        const [phoneVerif] = await db.select()
-          .from(eventPhoneVerifications)
-          .where(and(
-            eq(eventPhoneVerifications.eventId, ev.id),
-            eq(eventPhoneVerifications.phone, phone),
-            eq(eventPhoneVerifications.verificationToken, verificationToken),
-            gte(eventPhoneVerifications.verifiedAt, verificationCutoff)
-          ))
-          .limit(1);
-        if (!phoneVerif) {
-          return res.status(400).json({
-            error: "WhatsApp verification expired or invalid. Please verify your number again.",
-            requiresVerification: true,
-          });
-        }
+      const verificationToken = String(req.body?.verificationToken || "").trim();
+      if (!verificationToken) {
+        return res.status(400).json({
+          error: "WhatsApp verification required. Please verify your number before registering.",
+          requiresVerification: true,
+        });
+      }
+      const verificationCutoff = new Date(Date.now() - 30 * 60_000);
+      const [phoneVerif] = await db.select()
+        .from(eventPhoneVerifications)
+        .where(and(
+          eq(eventPhoneVerifications.eventId, ev.id),
+          eq(eventPhoneVerifications.phone, phone),
+          eq(eventPhoneVerifications.verificationToken, verificationToken),
+          gte(eventPhoneVerifications.verifiedAt, verificationCutoff)
+        ))
+        .limit(1);
+      if (!phoneVerif) {
+        return res.status(400).json({
+          error: "WhatsApp verification expired or invalid. Please verify your number again.",
+          requiresVerification: true,
+        });
       }
 
       // Resolve the chosen Location (service). When the event has locations the

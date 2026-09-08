@@ -3601,10 +3601,6 @@
       updateSubmitState();
     }
 
-    function registrationOtpEnabled() {
-      return !data || !data.event || !data.event.otpSettings || data.event.otpSettings.registration !== false;
-    }
-
     function setStepState(n, state) {
       var el = $("step" + n);
       if (!el) return;
@@ -3686,16 +3682,6 @@
           $("otpSendFailState").classList.remove("hidden");
           return;
         }
-        if (responseData && responseData.otpRequired === false) {
-          phoneVerified = false;
-          verifiedPhone = null;
-          phoneVerificationToken = null;
-          inOtpStep = false;
-          $("stepOtp").classList.add("hidden");
-          $("nextBtn").classList.remove("hidden");
-          goToStep(2);
-          return;
-        }
         otpSent = true;
         $("otpSendingState").classList.add("hidden");
         $("otpSentState").classList.remove("hidden");
@@ -3753,17 +3739,6 @@
           $("verifyOtpBtn").textContent = t("otp.verify");
           return;
         }
-        if (data.otpRequired === false) {
-          phoneVerified = false;
-          verifiedPhone = null;
-          phoneVerificationToken = null;
-          if (otpResendTimer) { clearInterval(otpResendTimer); otpResendTimer = null; }
-          inOtpStep = false;
-          $("stepOtp").classList.add("hidden");
-          $("nextBtn").classList.remove("hidden");
-          goToStep(2);
-          return;
-        }
         // Verified — store token and proceed to schedule step
         phoneVerified = true;
         verifiedPhone = phone;
@@ -3815,13 +3790,6 @@
         var missing = firstMissingField();
         if (!detailsStepValid()) {
           if (missing) { toast(t("toast.fieldRequired", { field: missing }), true); }
-          return;
-        }
-        if (!registrationOtpEnabled()) {
-          phoneVerified = false;
-          phoneVerificationToken = null;
-          verifiedPhone = null;
-          goToStep(2);
           return;
         }
         // Check if the entered WhatsApp number has already been verified this session
