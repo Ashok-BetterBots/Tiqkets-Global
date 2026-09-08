@@ -133,7 +133,7 @@ Do not use `match nuke` or delete existing company certificates.
 
 ## First publication
 
-### Apple setup status — September 5, 2026
+### Apple setup status — September 9, 2026
 
 - The release maintainer now has Admin and Certificates, Identifiers & Profiles
   access for team `FF43UTULMB`.
@@ -141,11 +141,9 @@ Do not use `match nuke` or delete existing company certificates.
   enabled. This does not configure notification delivery credentials by itself.
 - App Store Connect record **TIQKETS**, Apple ID `6808904758`, SKU
   `TIQKETS-GLOBAL-IOS`, is bound to `com.tiqkets.app` with full team access.
-- An existing **TIQKETS** draft, Apple ID `6764407653`, uses
-  `app.replit.tiqkets` and SKU `EX1777404717595`. It is not the `com.tiqkets.app`
-  record required by this repository. Leave it unchanged until the owner decides
-  how to resolve the identity/name conflict; do not upload this project's build
-  to that record or silently change the application's bundle identifier.
+- The obsolete Apple draft that used `app.replit.tiqkets` was removed by the
+  account owner. Apple ID `6808904758` is the only store record used by this
+  repository.
 - App Store Connect API access is active. Company team key **TIQKETS GitHub
   Releases** (key ID `8TNK58H7YX`) has App Manager access and its issuer, key ID,
   and private key are installed as GitHub Actions secrets. It is not tied to a
@@ -177,7 +175,7 @@ Do not use `match nuke` or delete existing company certificates.
 - Ignored local recovery files remain in `.release-credentials/`. Move a copy to
   the company vault; GitHub Actions does not depend on those local files.
 
-### Remaining steps
+### Public-review status
 
 1. Production API URL `https://tiqketsglobal.replit.app` is verified and stored
    in the `EXPO_PUBLIC_API_URL` GitHub variable.
@@ -194,29 +192,32 @@ Do not use `match nuke` or delete existing company certificates.
    The **TIQKETS Internal Testers** list currently has one tester. Later releases
    can upload
    through Fastlane after the Google service-account secret is installed.
-5. Complete review access, ratings, target audience, privacy/data declarations,
-   countries, and pricing in both consoles. Use a non-production review account;
-   do not put its credentials in Git.
-6. Test the available Android internal build and iOS TestFlight build. Once both
-   are approved, publish a stable GitHub Release to submit to both stores.
+5. Apple version `1.0` (build `8.1`) was submitted on September 9, 2026 and is
+   **Waiting for Review**. Automatic release after approval is enabled.
+6. Google Play version `1.0.1` (`210939941`) and its listing/policy changes were
+   submitted on September 9, 2026. Play Console shows all 11 changes under
+   **Changes in review**, with automatic publication after approval because
+   Managed publishing is off. The production track targets 177 countries and
+   regions.
+7. Monitor both reviews and respond to any reviewer questions. No manual release
+   action is expected after approval under the current settings.
 
-### Google Play setup status — September 7, 2026
+### Google Play setup status — September 9, 2026
 
 - The default English (United States) store listing is saved and ready to send
   for review. It includes the description, a 512×512 icon, a 1024×500 feature
   graphic, and six ordered 1080×1920 phone screenshots.
 - The app is categorized as **Business**. Public support details are
   `hello@tiqkets.in`, `+91 91500 86103`, and `https://www.tiqkets.in`.
-- Nine of the eleven initial Play setup tasks are complete. The saved policy
+- All initial Play setup tasks are complete. The submitted policy
   declarations state that this app has no ads, does not use Advertising ID, is
   not a government app, does not provide regulated financial features, and has
   no health features.
 - Permanent organization and event reviewer accounts are saved in the private
-  **Sign in details** declaration, and the target audience is saved as
-  **18 and over**. The content-rating form still requires an authorized person
-  to accept the IARC Terms of Use. All Data Safety answers are completed and
-  saved as a draft, including the verified public deletion-information URL; an
-  authorized representative must make the final certification.
+  **Sign in details** declaration, and the target audience is **18 and over**.
+  The IARC questionnaire was submitted with ratings ranging from All ages/3+ to
+  Everyone, and the Data Safety declaration was certified with the verified
+  public deletion-information URL.
 - A non-personal Google service account now has Admin permission for the TIQKETS
   app only (no account-wide access). Its JSON is installed in GitHub Actions, so
   future GitHub Releases can upload to Play without a personal login.
@@ -239,10 +240,10 @@ is not required. Normal releases preserve the screenshots already in App Store
 Connect. The artwork should still receive a final human review: images 1 and 3
 contain Android status indicators inside iPhone frames.
 
-Apple build `8.1` is selected for App Store version `1.0`. Permanent reviewer
-credentials and contact details are saved. App Store Connect's **Add for Review**
-validation now reports two remaining blockers: Content Rights must be set and an
-Admin must publish the prepared App Privacy answers.
+Apple build `8.1` is submitted for App Store version `1.0`. Permanent reviewer
+credentials and contact details are saved privately in App Store Connect.
+Content Rights and App Privacy are published, and the submission is **Waiting
+for Review**.
 
 ## Validation
 

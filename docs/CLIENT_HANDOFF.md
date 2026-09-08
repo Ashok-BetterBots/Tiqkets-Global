@@ -1,6 +1,6 @@
 # TIQKETS client handoff
 
-Prepared on September 7, 2026.
+Prepared on September 9, 2026.
 
 ## What is delivered
 
@@ -28,8 +28,8 @@ production environment secrets.
 - Signer: TIQKETS Upload, BetterBots AI Solutions Private Limited
 - SHA-256: `5a8ebc744dc700ed896a0e12be339e3691c75090e542bf7299e5710db33c16f5`
 - GitHub Actions run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/34111367362>
-- Status: available on the active Google Play internal-testing track; the
-  **TIQKETS Internal Testers** list contains one authorized tester
+- Status: submitted to Google Play production review for full rollout in 177
+  countries and regions; also available on the internal-testing track
 
 ### iOS
 
@@ -39,9 +39,8 @@ production environment secrets.
 - Team application identifier: `FF43UTULMB.com.tiqkets.app`
 - SHA-256: `1fc45d041dccc0e5b9a0a3da2beaec9bfb9946f02cd770fad39431b289df6660`
 - GitHub Actions run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/33964123854>
-- Status: Ready to Test in the automatically distributed **TIQKETS Internal**
-  group and selected for the App Store version; one authorized internal tester
-  is enrolled
+- Status: App Store version `1.0` is **Waiting for Review** with automatic
+  release after approval; the build remains available in **TIQKETS Internal**
 
 ## Store records
 
@@ -51,8 +50,8 @@ production environment secrets.
 - Google Play internal-test opt-in:
   <https://play.google.com/apps/internaltest/4701748236699726598>
 
-The older Apple draft named TIQKETS with Apple ID `6764407653` belongs to bundle
-`app.replit.tiqkets` and must not receive this application's build.
+The obsolete Apple draft that used `app.replit.tiqkets` was removed by the
+account owner. Apple ID `6808904758` is the release record for this repository.
 
 ## Credentials and ownership
 
@@ -79,7 +78,7 @@ Release credentials are designed for company ownership rather than one laptop:
 The detailed recovery procedure and the exact GitHub secret names are in
 [`STORE_RELEASE.md`](../STORE_RELEASE.md).
 
-## Client actions required before public launch
+## Review and launch follow-up
 
 1. Keep the two permanent reviewer accounts active; both are now saved privately
    in Apple and Google with role-specific navigation instructions.
@@ -88,17 +87,18 @@ The detailed recovery procedure and the exact GitHub secret names are in
 3. Store a recovery copy of the Google service-account JSON in the company
    password manager. If it is unavailable, the designated DevOps maintainer can
    rotate the key in Google Cloud and replace the GitHub secret.
-4. Have an authorized representative accept the IARC terms, complete content
-   rating, certify Data Safety, and complete remaining privacy declarations.
+4. The IARC content rating, Google Data Safety, Apple Content Rights, and Apple
+   App Privacy declarations are complete and submitted.
 5. Keep the Firebase-hosted deletion-information page available and update it
    from `docs/account-deletion.html` whenever the deletion process changes.
-6. Visually approve the uploaded App Store iPhone screenshots; two supplied
-   images contain Android status indicators inside iPhone frames.
-7. Have an Apple Admin publish the prepared privacy answers and set Content
-   Rights. Reviewer credentials and contact details are already saved; these are
-   the two blockers App Store Connect reported when **Add for Review** was checked.
-8. Test the internal Android build and iOS TestFlight build before publishing the
-   stable GitHub Release.
+6. Monitor Apple and Google review messages and respond if either reviewer asks
+   for clarification or replacement assets.
+7. Apple is configured to release automatically after approval. Google Managed
+   publishing is off, so the production rollout also publishes automatically
+   after approval.
+8. For later versions, publish a stable GitHub Release with customer-facing
+   notes; the workflow builds, signs, uploads, and submits both stores through
+   Fastlane using organization-owned credentials.
 
 The Google Play account-deletion URL is
 `https://tiqkets-global-publishing.web.app/account-deletion`. It is deployed in
