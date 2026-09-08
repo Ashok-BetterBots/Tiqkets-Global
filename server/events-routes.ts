@@ -3205,7 +3205,17 @@ export function registerEventsRoutes(app: Express) {
       if (b.slotDurationMinutes !== undefined) patch.slotDurationMinutes = Math.max(5, parseInt(String(b.slotDurationMinutes), 10) || 30);
       if (b.maxCapacityPerSlot !== undefined) patch.maxCapacityPerSlot = Math.max(1, parseInt(String(b.maxCapacityPerSlot), 10) || 50);
       if (b.maxGuestsPerRegistration !== undefined) patch.maxGuestsPerRegistration = Math.max(1, parseInt(String(b.maxGuestsPerRegistration), 10) || 10);
-      if (b.registrationFee !== undefined) patch.registrationFee = Math.max(0, parseInt(String(b.registrationFee), 10) || 0);
+      if (b.registrationFee !== undefined) {
+        const [payoutProfile] = await db.select({
+          providerProductId: organizerPayoutProfiles.providerProductId,
+          productStatus: organizerPayoutProfiles.productStatus,
+        }).from(organizerPayoutProfiles)
+          .where(eq(organizerPayoutProfiles.organizationId, ev.organizationId))
+          .limit(1);
+        patch.registrationFee = canConfigureEventRegistrationFee(payoutProfile)
+          ? Math.max(0, parseInt(String(b.registrationFee), 10) || 0)
+          : 0;
+      }
       if ("registrationFeeCustomText" in b) {
         try {
           patch.registrationFeeCustomText = normalizeRegistrationFeeCustomText(b.registrationFeeCustomText, ev.registrationFeeCustomText);
