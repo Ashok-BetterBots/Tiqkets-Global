@@ -152,19 +152,19 @@ describe("event registration slot display", () => {
     assert.match(landing, /productCategories: selectedProductCategories\.slice\(\)/);
   });
 
-  test("new event fees require a Razorpay Product ID with completed Route status", () => {
+  test("event fees are enabled as soon as a valid Razorpay Product ID exists", () => {
     assert.equal(canConfigureEventRegistrationFee(null), false);
     assert.equal(canConfigureEventRegistrationFee({
       providerProductId: "acc_prd_123456",
       productStatus: "pending",
-    }), false);
+    }), true);
     assert.equal(canConfigureEventRegistrationFee({
       providerProductId: null,
       productStatus: "completed",
     }), false);
     assert.equal(canConfigureEventRegistrationFee({
-      providerProductId: "acc_prd_123456",
+      providerProductId: "invalid_product_id",
       productStatus: "completed",
-    }), true);
+    }), false);
   });
 });
