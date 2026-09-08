@@ -130,14 +130,20 @@ describe("event registration slot display", () => {
     assert.equal(validateEventPriorityAccessDate(dates, "2026-09-02", true), null);
   });
 
-  test("uses an explicit default-No special-category gate before review", () => {
+  test("requires confirmation for No and a category selection for Yes", () => {
     const landing = readFileSync("server/templates/event-landing.html", "utf8");
 
     assert.match(landing, /var visitingWithSpecialCategory = false/);
     assert.match(landing, /id="specialCategoryNo" aria-pressed="true"/);
     assert.match(landing, /id="specialCategoryYes" aria-pressed="false"/);
     assert.match(landing, /specialCategoryOptions"\)\.classList\.toggle\("hidden", !visitingWithSpecialCategory\)/);
+    assert.match(landing, /specialCategoryComplete = !visitingWithSpecialCategory \|\| selectedSpecialCategories\.length > 0/);
     assert.match(landing, /if \(visitingWithSpecialCategory && selectedSpecialCategories\.length === 0\)/);
-    assert.doesNotMatch(landing, /if \(!isSpecialNeeds\) \{\s*openSpecialCategoryWarning\(\)/);
+    assert.match(landing, /if \(!visitingWithSpecialCategory\) \{\s*openSpecialCategoryWarning\(\);\s*return;/);
+    assert.match(landing, /id="specialCategoryWarningModal"[^>]*role="dialog"[^>]*aria-modal="true"/);
+    assert.match(landing, /Any undeclared special-category member will not be allowed entry/);
+    assert.match(landing, /id="specialWarningEditBtn"/);
+    assert.match(landing, /id="specialWarningContinueBtn"[^>]*>None apply — continue</);
+    assert.match(landing, /closeSpecialCategoryWarning\(\);\s*goToStep\(3\)/);
   });
 });
