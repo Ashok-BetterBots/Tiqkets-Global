@@ -115,17 +115,28 @@ describe("event registration slot display", () => {
     assert.equal(validateEventPriorityAccessDate(dates, "2026-09-02", true), null);
   });
 
-  test("warns before review when no special category is selected", () => {
+  test("gates review through the explicit special-category answer", () => {
     const landing = readFileSync("server/templates/event-landing.html", "utf8");
 
     assert.match(landing, /id="specialCategoryWarningModal"[^>]*role="dialog"[^>]*aria-modal="true"/);
-    assert.match(landing, /if \(!isSpecialNeeds\) \{\s*openSpecialCategoryWarning\(\);\s*return;/);
+    assert.match(landing, /specialCategoryAnswer === "yes" && selectedSpecialCategories\.length === 0/);
+    assert.match(landing, /id="specialCategoryInlineError"[^>]*role="alert"/);
+    assert.match(landing, /if \(specialCategoryAnswer === "no"\) \{\s*openSpecialCategoryWarning\(\);\s*return;/);
     assert.match(landing, /id="specialWarningEditBtn"/);
     assert.match(landing, /id="specialWarningContinueBtn"/);
     assert.match(landing, /closeSpecialCategoryWarning\(\);\s*goToStep\(3\)/);
     assert.match(landing, /"reg\.specialWarningTitle": "Before you continue"/);
-    assert.match(landing, /"reg\.specialWarningContinue": "None apply — continue"/);
+    assert.match(landing, /"reg\.specialWarningContinue": "Confirm & Proceed"/);
     assert.match(landing, /"reg\.specialWarningTitle": "தொடர்வதற்கு முன்"/);
-    assert.match(landing, /"reg\.specialWarningEdit": "திரும்பிச் சென்று திருத்தவும்"/);
+    assert.match(landing, /"reg\.specialWarningEdit": "திரும்பிச் செல்லவும்"/);
+  });
+
+  test("customer registration sends every selected product category", () => {
+    const landing = readFileSync("server/templates/event-landing.html", "utf8");
+
+    assert.match(landing, /var selectedProductCategories = \[\]/);
+    assert.match(landing, /function toggleProductCategory\(value\)/);
+    assert.match(landing, /productCategory: productCategory/);
+    assert.match(landing, /productCategories: selectedProductCategories\.slice\(\)/);
   });
 });

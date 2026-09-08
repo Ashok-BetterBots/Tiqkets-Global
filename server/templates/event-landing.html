@@ -1176,6 +1176,11 @@
       border-color: #c7e8d7;
     }
     .product-category-picker { position: relative; }
+    .product-category-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
     .product-category-trigger {
       width: 100%;
       min-height: 52px;
@@ -1255,6 +1260,81 @@
       font-size: 14px;
       text-align: left;
       cursor: pointer;
+    }
+    .product-category-chips .product-category-option {
+      width: auto;
+      min-height: 44px;
+      padding: 7px 12px;
+      border: 1.5px solid var(--line-strong);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .product-category-chips .product-category-icon {
+      flex-basis: 26px;
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+    }
+    .product-category-chips .product-category-icon svg { width: 16px; height: 16px; }
+    .product-category-chips .product-category-option[aria-selected="true"] {
+      border-color: var(--brand-primary);
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+      box-shadow: 0 0 0 2px rgba(var(--brand-rgb), .08);
+    }
+    .special-category-question {
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1.5px solid #e5e7eb;
+      background: #fafafa;
+    }
+    .special-category-question-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #1a1a2e;
+      line-height: 1.4;
+    }
+    .special-category-question-copy {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 3px;
+      line-height: 1.45;
+    }
+    .special-category-toggle {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .special-category-toggle button {
+      min-height: 44px;
+      border: 1.5px solid var(--line-strong);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .special-category-toggle button[aria-pressed="true"] {
+      border-color: var(--brand-primary);
+      background: var(--brand-primary);
+      color: #fff;
+    }
+    .special-category-options-wrap { margin-top: 14px; }
+    .special-category-inline-error {
+      margin-top: 10px;
+      color: var(--error);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.4;
     }
     .product-category-option:hover,
     .product-category-option[aria-selected="true"] {
@@ -1823,10 +1903,7 @@
     }
     .schedule-gift-card::after { display: none; }
     .schedule-gift-icon { font-size: 0; background: color-mix(in srgb, var(--brand-primary) 11%, #fff); box-shadow: none; }
-    .schedule-gift-icon::before {
-      content: ""; width: 15px; height: 15px; border: 2px solid var(--brand-primary);
-      border-radius: 4px; display: block;
-    }
+    .schedule-gift-icon svg { color: var(--brand-primary); }
     .schedule-gift-title { color: var(--brand-primary); }
     .schedule-gift-message { color: var(--text-secondary); }
 
@@ -1964,10 +2041,10 @@
             <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>
           </div>
           <div id="specialCategoryWarningTitle" class="special-warning-title" data-i18n="reg.specialWarningTitle">Before you continue</div>
-          <div id="specialCategoryWarningCopy" class="special-warning-copy" data-i18n="reg.specialWarningCopy">Senior citizens, pregnant women, differently abled people, and visitors with infants are not permitted on the regular event dates. If any of these applies to your group, go back and select the appropriate Special category.</div>
+          <div id="specialCategoryWarningCopy" class="special-warning-copy" data-i18n="reg.specialWarningCopy">No special category members (Infants, Senior Citizens, Pregnant Women, or Differently Abled) will be permitted entry under this registration. If you believe any of these members may be attending, please go back and update your selection.</div>
           <div class="special-warning-actions">
-            <button type="button" id="specialWarningEditBtn" class="special-warning-edit" data-i18n="reg.specialWarningEdit">Go back and edit</button>
-            <button type="button" id="specialWarningContinueBtn" class="special-warning-continue" data-i18n="reg.specialWarningContinue">None apply — continue</button>
+            <button type="button" id="specialWarningEditBtn" class="special-warning-edit" data-i18n="reg.specialWarningEdit">Go Back</button>
+            <button type="button" id="specialWarningContinueBtn" class="special-warning-continue" data-i18n="reg.specialWarningContinue">Confirm &amp; Proceed</button>
           </div>
         </div>
       </div>
@@ -2056,13 +2133,7 @@
               <div class="form-group">
                 <label class="field-label" id="productCategoryLabel" style="margin-bottom:8px;"><span data-i18n="reg.productCategory">What product category are you looking for?</span> <span class="required">*</span></label>
                 <input type="hidden" id="productCategory" value="">
-                <div class="product-category-picker">
-                  <button type="button" id="productCategoryTrigger" class="product-category-trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="productCategoryLabel productCategorySelectedLabel">
-                    <span id="productCategorySelectedIcon" class="product-category-selected-icon" aria-hidden="true"></span>
-                    <span id="productCategorySelectedLabel" class="product-category-trigger-label" data-i18n="reg.productCategoryPlaceholder">Select a product category</span>
-                  </button>
-                  <svg class="product-category-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                  <div id="productCategoryMenu" class="product-category-menu hidden" role="listbox" aria-labelledby="productCategoryLabel">
+                <div class="product-category-chips" role="group" aria-labelledby="productCategoryLabel">
                     <button type="button" class="product-category-option" role="option" aria-selected="false" data-category="electronics" data-label-key="reg.productCategoryElectronics">
                       <span class="product-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="2.5" width="14" height="19" rx="2.5"></rect><path d="M9 5h6M10 18.5h4"></path></svg></span>
                       <span data-i18n="reg.productCategoryElectronics">Electronics</span>
@@ -2079,7 +2150,6 @@
                       <span class="product-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 10h14v3a7 7 0 0 1-14 0zM3 10h18M9 6h6M12 6V3"></path></svg></span>
                       <span data-i18n="reg.productCategoryVessels">Vessels</span>
                     </button>
-                  </div>
                 </div>
               </div>
 
@@ -2155,20 +2225,18 @@
                 </div>
               </div>
 
-              <div class="schedule-gift-card" role="note" aria-live="polite">
-                <div class="schedule-gift-icon" aria-hidden="true">🎁</div>
-                <div class="schedule-gift-copy">
-                  <div class="schedule-gift-title" data-i18n="reg.giftTitle">A surprise gift awaits!</div>
-                  <div class="schedule-gift-message" data-i18n="reg.giftMessage">Enter and exit the shop within 3 hours to receive a surprise gift.</div>
-                </div>
-              </div>
-
               <div id="slotBlock">
                 <!-- Selecting any special category reserves and locks the final event date. -->
-                <div style="margin-bottom:16px;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafafa;">
-                  <div id="specialCategoryTitle" style="font-size:13px;font-weight:800;color:#1a1a2e;line-height:1.4;" data-i18n="reg.specialNeeds">Special category</div>
-                  <div style="font-size:11px;color:#6b7280;margin-top:3px;" data-i18n="reg.specialNeedsHint">Select all that apply. The final event date will be reserved for you.</div>
-                  <div class="special-category-grid" role="group" aria-labelledby="specialCategoryTitle">
+                <div class="special-category-question">
+                  <div id="specialCategoryTitle" class="special-category-question-title" data-i18n="reg.specialQuestion">Visiting with any of the below members?</div>
+                  <div class="special-category-question-copy" data-i18n="reg.specialMembers">Infants, Senior Citizens, Pregnant Women or Differently Abled</div>
+                  <div class="special-category-toggle" role="group" aria-labelledby="specialCategoryTitle">
+                    <button type="button" id="specialCategoryNoBtn" aria-pressed="true" data-i18n="reg.no">No</button>
+                    <button type="button" id="specialCategoryYesBtn" aria-pressed="false" data-i18n="reg.yes">Yes</button>
+                  </div>
+                  <div id="specialCategoryOptionsWrap" class="special-category-options-wrap hidden">
+                    <div class="special-category-question-copy" data-i18n="reg.specialNeedsHint">Select all that apply. The final event date will be reserved for you.</div>
+                    <div class="special-category-grid" role="group" aria-labelledby="specialCategoryTitle">
                     <button type="button" class="special-category-option" data-special-category="senior_citizen" aria-pressed="false">
                       <span class="special-category-icon" aria-hidden="true"><img src="/assets/special-categories/person_1788525899674.png" alt=""></span>
                       <span data-i18n="reg.specialSenior">Senior Citizen</span>
@@ -2185,10 +2253,12 @@
                       <span class="special-category-icon" aria-hidden="true"><img src="/assets/special-categories/disabled_1788525899674.png" alt=""></span>
                       <span data-i18n="reg.specialDisabled">Specially abled</span>
                     </button>
-                  </div>
-                  <div id="specialCategoryLockNote" class="special-category-lock-note" aria-live="polite">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
-                    <span data-i18n="reg.specialDateLocked">Final event date selected and locked</span>
+                    </div>
+                    <div id="specialCategoryInlineError" class="special-category-inline-error hidden" role="alert" data-i18n="reg.specialSelectionRequired">Please select at least one Special Category option.</div>
+                    <div id="specialCategoryLockNote" class="special-category-lock-note" aria-live="polite">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+                      <span data-i18n="reg.specialDateLocked">Final event date selected and locked</span>
+                    </div>
                   </div>
                 </div>
 
@@ -2201,6 +2271,15 @@
                  <label class="field-label"><span data-i18n="reg.selectTime">Select a time slot</span> <span class="required">*</span></label>
                  <select id="timeSelect" onchange="handleTimeSelectChange(this.value)"
                          style="width:100%;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;color:#1a1a2e;background:#fff;margin-bottom:16px;cursor:pointer;outline:none;"></select>
+                <div class="schedule-gift-card" role="note" aria-live="polite">
+                  <div class="schedule-gift-icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>
+                  </div>
+                  <div class="schedule-gift-copy">
+                    <div class="schedule-gift-title" data-i18n="reg.giftTitle">A surprise gift awaits!</div>
+                    <div class="schedule-gift-message" data-i18n="reg.giftMessage">Enter and exit the shop within 3 hours to receive a surprise gift.</div>
+                  </div>
+                </div>
                 <div id="noSlotsMsg" class="desc-text hidden" style="margin-bottom:16px;" data-i18n="reg.noSlots">No slots available for this date.</div>
               </div>
             </div>
@@ -2476,16 +2555,21 @@
         "otp.wrongCode": "Incorrect code. Please try again.",
         "otp.sendError": "Could not send code to this number. Please check your WhatsApp number.",
         "reg.specialNeeds": "Special category",
+        "reg.specialQuestion": "Visiting with any of the below members?",
+        "reg.specialMembers": "Infants, Senior Citizens, Pregnant Women or Differently Abled",
+        "reg.yes": "Yes",
+        "reg.no": "No",
         "reg.specialNeedsHint": "Select all that apply. The final event date will be reserved for you.",
+        "reg.specialSelectionRequired": "Please select at least one Special Category option.",
         "reg.specialSenior": "Senior Citizen",
         "reg.specialPregnant": "Pregnant Women",
         "reg.specialInfants": "Infants",
         "reg.specialDisabled": "Specially abled",
         "reg.specialDateLocked": "Final event date selected and locked",
         "reg.specialWarningTitle": "Before you continue",
-        "reg.specialWarningCopy": "Senior citizens, pregnant women, differently abled people, and visitors with infants are not permitted on the regular event dates. If any of these applies to your group, go back and select the appropriate Special category.",
-        "reg.specialWarningEdit": "Go back and edit",
-        "reg.specialWarningContinue": "None apply — continue",
+        "reg.specialWarningCopy": "No special category members (Infants, Senior Citizens, Pregnant Women, or Differently Abled) will be permitted entry under this registration. If you believe any of these members may be attending, please go back and update your selection.",
+        "reg.specialWarningEdit": "Go Back",
+        "reg.specialWarningContinue": "Confirm & Proceed",
         "otp.retry": "Try again"
       },
       ta: {
@@ -2585,16 +2669,21 @@
         "otp.wrongCode": "தவறான குறியீடு. மீண்டும் முயற்சிக்கவும்.",
         "otp.sendError": "இந்த எண்ணிற்கு குறியீடு அனுப்ப முடியவில்லை. உங்கள் WhatsApp எண்ணை சரிபார்க்கவும்.",
         "reg.specialNeeds": "சிறப்புப் பிரிவு",
+        "reg.specialQuestion": "கீழே உள்ள உறுப்பினர்களில் யாரேனும் உங்களுடன் வருகிறார்களா?",
+        "reg.specialMembers": "கைக்குழந்தைகள், மூத்த குடிமக்கள், கர்ப்பிணிப் பெண்கள் அல்லது மாற்றுத்திறனாளிகள்",
+        "reg.yes": "ஆம்",
+        "reg.no": "இல்லை",
         "reg.specialNeedsHint": "பொருந்தும் அனைத்தையும் தேர்ந்தெடுக்கவும். நிகழ்வின் இறுதி தேதி உங்களுக்காக ஒதுக்கப்படும்.",
+        "reg.specialSelectionRequired": "குறைந்தது ஒரு சிறப்புப் பிரிவு விருப்பத்தைத் தேர்ந்தெடுக்கவும்.",
         "reg.specialSenior": "மூத்த குடிமக்கள்",
         "reg.specialPregnant": "கர்ப்பிணிப் பெண்கள்",
         "reg.specialInfants": "கைக்குழந்தைகள்",
         "reg.specialDisabled": "மாற்றுத்திறனாளிகள்",
         "reg.specialDateLocked": "நிகழ்வின் இறுதி தேதி தேர்ந்தெடுக்கப்பட்டு பூட்டப்பட்டது",
         "reg.specialWarningTitle": "தொடர்வதற்கு முன்",
-        "reg.specialWarningCopy": "மூத்த குடிமக்கள், கர்ப்பிணிப் பெண்கள், மாற்றுத்திறனாளிகள் மற்றும் கைக்குழந்தைகளுடன் வருபவர்கள் வழக்கமான நிகழ்வு தேதிகளில் அனுமதிக்கப்பட மாட்டார்கள். இவற்றில் ஏதேனும் உங்கள் குழுவிற்கு பொருந்தினால், திரும்பிச் சென்று பொருத்தமான சிறப்புப் பிரிவைத் தேர்ந்தெடுக்கவும்.",
-        "reg.specialWarningEdit": "திரும்பிச் சென்று திருத்தவும்",
-        "reg.specialWarningContinue": "எதுவும் பொருந்தாது — தொடரவும்",
+        "reg.specialWarningCopy": "இந்தப் பதிவின் கீழ் கைக்குழந்தைகள், மூத்த குடிமக்கள், கர்ப்பிணிப் பெண்கள் அல்லது மாற்றுத்திறனாளிகள் நுழைய அனுமதிக்கப்பட மாட்டார்கள். இவர்களில் யாரேனும் வரக்கூடும் என நினைத்தால், திரும்பிச் சென்று உங்கள் தேர்வைப் புதுப்பிக்கவும்.",
+        "reg.specialWarningEdit": "திரும்பிச் செல்லவும்",
+        "reg.specialWarningContinue": "உறுதிசெய்து தொடரவும்",
         "otp.retry": "மீண்டும் முயற்சிக்கவும்"
       }
     };
@@ -2710,7 +2799,9 @@
     var data = null;
     var razorpayKeyId = null;
     var selectedDate = null;
+    var selectedProductCategories = [];
     var selectedSpecialCategories = [];
+    var specialCategoryAnswer = "no";
     var isSpecialNeeds = false; // any special category selected → final date only
     var selectedTime = null;
     var familyCount = 0;
@@ -3241,6 +3332,7 @@
       if (index >= 0) selectedSpecialCategories.splice(index, 1);
       else selectedSpecialCategories.push(category);
       isSpecialNeeds = selectedSpecialCategories.length > 0;
+      $("specialCategoryInlineError").classList.add("hidden");
       document.querySelectorAll(".special-category-option").forEach(function (option) {
         option.setAttribute("aria-pressed", selectedSpecialCategories.indexOf(option.getAttribute("data-special-category")) >= 0 ? "true" : "false");
       });
@@ -3414,20 +3506,13 @@
         $("phoneError").classList.toggle("show", invalid);
         if (validPhone(phone)) fetchLanguageHint(phone);
       });
-      $("productCategoryTrigger").addEventListener("click", function () {
-        setProductCategoryMenuOpen($("productCategoryMenu").classList.contains("hidden"));
-      });
       document.querySelectorAll(".product-category-option").forEach(function (option) {
-        option.addEventListener("click", function () { selectProductCategory(option.getAttribute("data-category")); });
+        option.addEventListener("click", function () { toggleProductCategory(option.getAttribute("data-category")); });
       });
+      $("specialCategoryNoBtn").addEventListener("click", function () { setSpecialCategoryAnswer("no"); });
+      $("specialCategoryYesBtn").addEventListener("click", function () { setSpecialCategoryAnswer("yes"); });
       document.querySelectorAll(".special-category-option").forEach(function (option) {
         option.addEventListener("click", function () { toggleSpecialCategory(option.getAttribute("data-special-category")); });
-      });
-      document.addEventListener("click", function (event) {
-        if (!event.target.closest(".product-category-picker")) setProductCategoryMenuOpen(false);
-      });
-      $("productCategoryTrigger").addEventListener("keydown", function (event) {
-        if (event.key === "Escape") setProductCategoryMenuOpen(false);
       });
       $("backBtn").addEventListener("click", function () {
         if (inOtpStep) { hideOtpPanel(); return; }
@@ -3482,42 +3567,38 @@
       return /^[6-9][0-9]{9}$/.test(p);
     }
 
-    function setProductCategoryMenuOpen(open) {
-      var menu = $("productCategoryMenu");
-      var trigger = $("productCategoryTrigger");
-      menu.classList.toggle("hidden", !open);
-      trigger.setAttribute("aria-expanded", open ? "true" : "false");
-    }
-
     function syncProductCategorySelection() {
-      var input = $("productCategory");
-      var selectedValue = input ? input.value : "";
-      var selectedOption = selectedValue
-        ? document.querySelector('.product-category-option[data-category="' + selectedValue + '"]')
-        : null;
-      var label = $("productCategorySelectedLabel");
-      var icon = $("productCategorySelectedIcon");
-      if (!label || !icon) return;
-      var labelKey = selectedOption ? selectedOption.getAttribute("data-label-key") : "reg.productCategoryPlaceholder";
-      label.setAttribute("data-i18n", labelKey);
-      label.textContent = t(labelKey);
-      icon.innerHTML = "";
-      if (selectedOption) {
-        var sourceIcon = selectedOption.querySelector("svg");
-        if (sourceIcon) icon.appendChild(sourceIcon.cloneNode(true));
-      }
       document.querySelectorAll(".product-category-option").forEach(function (option) {
-        option.setAttribute("aria-selected", option === selectedOption ? "true" : "false");
+        var selected = selectedProductCategories.indexOf(option.getAttribute("data-category")) >= 0;
+        option.setAttribute("aria-selected", selected ? "true" : "false");
       });
-      $("productCategoryTrigger").classList.toggle("field-valid", !!selectedValue);
+      $("productCategory").value = selectedProductCategories[0] || "";
     }
 
-    function selectProductCategory(value) {
-      $("productCategory").value = value || "";
+    function toggleProductCategory(value) {
+      var index = selectedProductCategories.indexOf(value);
+      if (index >= 0) selectedProductCategories.splice(index, 1);
+      else selectedProductCategories.push(value);
       syncProductCategorySelection();
-      setProductCategoryMenuOpen(false);
       updateSubmitState();
-      $("productCategoryTrigger").focus();
+    }
+
+    function setSpecialCategoryAnswer(answer) {
+      specialCategoryAnswer = answer === "yes" ? "yes" : "no";
+      $("specialCategoryNoBtn").setAttribute("aria-pressed", specialCategoryAnswer === "no" ? "true" : "false");
+      $("specialCategoryYesBtn").setAttribute("aria-pressed", specialCategoryAnswer === "yes" ? "true" : "false");
+      $("specialCategoryOptionsWrap").classList.toggle("hidden", specialCategoryAnswer !== "yes");
+      $("specialCategoryInlineError").classList.add("hidden");
+      if (specialCategoryAnswer === "no" && selectedSpecialCategories.length > 0) {
+        selectedSpecialCategories.splice(0, selectedSpecialCategories.length);
+        isSpecialNeeds = false;
+        document.querySelectorAll(".special-category-option").forEach(function (option) {
+          option.setAttribute("aria-pressed", "false");
+        });
+        $("specialCategoryLockNote").classList.remove("show");
+        renderDateChips();
+      }
+      updateSubmitState();
     }
 
     function registrationOtpEnabled() {
@@ -3534,9 +3615,8 @@
     function detailsStepValid() {
       var name = $("fullName").value.trim();
       var phone = $("phone").value.trim();
-      var productCategory = $("productCategory").value;
       var locOk = locations.length === 0 || !!selectedLocationId;
-      return locOk && name.length >= 2 && validPhone(phone) && !!productCategory && customFieldsValid();
+      return locOk && name.length >= 2 && validPhone(phone) && selectedProductCategories.length > 0 && customFieldsValid();
     }
 
     function scheduleStepValid() {
@@ -3758,7 +3838,12 @@
         return;
       } else if (currentStep === 2) {
         if (!scheduleStepValid()) { toast(t("toast.slot"), true); return; }
-        if (!isSpecialNeeds) {
+        if (specialCategoryAnswer === "yes" && selectedSpecialCategories.length === 0) {
+          $("specialCategoryInlineError").classList.remove("hidden");
+          $("specialCategoryOptionsWrap").scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
+        if (specialCategoryAnswer === "no") {
           openSpecialCategoryWarning();
           return;
         }
@@ -3816,10 +3901,10 @@
       var name = $("fullName").value.trim();
       var phone = $("phone").value.trim();
       var email = $("email").value.trim();
-      var productCategory = $("productCategory").value;
+      var productCategory = selectedProductCategories[0] || "";
       if (name.length < 2) { toast(t("toast.name"), true); return; }
       if (!validPhone(phone)) { toast(t("toast.phone"), true); return; }
-      if (!productCategory) { toast(t("toast.productCategory"), true); return; }
+      if (selectedProductCategories.length === 0) { toast(t("toast.productCategory"), true); return; }
       if (locations.length > 0 && !selectedLocationId) { toast(t("toast.location"), true); return; }
       if (!selectedDate || !selectedTime) { toast(t("toast.slot"), true); return; }
       var missing = firstMissingField();
@@ -3838,6 +3923,7 @@
             customerPhone: phone,
             customerEmail: email || null,
             productCategory: productCategory,
+            productCategories: selectedProductCategories.slice(),
             preferredLanguage: currentLang,
             familyMembersCount: familyCount,
             priorityAccess: isSpecialNeeds,
