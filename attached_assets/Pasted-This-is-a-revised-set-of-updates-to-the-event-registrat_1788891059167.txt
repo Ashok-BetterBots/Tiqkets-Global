@@ -1,0 +1,111 @@
+This is a revised set of updates to the event registration flow (the 
+customer-facing form after scanning the event QR code) — Screen 1 
+(Product Category) and Screen 2 (post-OTP details). This replaces my 
+previous prompt; please treat this as the full current scope.
+
+SCOPE RULES:
+- Do not change field order, database schema, backend API contracts, 
+  or any screen not mentioned below.
+- Do not alter the existing logic that auto-selects and locks the 
+  "last event date" when Special Category is set to Yes.
+- Only the specific behaviors described below should change — 
+  everything else in the current flow must behave exactly as it does 
+  today.
+
+---
+
+ITEM 1 — Fix WhatsApp OTP trigger timing (LOGIC CHANGE — read carefully)
+
+Currently, WhatsApp OTP verification is not happening at the correct 
+point in the flow. It should trigger AFTER the customer completes 
+Screen 1 (Product Category and any other Screen 1 fields) and BEFORE 
+Screen 2 (the details screen) is shown.
+
+Before making changes:
+- First, trace and report exactly where/when OTP verification is 
+  currently triggered in the code today (which screen, which action).
+- Confirm whether OTP verification exists as a working, callable step 
+  elsewhere in the app (e.g., reused from another flow) that can be 
+  invoked at this new point, or whether it needs to be added as a new 
+  step in this flow specifically.
+- Report this back before changing anything.
+
+Once confirmed, move the OTP trigger so it fires as a required gate 
+between Screen 1 and Screen 2: customer finishes Screen 1 → OTP 
+verification step appears → only after successful verification does 
+Screen 2 load. Do not change how OTP verification itself works 
+internally (the API call, the OTP input UI, the resend logic) — only 
+change WHEN it's invoked in this registration flow.
+
+---
+
+ITEM 2 — Product Category as multi-select chips (Screen 1)
+
+Replace the current Product Category input with small, pill-shaped 
+chips, one per product. Allow multiple chips to be selected at once. 
+Selected chips need a clear distinct visual state from unselected 
+ones. If storing multiple selections requires a backend/schema change 
+from the current single-value storage, stop and tell me before 
+implementing — don't assume.
+
+---
+
+ITEM 3 — Special Category question and Yes/No gate (Screen 2)
+
+Replace the current plain "Special Category" label with:
+- Question: "Visiting with any of the below members?"
+- Secondary line below it: "Infants, Senior Citizens, Pregnant Women 
+  or Differently Abled"
+- A Yes/No toggle, "No" selected by default
+
+Behavior when "Yes" is selected:
+- Reveal the existing Special Category options (unchanged from 
+  current implementation)
+- The customer MUST select at least one Special Category option 
+  before they can proceed to the next step — if "Yes" is chosen but 
+  no specific category is picked, block progression with a clear 
+  inline message (not a popup) prompting them to choose one
+- Once a category is selected, the existing auto-select-and-lock-last- 
+  event-date logic must trigger exactly as it does today — no change 
+  to that behavior
+
+Behavior when "No" is selected (including the default state, only 
+when the customer attempts to proceed forward):
+- Show a confirmation popup with this message (adjust wording to fit 
+  your existing popup style, but keep the meaning intact): "No 
+  special category members (Infants, Senior Citizens, Pregnant Women, 
+  or Differently Abled) will be permitted entry under this 
+  registration. If you believe any of these members may be attending, 
+  please go back and update your selection."
+- The popup must offer two actions: "Confirm & Proceed" (moves forward 
+  to the next step) and "Go Back" (returns them to the toggle so they 
+  can change it to Yes)
+- The customer cannot proceed to the next screen from the "No" state 
+  without confirming this popup
+
+---
+
+ITEM 4 — Gift message placement and icon (Screen 2)
+
+Move "A surprise gift awaits! Enter and exit the shop within 3 hours 
+to receive a surprise gift." from the top of Screen 2 to directly 
+below the time slot selection field. Replace the current square/
+placeholder icon with an actual gift box icon, using whatever icon 
+library is already in use in this project (do not add a new icon 
+library dependency). Keep the text content unchanged — only 
+reposition and fix the icon.
+
+---
+
+DESIGN GUIDANCE:
+- Match existing visual language (colors, spacing, typography, corner 
+  radius, popup/modal style already used elsewhere in the app).
+- Keep chips compact but tap-friendly for mobile.
+- Keep the screen clean — no unnecessary borders, shadows, or clutter.
+
+AFTER EACH ITEM: confirm the existing screen-progression logic, the 
+last-event-date auto-lock, and (for Item 1) that OTP verification 
+itself still works correctly at its new trigger point. Report every 
+file touched, and stop to ask me if anything is ambiguous rather than 
+guessing — especially for Item 1, since it changes flow logic rather 
+than just UI.

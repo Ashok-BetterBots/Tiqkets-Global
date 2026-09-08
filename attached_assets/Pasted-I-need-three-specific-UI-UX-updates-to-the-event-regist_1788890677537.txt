@@ -1,0 +1,77 @@
+I need three specific UI/UX updates to the event registration flow 
+(the customer-facing form that loads after scanning the event QR 
+code) — Screen 1 (Product Category) and Screen 2 (post-OTP details). 
+
+IMPORTANT SCOPE RULES — READ BEFORE STARTING:
+- Do NOT touch the WhatsApp OTP verification process in any way — not 
+  the trigger, the API call, the input UI, or the verification logic.
+- Do NOT change any existing validation, auto-fill, or locking logic 
+  — specifically: the logic that auto-selects and locks the "last 
+  event date" when Special Category is set to Yes must remain exactly 
+  as-is, and the logic that only allows proceeding to the next screen 
+  after all required inputs are collected must remain exactly as-is.
+- Do NOT change field order, database schema, backend API contracts, 
+  or any other screen not mentioned below.
+- These are visual/UX refinements to existing fields, not new data 
+  being collected (except the Yes/No gate described in #2, which 
+  controls visibility, not new backend fields).
+
+Make these three changes only:
+
+1. SCREEN 1 — Product Category field
+   Replace the current Product Category input with small selectable 
+   chips (pill-shaped, compact). Each product should render as its 
+   own chip. Allow MULTIPLE chips to be selected simultaneously (not 
+   single-select). Selected chips should have a clear visual state 
+   (e.g., filled/highlighted) distinct from unselected chips. Keep 
+   whatever data structure currently stores this field's value, just 
+   change it to store an array/multi-value instead of a single value 
+   if it currently isn't — confirm with me first if this requires a 
+   backend/schema change, don't assume.
+
+2. SCREEN 2 — Special Category section (appears after WhatsApp OTP 
+   verification)
+   Replace the current plain "Special Category" label with:
+   - A question: "Visiting with any of the below members?"
+   - On the next line, smaller/secondary text listing: "Infants, 
+     Senior Citizens, Pregnant Women or Differently Abled"
+   - A Yes/No toggle or button pair, with "No" selected by default
+   - When "Yes" is selected, reveal the existing Special Category 
+     options exactly as they currently display and behave — including 
+     the existing auto-select-and-lock-last-event-date logic, which 
+     must trigger exactly as it does today
+   - When "No" is selected (or by default), the Special Category 
+     options stay hidden and none of that downstream logic activates
+   Do not alter what happens internally once "Yes" reveals the 
+   options — only the entry point (the question + toggle) is new; 
+   everything after that point should behave identically to the 
+   current implementation.
+
+3. SCREEN 2 — Gift message placement and icon
+   Move the text "A surprise gift awaits! Enter and exit the shop 
+   within 3 hours to receive a surprise gift." from its current 
+   position at the top of Screen 2 to directly BELOW the time slot 
+   selection field.
+   Replace the current square/placeholder icon next to this text with 
+   an actual gift box icon (use an appropriate icon from whatever icon 
+   library is already in use in this project — e.g., lucide-react or 
+   similar — do not introduce a new icon library dependency if one 
+   already exists in the project).
+   Keep the text content itself unchanged — only reposition it and 
+   fix the icon.
+
+DESIGN GUIDANCE:
+- Match the existing visual language of the app (colors, spacing, 
+  typography, corner radius) rather than introducing a new style.
+- Keep chip sizing compact/small as requested — this is a mobile form, 
+  so prioritize readability and tap-target size within that constraint.
+- Keep the overall screen clean — avoid adding extra borders, shadows, 
+  or visual clutter beyond what's needed for chips and the toggle.
+
+BEFORE YOU START: if implementing #1 as multi-select requires any 
+change to how the field is stored/submitted to the backend, stop and 
+tell me what changes, don't implement it silently.
+
+AFTER EACH CHANGE: confirm the existing screen-progression logic, 
+last-event-date auto-lock, and WhatsApp OTP flow all still work 
+exactly as before. Report every file touched.
