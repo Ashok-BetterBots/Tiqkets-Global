@@ -2027,9 +2027,9 @@
           </div>
           <!-- Registration flow -->
           <div id="regFlow">
-            <div class="step-pill"><span id="stepPillText">Step 1 of 3</span></div>
+            <div class="step-pill"><span id="stepPillText">Step 1 of 4</span></div>
 
-            <!-- Progress stepper: Details -> Schedule -> Review -->
+            <!-- Progress stepper: Details -> WhatsApp OTP -> Schedule -> Review -->
             <div id="progressStepper" class="progress-stepper">
               <div class="progress-step active" id="step1" data-step="1">
                 <div class="progress-step-dot">1</div>
@@ -2038,11 +2038,16 @@
               <div class="progress-line" id="line1"></div>
               <div class="progress-step" id="step2" data-step="2">
                 <div class="progress-step-dot">2</div>
-                <div class="progress-step-label" data-i18n="stepper.slot">Schedule</div>
+                <div class="progress-step-label" data-i18n="stepper.verify">Verify</div>
               </div>
               <div class="progress-line" id="line2"></div>
               <div class="progress-step" id="step3" data-step="3">
                 <div class="progress-step-dot">3</div>
+                <div class="progress-step-label" data-i18n="stepper.slot">Schedule</div>
+              </div>
+              <div class="progress-line" id="line3"></div>
+              <div class="progress-step" id="step4" data-step="4">
+                <div class="progress-step-dot">4</div>
                 <div class="progress-step-label" data-i18n="stepper.confirm">Review</div>
               </div>
             </div>
@@ -2122,7 +2127,7 @@
               </div>
             </div>
 
-            <!-- OTP verification sub-step (shown between Details and Schedule) -->
+            <!-- Step 2: WhatsApp OTP verification -->
             <div id="stepOtp" class="step-panel hidden">
               <div class="step-header">
                 <div class="step-icon-badge">
@@ -2159,7 +2164,7 @@
               </div>
             </div>
 
-            <!-- Step 2: Date + time -->
+            <!-- Step 3: Date + time -->
             <div id="stepSchedule" class="step-panel hidden">
               <div class="step-header">
                 <div class="step-icon-badge">
@@ -2435,6 +2440,7 @@
         "reg.period.evening": "Evening",
         "stepper.slot": "Schedule",
         "stepper.details": "Details",
+        "stepper.verify": "Verify",
         "stepper.confirm": "Review",
         "reg.selectLocation": "Select a location",
         "reg.selectDate": "Select a date",
@@ -2549,6 +2555,7 @@
         "reg.period.evening": "மாலை",
         "stepper.slot": "நேரம்",
         "stepper.details": "விவரங்கள்",
+        "stepper.verify": "சரிபார்ப்பு",
         "stepper.confirm": "மதிப்பாய்வு",
         "reg.selectLocation": "இடத்தை தேர்ந்தெடுக்கவும்",
         "reg.selectDate": "தேதியை தேர்ந்தெடுக்கவும்",
@@ -3422,7 +3429,7 @@
 
     var regHandlersBound = false;
     var currentStep = 1;
-    var TOTAL_STEPS = 3;
+    var TOTAL_STEPS = 4;
 
     // ── OTP verification state ──────────────────────────────────────────────
     var phoneVerified = false;
@@ -3432,7 +3439,7 @@
     var otpSent = false;
     var otpResendCooldown = 0;
     var otpResendTimer = null;
-    var STEP_IDS = { 1: "stepDetails", 2: "stepSchedule", 3: "stepReview" };
+    var STEP_IDS = { 1: "stepDetails", 2: "stepOtp", 3: "stepSchedule", 4: "stepReview" };
 
     function bindRegHandlers() {
       if (regHandlersBound) return;
@@ -3480,13 +3487,14 @@
       });
       $("backBtn").addEventListener("click", function () {
         if (inOtpStep) { hideOtpPanel(); return; }
+        if (currentStep === 3) { goToStep(1); return; }
         if (currentStep > 1) goToStep(currentStep - 1);
       });
       $("nextBtn").addEventListener("click", onNextClick);
       $("specialWarningEditBtn").addEventListener("click", closeSpecialCategoryWarning);
       $("specialWarningContinueBtn").addEventListener("click", function () {
         closeSpecialCategoryWarning();
-        goToStep(3);
+        goToStep(4);
       });
       $("specialCategoryWarningModal").addEventListener("click", function (event) {
         if (event.target === this) closeSpecialCategoryWarning();
@@ -3587,6 +3595,7 @@
 
     function showOtpPanel(phone) {
       inOtpStep = true;
+      currentStep = 2;
       otpSent = false;
       otpResendCooldown = 0;
       if (otpResendTimer) { clearInterval(otpResendTimer); otpResendTimer = null; }
@@ -3599,6 +3608,8 @@
       $("stepOtp").classList.remove("hidden");
       $("backBtn").classList.remove("hidden");
       $("nextBtn").classList.add("hidden");
+      updateSubmitState();
+      $("stepPillText").textContent = t("reg.stepOf", { current: 2, total: TOTAL_STEPS });
       var phoneDisplay = "+91\u00a0" + phone.slice(-10);
       $("otpSubtitleText").textContent = t("otp.subtitle").replace("{{phone}}", phoneDisplay);
       sendPhoneOtp(phone);
@@ -3607,11 +3618,13 @@
 
     function hideOtpPanel() {
       inOtpStep = false;
+      currentStep = 1;
       otpSent = false;
       if (otpResendTimer) { clearInterval(otpResendTimer); otpResendTimer = null; }
       $("stepOtp").classList.add("hidden");
       $("stepDetails").classList.remove("hidden");
       $("nextBtn").classList.remove("hidden");
+      $("stepPillText").textContent = t("reg.stepOf", { current: 1, total: TOTAL_STEPS });
       updateSubmitState();
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -3641,7 +3654,7 @@
           inOtpStep = false;
           $("stepOtp").classList.add("hidden");
           $("nextBtn").classList.remove("hidden");
-          goToStep(2);
+          goToStep(3);
           return;
         }
         otpSent = true;
@@ -3709,7 +3722,7 @@
           inOtpStep = false;
           $("stepOtp").classList.add("hidden");
           $("nextBtn").classList.remove("hidden");
-          goToStep(2);
+          goToStep(3);
           return;
         }
         // Verified — store token and proceed to schedule step
@@ -3720,7 +3733,7 @@
         inOtpStep = false;
         $("stepOtp").classList.add("hidden");
         $("nextBtn").classList.remove("hidden");
-        goToStep(2);
+        goToStep(3);
       } catch (err) {
         $("otpInputError").textContent = t("toast.networkError");
         $("otpInputError").classList.remove("hidden");
@@ -3732,13 +3745,13 @@
     function goToStep(n) {
       if (n < 1 || n > TOTAL_STEPS) return;
       if (n === 2 && !detailsStepValid()) return;
-      if (n === 3 && !scheduleStepValid()) return;
+      if (n === 4 && !scheduleStepValid()) return;
       currentStep = n;
       Object.keys(STEP_IDS).forEach(function (key) {
         var panel = $(STEP_IDS[key]);
         if (panel) panel.classList.toggle("hidden", parseInt(key, 10) !== n);
       });
-      if (n === 3) updateReviewSummary();
+      if (n === 4) updateReviewSummary();
       $("backBtn").classList.toggle("hidden", n === 1);
       $("stepPillText").textContent = t("reg.stepOf", { current: n, total: TOTAL_STEPS });
           updateSubmitState();
@@ -3769,13 +3782,13 @@
           phoneVerified = false;
           phoneVerificationToken = null;
           verifiedPhone = null;
-          goToStep(2);
+          goToStep(3);
           return;
         }
         // Check if the entered WhatsApp number has already been verified this session
         var currentPhone = $("phone").value.trim();
         if (phoneVerified && verifiedPhone === currentPhone) {
-          goToStep(2); // already verified, skip OTP
+          goToStep(3); // already verified, skip OTP
         } else {
           // Reset any prior verification for a different number and enter OTP step
           phoneVerified = false;
@@ -3784,7 +3797,7 @@
           showOtpPanel(currentPhone);
         }
         return;
-      } else if (currentStep === 2) {
+      } else if (currentStep === 3) {
         if (!selectedDate || !selectedTime) { toast(t("toast.slot"), true); return; }
         if (visitingWithSpecialCategory && selectedSpecialCategories.length === 0) {
           toast(t("reg.specialSelectionRequired"), true);
@@ -3794,27 +3807,33 @@
           openSpecialCategoryWarning();
           return;
         }
-        goToStep(3);
+        goToStep(4);
       } else {
         submitRegistration();
       }
     }
 
     function updateSubmitState() {
-      if (inOtpStep) return; // OTP sub-step manages its own buttons
       var slotDone = scheduleStepValid();
       var detailsDone = detailsStepValid();
       setStepState(1, currentStep > 1 ? "done" : "active");
       setStepState(2, currentStep > 2 ? "done" : (currentStep === 2 ? "active" : ""));
-      setStepState(3, currentStep === 3 ? "active" : "");
+      setStepState(3, currentStep > 3 ? "done" : (currentStep === 3 ? "active" : ""));
+      setStepState(4, currentStep === 4 ? "active" : "");
       $("line1").classList.toggle("filled", currentStep > 1);
       $("line2").classList.toggle("filled", currentStep > 2);
+      $("line3").classList.toggle("filled", currentStep > 3);
 
       var nextBtn = $("nextBtn");
+      if (inOtpStep) {
+        nextBtn.classList.add("hidden");
+        return;
+      }
+      nextBtn.classList.remove("hidden");
       if (currentStep === 1) {
         nextBtn.textContent = t("reg.continue");
         nextBtn.disabled = !detailsDone;
-      } else if (currentStep === 2) {
+      } else if (currentStep === 3) {
         nextBtn.textContent = t("reg.continue");
         nextBtn.disabled = !slotDone;
       } else {

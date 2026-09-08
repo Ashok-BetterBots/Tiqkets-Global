@@ -144,6 +144,6 @@ describe("event registration slot display", () => {
     assert.match(landing, /Any undeclared special-category member will not be allowed entry/);
     assert.match(landing, /id="specialWarningEditBtn"/);
     assert.match(landing, /id="specialWarningContinueBtn"[^>]*>None apply — continue</);
-    assert.match(landing, /closeSpecialCategoryWarning\(\);\s*goToStep\(3\)/);
+    assert.match(landing, /closeSpecialCategoryWarning\(\);\s*goToStep\(4\)/);
   });
 });
