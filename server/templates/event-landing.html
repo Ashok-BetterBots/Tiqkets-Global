@@ -1987,7 +1987,7 @@
             <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>
           </div>
           <div id="specialCategoryWarningTitle" class="special-warning-title" data-i18n="reg.specialWarningTitle">Before you continue</div>
-          <div id="specialCategoryWarningCopy" class="special-warning-copy" data-i18n="reg.specialWarningCopy">Senior citizens, pregnant women, differently abled people, and visitors with infants are not permitted on the regular event dates. If any of these applies to your group, go back and select the appropriate Special category.</div>
+          <div id="specialCategoryWarningCopy" class="special-warning-copy" data-i18n="reg.specialWarningCopy">By continuing, you confirm that no one in your group belongs to a special category. Any undeclared special-category member will not be allowed entry. Go back and make changes if required.</div>
           <div class="special-warning-actions">
             <button type="button" id="specialWarningEditBtn" class="special-warning-edit" data-i18n="reg.specialWarningEdit">Go back and edit</button>
             <button type="button" id="specialWarningContinueBtn" class="special-warning-continue" data-i18n="reg.specialWarningContinue">None apply — continue</button>
@@ -2513,7 +2513,7 @@
         "reg.specialDisabled": "Specially abled",
         "reg.specialDateLocked": "Final event date selected and locked",
         "reg.specialWarningTitle": "Before you continue",
-        "reg.specialWarningCopy": "Senior citizens, pregnant women, differently abled people, and visitors with infants are not permitted on the regular event dates. If any of these applies to your group, go back and select the appropriate Special category.",
+        "reg.specialWarningCopy": "By continuing, you confirm that no one in your group belongs to a special category. Any undeclared special-category member will not be allowed entry. Go back and make changes if required.",
         "reg.specialWarningEdit": "Go back and edit",
         "reg.specialWarningContinue": "None apply — continue",
         "otp.retry": "Try again"
@@ -2627,7 +2627,7 @@
         "reg.specialDisabled": "மாற்றுத்திறனாளிகள்",
         "reg.specialDateLocked": "நிகழ்வின் இறுதி தேதி தேர்ந்தெடுக்கப்பட்டு பூட்டப்பட்டது",
         "reg.specialWarningTitle": "தொடர்வதற்கு முன்",
-        "reg.specialWarningCopy": "மூத்த குடிமக்கள், கர்ப்பிணிப் பெண்கள், மாற்றுத்திறனாளிகள் மற்றும் கைக்குழந்தைகளுடன் வருபவர்கள் வழக்கமான நிகழ்வு தேதிகளில் அனுமதிக்கப்பட மாட்டார்கள். இவற்றில் ஏதேனும் உங்கள் குழுவிற்கு பொருந்தினால், திரும்பிச் சென்று பொருத்தமான சிறப்புப் பிரிவைத் தேர்ந்தெடுக்கவும்.",
+        "reg.specialWarningCopy": "தொடர்வதன் மூலம், உங்கள் குழுவில் சிறப்புப் பிரிவைச் சேர்ந்த எவரும் இல்லை என்பதை உறுதிப்படுத்துகிறீர்கள். அறிவிக்கப்படாத சிறப்புப் பிரிவு உறுப்பினர்கள் நுழைய அனுமதிக்கப்பட மாட்டார்கள். தேவைப்பட்டால் திரும்பிச் சென்று மாற்றங்களைச் செய்யவும்.",
         "reg.specialWarningEdit": "திரும்பிச் சென்று திருத்தவும்",
         "reg.specialWarningContinue": "எதுவும் பொருந்தாது — தொடரவும்",
         "otp.retry": "மீண்டும் முயற்சிக்கவும்"
@@ -3567,7 +3567,8 @@
     }
 
     function scheduleStepValid() {
-      return !!(selectedDate && selectedTime);
+      var specialCategoryComplete = !visitingWithSpecialCategory || selectedSpecialCategories.length > 0;
+      return !!(selectedDate && selectedTime && specialCategoryComplete);
     }
 
     function openSpecialCategoryWarning() {
@@ -3784,9 +3785,13 @@
         }
         return;
       } else if (currentStep === 2) {
-        if (!scheduleStepValid()) { toast(t("toast.slot"), true); return; }
+        if (!selectedDate || !selectedTime) { toast(t("toast.slot"), true); return; }
         if (visitingWithSpecialCategory && selectedSpecialCategories.length === 0) {
           toast(t("reg.specialSelectionRequired"), true);
+          return;
+        }
+        if (!visitingWithSpecialCategory) {
+          openSpecialCategoryWarning();
           return;
         }
         goToStep(3);
