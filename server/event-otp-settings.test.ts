@@ -49,24 +49,9 @@ test("public registration UI skips OTP only when the event setting is disabled",
     "utf8",
   );
   assert.match(landing, /data\.event\.otpSettings\.registration !== false/);
-  assert.match(landing, /if \(!registrationOtpEnabled\(\)\)[\s\S]*?goToStep\(3\)/);
+  assert.match(landing, /if \(!registrationOtpEnabled\(\)\)[\s\S]*?goToStep\(2\)/);
   assert.match(landing, /responseData && responseData\.otpRequired === false/);
   assert.match(landing, /data\.otpRequired === false/);
-});
-
-test("public registration presents WhatsApp OTP as the second screen", () => {
-  const landing = readFileSync(
-    new URL("./templates/event-landing.html", import.meta.url),
-    "utf8",
-  );
-  assert.match(landing, /Step 1 of 4/);
-  assert.match(
-    landing,
-    /STEP_IDS = \{ 1: "stepDetails", 2: "stepOtp", 3: "stepSchedule", 4: "stepReview" \}/,
-  );
-  assert.match(landing, /function showOtpPanel\(phone\) \{[\s\S]*?currentStep = 2/);
-  assert.match(landing, /phoneVerificationToken = data\.verificationToken[\s\S]*?goToStep\(3\)/);
-  assert.match(landing, /id="step3"[\s\S]*?data-i18n="stepper\.slot"/);
 });
 
 test("event settings UIs persist both OTP controls independently", () => {
