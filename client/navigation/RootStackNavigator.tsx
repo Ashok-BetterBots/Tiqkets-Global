@@ -4,16 +4,15 @@ import MainTabNavigator from "@/navigation/MainTabNavigator";
 import SplashScreen from "@/screens/SplashScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import LoginScreen from "@/screens/LoginScreen";
+import JoinQueueScreen from "@/screens/JoinQueueScreen";
+import QueueDetailsScreen from "@/screens/QueueDetailsScreen";
+import QRScannerScreen from "@/screens/QRScannerScreen";
+import SwapPositionScreen from "@/screens/SwapPositionScreen";
+import ChangeServiceScreen from "@/screens/ChangeServiceScreen";
+import BookAppointmentScreen from "@/screens/BookAppointmentScreen";
+import AppointmentsScreen from "@/screens/AppointmentsScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useAuth } from "@/contexts/AuthContext";
-
-const getJoinQueueScreen = () => require("@/screens/JoinQueueScreen").default;
-const getQueueDetailsScreen = () => require("@/screens/QueueDetailsScreen").default;
-const getQRScannerScreen = () => require("@/screens/QRScannerScreen").default;
-const getSwapPositionScreen = () => require("@/screens/SwapPositionScreen").default;
-const getChangeServiceScreen = () => require("@/screens/ChangeServiceScreen").default;
-const getBookAppointmentScreen = () => require("@/screens/BookAppointmentScreen").default;
-const getAppointmentsScreen = () => require("@/screens/AppointmentsScreen").default;
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -56,7 +55,7 @@ export default function RootStackNavigator() {
           />
           <Stack.Screen
             name="JoinQueue"
-            getComponent={getJoinQueueScreen}
+            component={JoinQueueScreen}
             options={{
               presentation: "modal",
               headerTitle: "Join Queue",
@@ -64,14 +63,14 @@ export default function RootStackNavigator() {
           />
           <Stack.Screen
             name="QueueDetails"
-            getComponent={getQueueDetailsScreen}
+            component={QueueDetailsScreen}
             options={{
               headerTitle: "Queue Status",
             }}
           />
           <Stack.Screen
             name="QRScanner"
-            getComponent={getQRScannerScreen}
+            component={QRScannerScreen}
             options={{
               presentation: "fullScreenModal",
               headerShown: false,
@@ -79,7 +78,7 @@ export default function RootStackNavigator() {
           />
           <Stack.Screen
             name="SwapPosition"
-            getComponent={getSwapPositionScreen}
+            component={SwapPositionScreen}
             options={{
               presentation: "modal",
               headerTitle: "Swap Position",
@@ -87,7 +86,7 @@ export default function RootStackNavigator() {
           />
           <Stack.Screen
             name="ChangeService"
-            getComponent={getChangeServiceScreen}
+            component={ChangeServiceScreen}
             options={{
               presentation: "modal",
               headerTitle: "Change Service",
@@ -95,7 +94,7 @@ export default function RootStackNavigator() {
           />
           <Stack.Screen
             name="BookAppointment"
-            getComponent={getBookAppointmentScreen}
+            component={BookAppointmentScreen}
             options={{
               presentation: "modal",
               headerTitle: "Book Appointment",
@@ -103,7 +102,7 @@ export default function RootStackNavigator() {
           />
           <Stack.Screen
             name="Appointments"
-            getComponent={getAppointmentsScreen}
+            component={AppointmentsScreen}
             options={{
               headerTitle: "My Appointments",
             }}

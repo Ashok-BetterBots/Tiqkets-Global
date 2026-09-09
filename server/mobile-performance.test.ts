@@ -17,19 +17,3 @@ test("high-volume mobile collections stay virtualized", () => {
   assert.match(usersScreen, /keyExtractor=\{\(user\) => user\.id\}/);
   assert.doesNotMatch(usersScreen, /filteredUsers\.map\(\(user/);
 });
-
-test("secondary customer routes are evaluated only when opened", () => {
-  const rootNavigator = readFileSync("client/navigation/RootStackNavigator.tsx", "utf8");
-
-  for (const route of [
-    "JoinQueue",
-    "QueueDetails",
-    "QRScanner",
-    "SwapPosition",
-    "ChangeService",
-    "BookAppointment",
-    "Appointments",
-  ]) {
-    assert.match(rootNavigator, new RegExp(`name="${route}"[\\s\\S]*?getComponent=`));
-  }
-});
