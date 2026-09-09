@@ -1,0 +1,83 @@
+I'm redesigning the visual layout of an existing "Add Customer" bottom-sheet
+modal in a React Native / Expo app (mobile), used inside the Tiqkets app.
+This is a look-and-feel and information-architecture redesign ONLY — do not
+remove, rename, or change the behavior of any field, option, validation, or
+state. Every field below must remain present and functional exactly as
+described.
+
+BRAND: primary accent color is raspberry #9C1A5B. Use it for selected
+states, primary buttons, active step indicators, and completed-step
+checkmarks. All screens are LIGHT MODE ONLY (white background #FFFFFF,
+light gray card background ~#F7F5F0, borders ~#E7E4DA, primary text
+~#1A1A1A, secondary text ~#5F5E5A, muted text ~#8A8880) — do not implement
+a dark theme or adapt to system dark mode for this modal.
+
+GLOBAL STRUCTURE: 3-step bottom sheet modal titled "Add Customer" with
+"Cancel" top-right, a drag handle at the top, and a stepper showing all 3
+steps (Visit details → Customer → Issue Ticket) at all times — every step
+must show its number/checkmark AND its text label, on every screen, not
+just the active one. Completed steps show a checkmark in a filled
+raspberry circle with the connecting line to them also filled raspberry;
+the active step shows its number in a filled raspberry circle with bold
+label; future steps show an outlined circle with muted number and label.
+
+STEP 1 — Visit details:
+- Product category: single-select — Electronics, Furniture, Home
+  Appliances, Vessels. Layout as a 2x2 icon grid (icon + label per cell),
+  not a horizontal chip row. Every option gets an icon. Selected option
+  gets a raspberry border + light raspberry-tinted background.
+- "Visiting with anyone needing extra care? (Infants, Senior Citizens,
+  Pregnant Women or Differently Abled)" — Yes/No toggle inside a light
+  gray card. When Yes is selected, reveal a 2x2 checkbox grid (Senior
+  Citizen, Pregnant Women, Infants, Specially Abled) nested inside the same
+  card with a left raspberry accent border, plus the helper text "Reserves
+  the last available slot for priority access."
+- Slot date and slot time: side by side in one row (date ~55% width, time
+  ~45%), each with a calendar/clock icon, white background, light border.
+  Keep the "(1000 left)" availability info but as a small caption below
+  the row.
+- Gift banner: "A surprise gift awaits. Enter and exit the shop within 3
+  hours to receive it." — soft amber/neutral info card with a gift icon,
+  visually distinct from the raspberry brand color (this is not a primary
+  action).
+- Sticky full-width raspberry "Next" button at the bottom.
+
+STEP 2 — Customer:
+- Group fields into two light gray cards:
+  1. "Contact" card: Full Name (text input), WhatsApp Number (numeric,
+     10-digit, with a WhatsApp icon in the field).
+  2. "Additional info" card: Email (optional text input), Extra Guests
+     (numeric input) and Customer Language (segmented toggle: Tamil /
+     English) side by side.
+- Keep all field types, placeholders, and optionality exactly as-is.
+- Bottom row: "Back" as an outlined raspberry button, "Next" as a filled
+  raspberry button, side by side.
+
+STEP 3 — Issue Ticket:
+- Ticket method: segmented control with two options — "Generate new"
+  (printer icon) and "Assign pre-printed" (camera icon) — selected option
+  gets raspberry border + tinted background.
+- If "Assign pre-printed" is active: show a filled raspberry "Scan QR
+  code" button (QR icon), an "or" divider, and a text input for manual
+  entry with placeholder "PTK-...". Keep the helper text "Scan the printed
+  QR or enter its ID. Each ticket can be assigned once." Group this in one
+  light gray card.
+- Payment treatment: in its own outlined card with a small "Payment
+  treatment" label — segmented control of Paid Offline / Complimentary /
+  Unpaid. When Paid Offline is active, show Amount Due and Collected as
+  two fields side by side, and a green "Fully paid" status pill with a
+  check icon when the amounts match. Keep all existing logic for computing
+  and displaying paid/unpaid state.
+- Bottom row: "Back" outlined raspberry, "Register" filled raspberry.
+
+GENERAL RULES FOR ALL STEPS:
+- Group related fields into rounded cards (~12px radius, light gray
+  background #F7F5F0 or a thin border on white) instead of one long flat
+  vertical list.
+- Consistent vertical spacing rhythm between cards/sections (~14-16px).
+- Every selectable option (category, ticket method, payment type, toggle)
+  needs a clear selected state: raspberry border + tinted or filled
+  background, never color alone.
+- Do not introduce new fields, remove existing ones, or change any
+  validation/business logic — this is purely a visual and layout pass on
+  existing functionality, and it must render in light mode only.
