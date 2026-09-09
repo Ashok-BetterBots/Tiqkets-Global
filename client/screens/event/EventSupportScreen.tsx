@@ -166,7 +166,7 @@ function BottomSheet({
   const insets = useSafeAreaInsets();
   const sheetBg = colorScheme === "dark" ? "#1c1c1e" : "#ffffff";
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={blocking ? undefined : onClose} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}

@@ -228,6 +228,7 @@ export function TicketScanResultModal({
       animationType="slide"
       onRequestClose={onClose}
       statusBarTranslucent
+      navigationBarTranslucent
     >
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable

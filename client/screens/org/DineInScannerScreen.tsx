@@ -373,7 +373,7 @@ function DineInScannerNative() {
       ) : null}
 
       {/* ── Bottom sheet ── */}
-      <Modal visible={showSheet} transparent animationType="slide" onRequestClose={closeSheet}>
+      <Modal visible={showSheet} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={closeSheet}>
         <View style={styles.sheetBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
 
