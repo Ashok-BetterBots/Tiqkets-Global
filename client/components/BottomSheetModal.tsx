@@ -79,12 +79,13 @@ export function BottomSheetModal({
       transparent
       animationType="none"
       statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={closeTop}
     >
       {/* Keep the dismiss target separate from the sheet. A Pressable wrapped
           around the card competes with the ScrollView for responder ownership,
           which makes vertical scrolling intermittently fail. */}
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, { paddingBottom: 20 + insets.bottom }]}>
         <Pressable
           style={styles.backdropPressTarget}
           onPress={closeTop}
@@ -232,7 +233,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
     paddingHorizontal: 10,
-    paddingBottom: 20,
   },
   backdropPressTarget: {
     position: "absolute",
