@@ -11,7 +11,6 @@ import {
   Image,
   Platform,
   KeyboardAvoidingView,
-  useColorScheme,
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,10 +19,10 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { getApiUrl } from "@/lib/query-client";
-import { BrandColors, Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
 import { formatEventSlotRange } from "@shared/eventSlots";
 
-const BRAND = BrandColors.primary;
+const BRAND = "#9C1A5B";
 
 const SPECIAL_CATEGORY_IMAGES = {
   senior_citizen: require("../../attached_assets/person_1788525899674.png"),
@@ -154,14 +153,13 @@ export function EventManualRegModal({
   eventName?: string;
   onSuccess?: () => void;
 }) {
-  const isDark = useColorScheme() === "dark";
   const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const surface = isDark ? "#1C1C1E" : "#FFFFFF";
-  const bg = isDark ? "#0F0F12" : "#F5F6F8";
-  const text = isDark ? "#F5F5F5" : "#1A1A2E";
-  const textSecondary = isDark ? "#9AA0A6" : "#6B7280";
-  const border = isDark ? "#2C2C2E" : "#E5E7EB";
+  const surface = "#FFFFFF";
+  const bg = "#F7F5F0";
+  const text = "#271D24";
+  const textSecondary = "#766C73";
+  const border = "#E5DFE2";
 
   const [loadingLocations, setLoadingLocations] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -602,6 +600,7 @@ export function EventManualRegModal({
                     </Field>
                   ) : null}
 
+                  <View style={styles.sectionCard}>
                   <Field label="Product category *">
                     <View style={styles.tileGrid}>
                       {([
@@ -646,8 +645,10 @@ export function EventManualRegModal({
                       })}
                     </View>
                   </Field>
+                  </View>
 
-                  <Field label="Visiting with any of the below members?">
+                  <View style={styles.sectionCard}>
+                  <Field label="Visiting with anyone needing extra care?">
                     <ThemedText style={{ color: textSecondary, fontSize: 12, lineHeight: 17, marginBottom: Spacing.xs }}>
                       Infants, Senior Citizens, Pregnant Women or Differently Abled
                     </ThemedText>
@@ -733,13 +734,17 @@ export function EventManualRegModal({
                       })}
                         </View>
                         <ThemedText style={{ color: textSecondary, fontSize: 11, marginTop: Spacing.sm }}>
-                          Selecting a category reserves the last available event date for special access.
+                          Reserves the last available slot for priority access.
                         </ThemedText>
                       </View>
                     ) : null}
                   </Field>
+                  </View>
 
                   {/* ── Slot date — locked (special needs) or dropdown ── */}
+                  <View style={styles.slotCard}>
+                  <View style={styles.slotRow}>
+                  <View style={styles.slotRowField}>
                   <Field label="Slot date">
                     {form.selectedSpecialCategories.length > 0 ? (
                       <View style={[styles.input, { borderColor: border, flexDirection: "row", alignItems: "center", gap: Spacing.sm, opacity: 0.85 }]}>
@@ -797,8 +802,10 @@ export function EventManualRegModal({
                       </>
                     )}
                   </Field>
+                  </View>
 
                   {form.slotDate ? (
+                    <View style={styles.slotRowField}>
                     <Field label="Slot time">
                       {bookableTimes.length === 0 ? (
                         <ThemedText style={{ color: textSecondary, fontSize: 13 }}>No available times for this date</ThemedText>
@@ -847,7 +854,24 @@ export function EventManualRegModal({
                         </>
                       )}
                     </Field>
+                    </View>
+                  ) : (
+                    <View style={styles.slotRowField}>
+                    <Field label="Slot time">
+                      <View style={[styles.input, { borderColor: border, flexDirection: "row", alignItems: "center", gap: Spacing.sm, opacity: 0.7 }]}>
+                        <Feather name="clock" size={15} color={BRAND} />
+                        <ThemedText style={{ color: textSecondary, flex: 1 }}>Select a date first</ThemedText>
+                      </View>
+                    </Field>
+                    </View>
+                  )}
+                  </View>
+                  {form.slotTime ? (
+                    <ThemedText style={styles.availabilityCaption}>
+                      {formatSlotOption(bookableTimes.find((t) => t.time === form.slotTime) || bookableTimes[0])}
+                    </ThemedText>
                   ) : null}
+                  </View>
                   {form.slotTime ? (
                     <View style={styles.giftAnnouncement} testID="manual-reg-gift-announcement">
                       <Feather name="gift" size={21} color="#9A6700" />
@@ -862,29 +886,37 @@ export function EventManualRegModal({
 
                   {step === 2 ? (
                     <>
+                  <View style={styles.sectionCard}>
+                    <ThemedText style={styles.cardTitle}>Contact</ThemedText>
                   <Field label="Full name">
                     <TextInput
                       value={form.customerName}
                       onChangeText={(v) => setField({ customerName: v })}
                       placeholder="Full name"
                       placeholderTextColor={textSecondary}
-                      style={[styles.input, { color: text, borderColor: border }]}
+                       style={[styles.input, { color: text, borderColor: border }]}
                       testID="input-manual-reg-name"
                     />
                   </Field>
 
                   <Field label="WhatsApp number">
-                    <TextInput
-                      value={form.customerPhone}
-                      onChangeText={(v) => setField({ customerPhone: v })}
-                      placeholder="10-digit number"
-                      placeholderTextColor={textSecondary}
-                      keyboardType="phone-pad"
-                      style={[styles.input, { color: text, borderColor: border }]}
-                      testID="input-manual-reg-phone"
-                    />
+                    <View style={styles.iconInput}>
+                      <Feather name="message-circle" size={16} color={BRAND} />
+                      <TextInput
+                        value={form.customerPhone}
+                        onChangeText={(v) => setField({ customerPhone: v })}
+                        placeholder="10-digit number"
+                        placeholderTextColor={textSecondary}
+                        keyboardType="phone-pad"
+                        style={[styles.input, styles.inputWithIcon, { color: text, borderColor: border }]}
+                        testID="input-manual-reg-phone"
+                      />
+                    </View>
                   </Field>
+                  </View>
 
+                  <View style={styles.sectionCard}>
+                    <ThemedText style={styles.cardTitle}>Additional info</ThemedText>
                   <Field label="Email (optional)">
                     <TextInput
                       value={form.customerEmail}
@@ -898,20 +930,20 @@ export function EventManualRegModal({
                     />
                   </Field>
 
-                  <Field label="Extra guests">
-                    <TextInput
-                      value={form.familyMembersCount}
-                      onChangeText={(v) => setField({ familyMembersCount: v.replace(/[^0-9]/g, "") })}
-                      keyboardType="number-pad"
-                      placeholder="0"
-                      placeholderTextColor={textSecondary}
-                      style={[styles.input, { color: text, borderColor: border, width: 100 }]}
-                      testID="input-manual-reg-guests"
-                    />
-                  </Field>
-
-                  <Field label="Customer language">
-                    <View style={{ flexDirection: "row", gap: Spacing.xs }}>
+                  <View style={styles.splitFields}>
+                    <Field label="Extra guests">
+                      <TextInput
+                        value={form.familyMembersCount}
+                        onChangeText={(v) => setField({ familyMembersCount: v.replace(/[^0-9]/g, "") })}
+                        keyboardType="number-pad"
+                        placeholder="0"
+                        placeholderTextColor={textSecondary}
+                        style={[styles.input, { color: text, borderColor: border }]}
+                        testID="input-manual-reg-guests"
+                      />
+                    </Field>
+                    <Field label="Customer language">
+                    <View style={styles.languageRow}>
                       {(["ta", "en"] as const).map((lang) => {
                         const sel = form.preferredLanguage === lang;
                         return (
@@ -931,6 +963,7 @@ export function EventManualRegModal({
                       })}
                     </View>
                   </Field>
+                  </View>
 
                   {(selectedLocation?.inputFields || []).map((f) => (
                     <CustomFieldInput
@@ -941,10 +974,12 @@ export function EventManualRegModal({
                       colors={{ text, textSecondary, border }}
                     />
                   ))}
+                  </View>
                     </>
                   ) : null}
                   {step === 3 ? (
                     <>
+                  <View style={styles.sectionCard}>
                   <Field label="Ticket method">
                     <View style={{ flexDirection: "row", gap: Spacing.sm }}>
                       {([
@@ -1010,6 +1045,11 @@ export function EventManualRegModal({
                            <ThemedText style={styles.scanTicketButtonText}>Scan QR code</ThemedText>
                          </Pressable>
                        )}
+                        <View style={styles.ticketEntryDivider}>
+                          <View style={styles.dividerRule} />
+                          <ThemedText style={styles.orLabel}>or</ThemedText>
+                          <View style={styles.dividerRule} />
+                        </View>
                        <TextInput
                          value={form.preprintedTicketCode}
                          onChangeText={(v) => setField({ preprintedTicketCode: v.toUpperCase() })}
@@ -1029,8 +1069,8 @@ export function EventManualRegModal({
                          </ThemedText>
                        ) : null}
                     </Field>
-                  ) : null}
-                   <View
+                   ) : null}
+                    <View
                      style={[styles.paymentBox, {
                        borderColor: balanceDue > 0 ? "#F59E0B40" : "#10B98140",
                        backgroundColor: balanceDue > 0 ? "#F59E0B12" : "#10B98112",
@@ -1092,10 +1132,13 @@ export function EventManualRegModal({
                           </View>
                        </View>
                      ) : null}
-                     {amountDue > 0 && form.paymentMode === "offline_paid" ? (
-                       <ThemedText style={{ fontSize: 12, fontWeight: "700", marginTop: Spacing.sm, color: balanceDue > 0 ? "#F59E0B" : "#10B981" }}>
-                         {balanceDue > 0 ? `Balance due: ₹${balanceDue}` : "Fully paid"}
-                       </ThemedText>
+                      {amountDue > 0 && form.paymentMode === "offline_paid" ? (
+                        <View style={[styles.paymentStatus, { backgroundColor: balanceDue > 0 ? "#FFF4D8" : "#E7F7EF" }]}>
+                          {balanceDue <= 0 ? <Feather name="check" size={12} color="#16804B" /> : null}
+                          <ThemedText style={{ fontSize: 12, fontWeight: "700", color: balanceDue > 0 ? "#A76700" : "#16804B" }}>
+                            {balanceDue > 0 ? `Balance due: ₹${balanceDue}` : "Fully paid"}
+                          </ThemedText>
+                        </View>
                      ) : null}
                      {needsPaymentReason ? (
                        <TextInput
@@ -1107,7 +1150,8 @@ export function EventManualRegModal({
                          testID="input-payment-reason"
                        />
                      ) : null}
-                    </View>
+                     </View>
+                     </View>
                     </>
                   ) : null}
                 </View>
@@ -1147,8 +1191,7 @@ export function EventManualRegModal({
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  const isDark = useColorScheme() === "dark";
-  const textSecondary = isDark ? "#9AA0A6" : "#6B7280";
+  const textSecondary = "#766C73";
   return (
     <View>
       <ThemedText style={{ fontSize: 11, fontWeight: "700", color: textSecondary, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.3 }}>
@@ -1264,22 +1307,32 @@ function CustomFieldInput({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  card: { width: "100%", borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: "hidden" },
-  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 4 },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, gap: 8 },
-  progressWrap: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 24, paddingBottom: 14 },
-  progressItem: { width: 76, alignItems: "center", gap: 5 },
+  card: { width: "100%", borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden" },
+  handle: { width: 42, height: 4, borderRadius: 2, alignSelf: "center", marginTop: 10, marginBottom: 5 },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 7, paddingBottom: 10, gap: 8 },
+  progressWrap: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 20, paddingBottom: 14 },
+  progressItem: { flex: 1, alignItems: "center", gap: 5 },
   progressDot: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   progressLine: { flex: 1, height: 2, marginTop: 12 },
   scrollBody: { flex: 1 },
-  body: { paddingHorizontal: 20, paddingBottom: Spacing.lg, gap: Spacing.md },
-  footer: { flexDirection: "row", gap: Spacing.sm, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
+  body: { paddingHorizontal: 16, paddingBottom: 20, gap: 14 },
+  footer: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16, borderTopWidth: 1, borderTopColor: "#EEE8EB", backgroundColor: "#FFFFFF" },
   primaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center" },
-  secondaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center", borderWidth: 1.5 },
+  secondaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center", borderWidth: 1.5, backgroundColor: "#FFFFFF" },
   input: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 10, fontSize: 14 },
   chip: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 8 },
-  tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.xs },
-  categoryTile: { minHeight: 36, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 10, paddingVertical: 7, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, position: "relative" },
+  sectionCard: { backgroundColor: "#F7F5F0", borderRadius: 12, padding: 14, gap: 12 },
+  cardTitle: { color: "#271D24", fontSize: 14, fontWeight: "800", marginBottom: 1 },
+  slotCard: { backgroundColor: "#F7F5F0", borderRadius: 12, padding: 14 },
+  slotRow: { flexDirection: "row", gap: 10 },
+  slotRowField: { flex: 1 },
+  availabilityCaption: { color: "#766C73", fontSize: 11, marginTop: 7, marginLeft: 2 },
+  splitFields: { flexDirection: "row", gap: 10 },
+  iconInput: { flexDirection: "row", alignItems: "center" },
+  inputWithIcon: { flex: 1, marginLeft: -25, paddingLeft: 34 },
+  languageRow: { flexDirection: "row", gap: 4 },
+  tileGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 8 },
+  categoryTile: { width: "48.5%", minHeight: 52, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8, flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, position: "relative" },
   yesNoRow: { flexDirection: "row", gap: Spacing.sm },
   yesNoOption: { flex: 1, minHeight: 46, borderWidth: 1.5, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm },
   radioOuter: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
@@ -1290,12 +1343,16 @@ const styles = StyleSheet.create({
   tileCheck: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   successBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.lg, alignItems: "center" },
   errorBox: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm },
-  paymentBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md },
+  paymentBox: { borderWidth: 1, borderRadius: 12, padding: 14, backgroundColor: "#FFFFFF" },
+  paymentStatus: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6, marginTop: Spacing.sm },
   giftAnnouncement: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.sm, borderWidth: 1.5, borderColor: "#F3BD3E", borderRadius: BorderRadius.md, padding: Spacing.sm, backgroundColor: "#FFF8D9" },
   giftTitle: { color: "#7A3E00", fontSize: 13, fontWeight: "800", marginBottom: 2 },
   giftMessage: { color: "#754C13", fontSize: 11, fontWeight: "600", lineHeight: 16 },
   paymentChoice: { flex: 1, minHeight: 34, borderWidth: 1, borderRadius: BorderRadius.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
   methodChoice: { flex: 1, minHeight: 42, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 10 },
+  ticketEntryDivider: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 4 },
+  dividerRule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: "#E5DFE2" },
+  orLabel: { fontSize: 11, color: "#766C73", fontWeight: "700" },
   scanTicketButton: { height: 40, borderRadius: BorderRadius.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.xs, marginBottom: Spacing.sm },
   scanTicketButtonText: { color: "#FFF", fontSize: 13, fontWeight: "700" },
   cameraBox: { height: 164, borderRadius: BorderRadius.lg, overflow: "hidden", borderWidth: 2, position: "relative" },
