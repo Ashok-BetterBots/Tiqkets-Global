@@ -29,9 +29,10 @@ production environment secrets.
 - SHA-256: `630cf1b08732b75f7ad1bb3eaf97d6f25f765c4142f270fb0aa78f8b70d7fcdd`
 - Build run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/34304216486>
 - Submission run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/34308212333>
-- Status: version 1.0.2 is published on Google Play. Public distribution is
-  restricted to India. This build replaces the rejected 1.0.1 launcher icon
-  with the TIQKETS ticket artwork that matches the store listing.
+- Status: version 1.0.2 is published on Google Play. The change restricting
+  public distribution to India is in Google review. This build replaces the
+  rejected 1.0.1 launcher icon with the TIQKETS ticket artwork that matches the
+  store listing.
 
 ### iOS
 
@@ -50,6 +51,9 @@ production environment secrets.
   `TIQKETS-GLOBAL-IOS`, bundle `com.tiqkets.app`.
 - Google Play: **TIQKETS**, package `com.tiqkets.app`.
 - Public market policy: **India only** on both store records.
+- App Store Connect currently shows exactly one available country or region:
+  India. Google Play's removal of all other regions is submitted for review and
+  will publish automatically after approval.
 - Google Play internal-test opt-in:
   <https://play.google.com/apps/internaltest/4701748236699726598>
 
