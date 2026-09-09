@@ -21,7 +21,7 @@ export function SelectedEventBanner() {
 const styles = StyleSheet.create({
   container: {
     alignItems: "flex-end",
-    marginTop: -Spacing.xs,
+    transform: [{ translateY: -Spacing.md }],
     marginBottom: Spacing.xs,
   },
   name: {
