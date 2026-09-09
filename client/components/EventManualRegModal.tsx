@@ -486,9 +486,9 @@ export function EventManualRegModal({
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1, width: "100%", justifyContent: "flex-end" }}
+          pointerEvents="box-none"
         >
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
+          <View
             style={[styles.card, { backgroundColor: surface, height: Math.min(screenHeight * 0.75, screenHeight - insets.top - insets.bottom - 24) }]}
             testID="manual-reg-sheet"
           >
@@ -1204,7 +1204,7 @@ export function EventManualRegModal({
                 </Pressable>
               </ModalSafeAreaFooter>
             ) : null}
-          </Pressable>
+          </View>
         </KeyboardAvoidingView>
       </View>
       </SafeAreaProvider>
