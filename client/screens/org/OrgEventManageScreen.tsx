@@ -784,7 +784,7 @@ export default function OrgEventManageScreen() {
       </BottomSheetModal>
 
       {/* ── Slot edit modal ── */}
-      <Modal visible={!!slotEditEvent} transparent animationType="slide" onRequestClose={() => setSlotEditEvent(null)}>
+      <Modal visible={!!slotEditEvent} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={() => setSlotEditEvent(null)}>
         <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSlotEditEvent(null)} />
           <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
@@ -882,7 +882,7 @@ export default function OrgEventManageScreen() {
       </Modal>
 
       {/* ── Per-Slot Override Modal ── */}
-      <Modal visible={!!overrideEvent} transparent animationType="slide" onRequestClose={() => setOverrideEvent(null)}>
+      <Modal visible={!!overrideEvent} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={() => setOverrideEvent(null)}>
         <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setOverrideEvent(null)} />
           <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>

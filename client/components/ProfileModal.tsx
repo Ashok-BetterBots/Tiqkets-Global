@@ -223,7 +223,7 @@ export function ProfileModal({
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleClose}>
       <View style={styles.container}>
         <Animated.View
           style={[

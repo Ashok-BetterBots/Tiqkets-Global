@@ -373,6 +373,8 @@ export default function QueueDetailsScreen() {
         visible={moreOptionsVisible}
         transparent
         animationType="fade"
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setMoreOptionsVisible(false)}
       >
         <Pressable

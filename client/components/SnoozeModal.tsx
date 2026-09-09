@@ -13,6 +13,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface SnoozeModalProps {
   visible: boolean;
@@ -82,6 +83,7 @@ export function SnoozeModal({
   maxSnooze,
 }: SnoozeModalProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [positions, setPositions] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -127,11 +129,13 @@ export function SnoozeModal({
       visible={visible}
       transparent
       animationType="fade"
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={handleClose}
     >
       <Pressable style={styles.overlay} onPress={handleClose} />
 
-      <View style={styles.modalContainer}>
+      <View style={[styles.modalContainer, { paddingBottom: Spacing["4xl"] + insets.bottom }]}>
         <Animated.View
           entering={FadeIn.duration(200)}
           exiting={FadeOut.duration(150)}
@@ -244,7 +248,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing["4xl"],
   },
   modal: {
     borderRadius: 38,

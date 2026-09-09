@@ -378,8 +378,9 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={handleCancel}
       statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={handleCancel}
     >
       <KeyboardAvoidingView
         style={{ flex: 1 }}

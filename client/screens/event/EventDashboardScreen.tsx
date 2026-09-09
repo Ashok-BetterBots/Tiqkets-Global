@@ -157,6 +157,8 @@ function PickerModal<T extends { id: string; name: string; status?: string }>({
       visible={visible}
       transparent
       animationType="slide"
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={onClose} />

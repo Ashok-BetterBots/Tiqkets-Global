@@ -190,7 +190,7 @@ export function EditProfileModal({
   if (!visible) return null;
 
   return (
-    <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
+    <Modal transparent visible={visible} animationType="none" statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView
         style={styles.modalContainer}
         behavior={Platform.OS === "ios" ? "padding" : "height"}

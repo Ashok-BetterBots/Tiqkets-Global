@@ -21,6 +21,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { Spacing, BorderRadius, BrandColors, Colors } from "@/constants/theme";
 import { Organization, Service, FormField } from "@/types/queue";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface ServiceSelectionModalProps {
   visible: boolean;
@@ -58,6 +59,7 @@ export function ServiceSelectionModal({
   onJoinQueue,
 }: ServiceSelectionModalProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const { user } = useAuth();
   const [step, setStep] = useState<ModalStep>("services");
@@ -609,6 +611,8 @@ export function ServiceSelectionModal({
       visible={visible}
       transparent
       animationType="none"
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
@@ -619,7 +623,7 @@ export function ServiceSelectionModal({
         <Animated.View
           entering={FadeIn.duration(150)}
           exiting={FadeOut.duration(150)}
-          style={styles.overlay}
+          style={[styles.overlay, { paddingBottom: 20 + insets.bottom }]}
         >
           <Pressable style={styles.backdrop} onPress={step === "services" ? onClose : undefined} />
 
@@ -657,7 +661,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     paddingHorizontal: 10,
-    paddingBottom: 20,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
