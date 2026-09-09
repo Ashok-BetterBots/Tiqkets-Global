@@ -24,9 +24,9 @@
         "android.permission.READ_MEDIA_VIDEO"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#8c1867",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/images/logo-color-icon.png",
+        "monochromeImage": "./assets/images/logo-color-icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
