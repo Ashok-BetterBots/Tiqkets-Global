@@ -1345,7 +1345,7 @@ const styles = StyleSheet.create({
   availabilityCaption: { color: "#766C73", fontSize: 11, marginTop: 7, marginLeft: 2 },
   splitFields: { flexDirection: "row", gap: 10 },
   fieldLabelRow: { minHeight: 16, flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
-  whatsappIcon: { width: 16, height: 16 },
+  whatsappIcon: { width: 21, height: 21 },
   languageRow: { flexDirection: "row", gap: 4 },
   tileGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 8 },
   categoryTile: { width: "48.5%", minHeight: 52, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8, flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, position: "relative" },
