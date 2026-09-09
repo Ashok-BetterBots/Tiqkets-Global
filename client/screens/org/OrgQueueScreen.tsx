@@ -13,6 +13,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   ActivityIndicator,
+  FlatList,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -4635,33 +4636,42 @@ export default function OrgQueueScreen() {
       </ScrollView>
       )}
 
-      <ScrollView
+      <FlatList
+        data={(isFifoMode || isSelectiveMode) ? fifoList : filteredQueue}
+        keyExtractor={(customer) => customer.id}
         style={styles.queueList}
         contentContainerStyle={[styles.queueContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={12}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
-      >
-        {(isFifoMode || isSelectiveMode) ? (
-          fifoList.length === 0 ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIconCircle}>
-                <Feather name="inbox" size={26} color={colors.textSecondary} />
-              </View>
-              <ThemedText style={styles.emptyTitle}>All caught up</ThemedText>
-              <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                {fifoTab === "completed"
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconCircle}>
+              <Feather name="inbox" size={26} color={colors.textSecondary} />
+            </View>
+            <ThemedText style={styles.emptyTitle}>All caught up</ThemedText>
+            <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              {(isFifoMode || isSelectiveMode)
+                ? fifoTab === "completed"
                   ? "No completed customers yet."
                   : fifoTab === "hold"
-                  ? "No customers on hold."
+                    ? "No customers on hold."
+                    : "No customers in the queue right now."
+                : filterStatus === "completed"
+                  ? "No completed customers yet."
                   : "No customers in the queue right now."}
-              </ThemedText>
-            </View>
-          ) : (
-            fifoList.map((customer, index) => (
+            </ThemedText>
+          </View>
+        }
+        renderItem={({ item: customer, index }) => {
+          if (isFifoMode || isSelectiveMode) {
+            return (
               <FifoCard
-                key={customer.id}
                 customer={customer}
                 expanded={fifoTab === "waiting" && index === 0}
                 isAllExpanded={isSelectiveMode}
@@ -4680,44 +4690,31 @@ export default function OrgQueueScreen() {
                 onTransfer={() => handleTransferFifo(customer.id)}
                 onCancel={() => handleNoShow(customer.id)}
               />
-            ))
-          )
-        ) : filteredQueue.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconCircle}>
-              <Feather name="inbox" size={26} color={colors.textSecondary} />
-            </View>
-            <ThemedText style={styles.emptyTitle}>All caught up</ThemedText>
-            <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-              {filterStatus === "completed" ? "No completed customers yet." : "No customers in the queue right now."}
-            </ThemedText>
-          </View>
-        ) : (
-          filteredQueue.map((customer) => {
-            const service = organization?.services.find((s) => s.id === customer.serviceId);
-            const inputFields = service?.inputFields?.map((f) => ({ id: f.id, label: f.label })) || [];
-            const isFirstWaiting = customer.status === "waiting" && customer.id === firstWaitingId;
-            return (
-              <CustomerCard
-                key={customer.id}
-                customer={customer}
-                isSelectiveMode={isSelectiveMode}
-                isFirstWaiting={isFirstWaiting}
-                hasCalledCustomer={calledCount > 0}
-                onCallNext={handleCallNext}
-                onCall={() => handleCall(customer.id)}
-                onServe={() => handleServe(customer.id)}
-                onCallAgain={() => handleCallAgain(customer.id)}
-                onSkip={() => handleSkip(customer.id)}
-                onComplete={() => handleComplete(customer.id)}
-                onNoShow={() => handleNoShow(customer.id)}
-                inputFields={inputFields}
-                isDark={isDark}
-              />
             );
-          })
-        )}
-      </ScrollView>
+          }
+
+          const service = organization?.services.find((s) => s.id === customer.serviceId);
+          const inputFields = service?.inputFields?.map((f) => ({ id: f.id, label: f.label })) || [];
+          const isFirstWaiting = customer.status === "waiting" && customer.id === firstWaitingId;
+          return (
+            <CustomerCard
+              customer={customer}
+              isSelectiveMode={isSelectiveMode}
+              isFirstWaiting={isFirstWaiting}
+              hasCalledCustomer={calledCount > 0}
+              onCallNext={handleCallNext}
+              onCall={() => handleCall(customer.id)}
+              onServe={() => handleServe(customer.id)}
+              onCallAgain={() => handleCallAgain(customer.id)}
+              onSkip={() => handleSkip(customer.id)}
+              onComplete={() => handleComplete(customer.id)}
+              onNoShow={() => handleNoShow(customer.id)}
+              inputFields={inputFields}
+              isDark={isDark}
+            />
+          );
+        }}
+      />
 
       {/* FAB - Add Customer */}
       <Pressable
