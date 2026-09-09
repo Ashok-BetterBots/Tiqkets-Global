@@ -23,7 +23,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { formatEventSlotRange } from "@shared/eventSlots";
 
 const BRAND = "#9C1A5B";
-const WHATSAPP_ICON = require("../../attached_assets/icons8-whatsapp-16_1788983574533.png");
+const WHATSAPP_ICON = require("../../attached_assets/icons8-whatsapp-96_1788984257327.png");
 
 const SPECIAL_CATEGORY_IMAGES = {
   senior_citizen: require("../../attached_assets/person_1788525899674.png"),
