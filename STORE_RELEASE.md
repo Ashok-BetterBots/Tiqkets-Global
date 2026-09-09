@@ -91,6 +91,11 @@ Repository variables:
 | EXPO_PUBLIC_API_URL | Confirmed production HTTPS API base URL |
 | APPLE_TEAM_ID | FF43UTULMB |
 
+Public store availability is restricted to **India only**. This is an app-record
+setting that persists across binary uploads. Google Play production must target
+India without `Rest of World`; App Store Connect must list only India and keep
+automatic availability in future countries or regions disabled.
+
 Use a company-managed Google service account, enable the Google Play Android
 Developer API on its project, and invite its service-account email to Play
 Console with permissions limited to this app. The publisher currently has
@@ -194,11 +199,9 @@ Do not use `match nuke` or delete existing company certificates.
    through Fastlane after the Google service-account secret is installed.
 5. Apple version `1.0` (build `8.1`) was submitted on September 9, 2026 and is
    **Waiting for Review**. Automatic release after approval is enabled.
-6. Google Play version `1.0.1` (`210939941`) and its listing/policy changes were
-   submitted on September 9, 2026. Play Console shows all 11 changes under
-   **Changes in review**, with automatic publication after approval because
-   Managed publishing is off. The production track targets 177 countries and
-   regions.
+6. Google Play version `1.0.2` (`211084903`) was published on September 9, 2026.
+   The production track is restricted to India; all other countries, regions,
+   and `Rest of World` are excluded. Managed publishing remains off.
 7. Monitor both reviews and respond to any reviewer questions. No manual release
    action is expected after approval under the current settings.
 

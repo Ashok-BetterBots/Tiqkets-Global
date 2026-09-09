@@ -10,6 +10,7 @@ run through Fastlane and GitHub Actions.
 - App name: **TIQKETS**
 - Apple bundle identifier: `com.tiqkets.app`
 - Android package: `com.tiqkets.app`
+- Store availability: **India only**
 - Production API: `https://tiqketsglobal.replit.app`
 - Apple team: BetterBots AI Solutions Private Limited (`FF43UTULMB`)
 - Source repository: `Ashok-BetterBots/Tiqkets-Global`

@@ -29,9 +29,9 @@ production environment secrets.
 - SHA-256: `630cf1b08732b75f7ad1bb3eaf97d6f25f765c4142f270fb0aa78f8b70d7fcdd`
 - Build run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/34304216486>
 - Submission run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/34308212333>
-- Status: submitted to Google Play production review for full rollout in 177
-  countries and regions. Version 1.0.2 replaces the rejected 1.0.1 launcher
-  icon with the TIQKETS ticket artwork that matches the store listing.
+- Status: version 1.0.2 is published on Google Play. Public distribution is
+  restricted to India. This build replaces the rejected 1.0.1 launcher icon
+  with the TIQKETS ticket artwork that matches the store listing.
 
 ### iOS
 
@@ -49,6 +49,7 @@ production environment secrets.
 - App Store Connect: **TIQKETS**, Apple ID `6808904758`, SKU
   `TIQKETS-GLOBAL-IOS`, bundle `com.tiqkets.app`.
 - Google Play: **TIQKETS**, package `com.tiqkets.app`.
+- Public market policy: **India only** on both store records.
 - Google Play internal-test opt-in:
   <https://play.google.com/apps/internaltest/4701748236699726598>
 
@@ -101,6 +102,8 @@ The detailed recovery procedure and the exact GitHub secret names are in
 8. For later versions, publish a stable GitHub Release with customer-facing
    notes; the workflow builds, signs, uploads, and submits both stores through
    Fastlane using organization-owned credentials.
+9. After each release, confirm Google Play targets only India and App Store
+   Connect lists only India with automatic future-country availability disabled.
 
 The Google Play account-deletion URL is
 `https://tiqkets-global-publishing.web.app/account-deletion`. It is deployed in

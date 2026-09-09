@@ -19,6 +19,13 @@ stored as encrypted GitHub configuration.
 
 The workflow is **Publish mobile apps** in `.github/workflows/mobile-release.yml`.
 
+## Market policy
+
+TIQKETS is distributed publicly in **India only** on both Google Play and the
+Apple App Store. Store availability is configured on the app records and is
+preserved when GitHub Actions uploads later builds; a normal release must not add
+other countries or enable automatic availability in future App Store regions.
+
 ## Before every release
 
 1. Confirm all intended changes are merged into the repository's default
@@ -33,6 +40,9 @@ The workflow is **Publish mobile apps** in `.github/workflows/mobile-release.yml
    and no more than 500 characters.
 5. Check that no other mobile-store publishing workflow is running. Submissions
    are serialized, so a second release waits for the first one.
+6. Confirm both store records still show India as the only public country or
+   region. A binary upload should not change this setting, but it is part of the
+   release verification checklist.
 
 Do not manually change the iOS build number or Android version code. The workflow
 generates a new value for every run. The GitHub tag controls the public marketing
@@ -118,8 +128,11 @@ characters. It never invents or silently truncates release notes.
 1. Open Google Play Console and select **TIQKETS**.
 2. Open **Test and release → Production**.
 3. Confirm the new version is the latest production release.
-4. During review, monitor **Publishing overview** for required action.
-5. After approval, confirm the public listing has an **Install** button:
+4. Open **Countries / regions** and confirm the track targets exactly **1 country
+   / region: India**. `Rest of World` must not be targeted.
+5. During review, monitor **Publishing overview** for required action.
+6. After approval, confirm the public listing has an **Install** button for an
+   India-based Play account:
    `https://play.google.com/store/apps/details?id=com.tiqkets.app`.
 
 Managed publishing is currently off, so an approved production update becomes
@@ -130,11 +143,14 @@ account, device compatibility, and Play Store cache.
 
 1. Open App Store Connect and select **TIQKETS**.
 2. Open the new App Store version and confirm the uploaded build is selected.
-3. Monitor its status through **Waiting for Review** and **In Review**.
-4. Respond to any reviewer message in App Store Connect if Apple requests more
+3. Open **Pricing and Availability → App Availability** and confirm only
+   **India** is selected. **Make your app automatically available in all future
+   App Store countries or regions** must remain off.
+4. Monitor its status through **Waiting for Review** and **In Review**.
+5. Respond to any reviewer message in App Store Connect if Apple requests more
    information.
-5. After approval, confirm that the version status is **Ready for Distribution**
-   and verify the public App Store listing.
+6. After approval, confirm that the version status is **Ready for Distribution**
+   and verify the public App Store listing using an India-based account.
 
 Automatic release is enabled by the workflow, so no manual release button is
 normally required after Apple approves the version.
