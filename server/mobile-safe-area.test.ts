@@ -30,7 +30,10 @@ test("mobile navigation and bottom-pinned surfaces use runtime safe-area insets"
   assert.match(bottomSheetModal, /navigationBarTranslucent/);
   assert.match(bottomSheetModal, /paddingBottom: 20 \+ insets\.bottom/);
   assert.match(manualRegistration, /navigationBarTranslucent/);
-  assert.match(manualRegistration, /paddingBottom: 16 \+ insets\.bottom/);
+  assert.match(manualRegistration, /<SafeAreaProvider style=\{styles\.modalSafeAreaProvider\}>/);
+  assert.match(manualRegistration, /function ModalSafeAreaFooter/);
+  assert.match(manualRegistration, /const modalInsets = useSafeAreaInsets\(\)/);
+  assert.match(manualRegistration, /paddingBottom: 16 \+ modalInsets\.bottom/);
   assert.match(scanner, /paddingBottom: Spacing\["5xl"\] \+ insets\.bottom/);
   assert.match(bottomSheet, /navigationBarTranslucent/);
   assert.match(bottomSheet, /paddingBottom: insets\.bottom \+ Spacing\.md/);
