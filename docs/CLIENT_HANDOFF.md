@@ -22,14 +22,16 @@ production environment secrets.
 
 ### Android
 
-- File: `tiqkets-1.0.1-210939941.aab`
+- File: `tiqkets-1.0.2-211084903.aab`
 - Package: `com.tiqkets.app`
-- Version: `1.0.1` (`210939941`)
+- Version: `1.0.2` (`211084903`)
 - Signer: TIQKETS Upload, BetterBots AI Solutions Private Limited
-- SHA-256: `5a8ebc744dc700ed896a0e12be339e3691c75090e542bf7299e5710db33c16f5`
-- GitHub Actions run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/34111367362>
+- SHA-256: `630cf1b08732b75f7ad1bb3eaf97d6f25f765c4142f270fb0aa78f8b70d7fcdd`
+- Build run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/34304216486>
+- Submission run: <https://github.com/Ashok-BetterBots/Tiqkets-Global/actions/runs/34308212333>
 - Status: submitted to Google Play production review for full rollout in 177
-  countries and regions; also available on the internal-testing track
+  countries and regions. Version 1.0.2 replaces the rejected 1.0.1 launcher
+  icon with the TIQKETS ticket artwork that matches the store listing.
 
 ### iOS
 
