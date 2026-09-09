@@ -467,7 +467,14 @@ export function EventManualRegModal({
   }, [performSubmit]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={onClose}
+    >
       <View style={styles.overlay}>
         <Pressable
           style={StyleSheet.absoluteFill}
@@ -1172,7 +1179,7 @@ export function EventManualRegModal({
             </KeyboardAwareScrollViewCompat>
 
             {!success && !loadingLocations ? (
-              <View style={styles.footer} testID="manual-reg-footer">
+              <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]} testID="manual-reg-footer">
                 {step > 1 ? (
                   <Pressable style={[styles.secondaryBtn, { borderColor: BRAND }]} onPress={() => setStep((step - 1) as 1 | 2)}>
                     <ThemedText style={{ color: BRAND, fontWeight: "700" }}>Back</ThemedText>
@@ -1332,7 +1339,7 @@ const styles = StyleSheet.create({
   progressLine: { flex: 1, height: 2, marginTop: 12 },
   scrollBody: { flex: 1 },
   body: { paddingHorizontal: 16, paddingBottom: 20, gap: 14 },
-  footer: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16, borderTopWidth: 1, borderTopColor: "#EEE8EB", backgroundColor: "#FFFFFF" },
+  footer: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#EEE8EB", backgroundColor: "#FFFFFF" },
   primaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center" },
   secondaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center", borderWidth: 1.5, backgroundColor: "#FFFFFF" },
   input: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 10, fontSize: 14 },

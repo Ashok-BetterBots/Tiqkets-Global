@@ -280,7 +280,7 @@ function QRScannerNative({ navigation }: { navigation: NativeStackNavigationProp
           </View>
         </View>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Spacing["5xl"] + insets.bottom }]}>
           <ThemedText
             type="body"
             style={styles.instruction}
@@ -462,7 +462,6 @@ const styles = StyleSheet.create({
   footer: {
     alignItems: "center",
     paddingHorizontal: Spacing["2xl"],
-    paddingBottom: Spacing["5xl"],
   },
   instruction: {
     textAlign: "center",
