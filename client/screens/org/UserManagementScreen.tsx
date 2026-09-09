@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { memo, useCallback, useState, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -11,6 +11,7 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
+  FlatList,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -82,7 +83,7 @@ interface UserCardProps {
   isDark?: boolean;
 }
 
-function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = false }: UserCardProps) {
+const UserCard = memo(function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = false }: UserCardProps) {
   const roleColor = getRoleColor(user.role);
   const roleIcon = getRoleIcon(user.role);
   const colors = isDark ? Colors.dark : Colors.light;
@@ -161,7 +162,7 @@ function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = f
       </Card>
     </Animated.View>
   );
-}
+});
 
 type OrgUserDraft = Omit<OrgUser, "id" | "createdAt" | "organizationId"> & {
   password?: string;
@@ -573,7 +574,10 @@ export default function UserManagementScreen() {
   const [editingUser, setEditingUser] = useState<OrgUser | null>(null);
   const [filterRole, setFilterRole] = useState<UserRole | "all">("all");
 
-  const filteredUsers = users.filter((u) => filterRole === "all" || u.role === filterRole);
+  const filteredUsers = useMemo(
+    () => users.filter((u) => filterRole === "all" || u.role === filterRole),
+    [filterRole, users],
+  );
 
   const handleAddUser = async (userData: OrgUserDraft) => {
     try {
@@ -599,12 +603,12 @@ export default function UserManagementScreen() {
     }
   };
 
-  const handleToggleStatus = async (user: OrgUser) => {
+  const handleToggleStatus = useCallback(async (user: OrgUser) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await updateUser(user.id, { isActive: !user.isActive });
-  };
+  }, [updateUser]);
 
-  const handleDeleteUser = (user: OrgUser) => {
+  const handleDeleteUser = useCallback((user: OrgUser) => {
     Alert.alert(
       "Delete User",
       `Are you sure you want to delete ${user.name}? This action cannot be undone.`,
@@ -620,7 +624,7 @@ export default function UserManagementScreen() {
         },
       ]
     );
-  };
+  }, [deleteUser]);
 
   const filters: { key: UserRole | "all"; label: string }[] = [
     { key: "all", label: "All Users" },
@@ -630,10 +634,27 @@ export default function UserManagementScreen() {
     { key: "front_desk", label: "Front Desk" },
   ];
 
-  const services = branches.flatMap((b) =>
+  const services = useMemo(() => branches.flatMap((b) =>
     (b.services || []).map((s) => ({ id: s.id, name: s.name, branchId: b.id }))
+  ), [branches]);
+  const branchOptions = useMemo(
+    () => branches.map((b) => ({ id: b.id, name: b.name })),
+    [branches],
   );
-  const branchOptions = branches.map((b) => ({ id: b.id, name: b.name }));
+
+  const renderUser = useCallback(({ item: user }: { item: OrgUser }) => (
+    <UserCard
+      user={user}
+      branches={branchOptions}
+      onEdit={() => {
+        setEditingUser(user);
+        setShowAddModal(true);
+      }}
+      onToggleStatus={() => handleToggleStatus(user)}
+      onDelete={() => handleDeleteUser(user)}
+      isDark={isDark}
+    />
+  ), [branchOptions, handleDeleteUser, handleToggleStatus, isDark]);
 
   return (
     <ThemedView style={styles.container}>
@@ -685,12 +706,18 @@ export default function UserManagementScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView
+      <FlatList
+        data={filteredUsers}
+        keyExtractor={(user) => user.id}
+        renderItem={renderUser}
         style={styles.userList}
         contentContainerStyle={[styles.userListContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
-      >
-        {filteredUsers.length === 0 ? (
+        initialNumToRender={12}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
+        ListEmptyComponent={
           <View style={styles.emptyState}>
             <Feather name="users" size={48} color={colors.textSecondary} />
             <ThemedText style={styles.emptyTitle}>No users found</ThemedText>
@@ -698,23 +725,8 @@ export default function UserManagementScreen() {
               {filterRole === "all" ? "Add your first team member" : `No ${ROLE_LABELS[filterRole as UserRole]}s yet`}
             </ThemedText>
           </View>
-        ) : (
-          filteredUsers.map((user) => (
-            <UserCard
-              key={user.id}
-              user={user}
-              branches={branchOptions}
-              onEdit={() => {
-                setEditingUser(user);
-                setShowAddModal(true);
-              }}
-              onToggleStatus={() => handleToggleStatus(user)}
-              onDelete={() => handleDeleteUser(user)}
-              isDark={isDark}
-            />
-          ))
-        )}
-      </ScrollView>
+        }
+      />
 
       <AddUserModal
         visible={showAddModal}
