@@ -63,6 +63,11 @@ import { createRouteOrder, isRazorpayTestMode, isRouteProfileActive, mapWithConc
 import { isValidRazorpayProviderId } from "./razorpay-route-contract";
 import { formatEventSlotRange, formatEventTime } from "@shared/eventSlots";
 import {
+  getExactTicketIdCandidates,
+  getPartialTicketIdPatterns,
+  normalizeTicketIdSearchInput,
+} from "./event-ticket-id-search";
+import {
   requirePermission,
   publicRoute,
   getRequestUserId,
@@ -1201,12 +1206,13 @@ async function buildFormLabels(locationId: string | null): Promise<Record<string
 async function findRegistrationByAny(idOrCode: string): Promise<EventRegistration | null> {
   const v = (idOrCode || "").trim();
   if (!v) return null;
+  const bookingIdCandidates = getExactTicketIdCandidates(v);
   const rows = await db
     .select()
     .from(eventRegistrations)
     .where(or(
       eq(eventRegistrations.qrToken, v.toLowerCase()),
-      eq(eventRegistrations.bookingId, v.toUpperCase()),
+      inArray(eventRegistrations.bookingId, bookingIdCandidates),
       eq(eventRegistrations.id, v),
     ))
     .limit(1);
@@ -1266,13 +1272,14 @@ async function findUnassignedPreprintedTicketForOrg(
 ): Promise<{ ticket: typeof eventPreprintedTickets.$inferSelect; ev: Event } | null> {
   const v = (idOrCode || "").trim();
   if (!v) return null;
+  const bookingIdCandidates = getExactTicketIdCandidates(v);
   const rows = await db.select({ ticket: eventPreprintedTickets, ev: events })
     .from(eventPreprintedTickets)
     .innerJoin(events, eq(eventPreprintedTickets.eventId, events.id))
     .where(and(
       or(
         eq(eventPreprintedTickets.qrToken, v.toLowerCase()),
-        eq(eventPreprintedTickets.bookingId, v.toUpperCase()),
+        inArray(eventPreprintedTickets.bookingId, bookingIdCandidates),
       ),
       ne(eventPreprintedTickets.status, "assigned"),
     ))
@@ -1290,13 +1297,14 @@ async function findUnassignedPreprintedTicketForEvent(
 ): Promise<typeof eventPreprintedTickets.$inferSelect | null> {
   const v = (idOrCode || "").trim();
   if (!v) return null;
+  const bookingIdCandidates = getExactTicketIdCandidates(v);
   const rows = await db.select()
     .from(eventPreprintedTickets)
     .where(and(
       eq(eventPreprintedTickets.eventId, eventId),
       or(
         eq(eventPreprintedTickets.qrToken, v.toLowerCase()),
-        eq(eventPreprintedTickets.bookingId, v.toUpperCase()),
+        inArray(eventPreprintedTickets.bookingId, bookingIdCandidates),
       ),
       ne(eventPreprintedTickets.status, "assigned"),
     ))
@@ -2303,7 +2311,7 @@ export function registerEventsRoutes(app: Express) {
       if (resolvedTicketMethod === "preprinted" && !scannedTicket) {
         return res.status(400).json({ error: "Scan or enter a pre-printed ticket ID" });
       }
-      const ticketLookupBookingId = scannedTicket.toUpperCase();
+      const ticketLookupBookingIds = getExactTicketIdCandidates(scannedTicket);
       const ticketLookupToken = scannedTicket.toLowerCase();
       const staffUserId = getRequestUserId(req);
       const result = await db.transaction(async (tx) => {
@@ -2331,7 +2339,7 @@ export function registerEventsRoutes(app: Express) {
             .where(and(
               eq(eventPreprintedTickets.eventId, ev.id),
               or(
-                eq(eventPreprintedTickets.bookingId, ticketLookupBookingId),
+                inArray(eventPreprintedTickets.bookingId, ticketLookupBookingIds),
                 eq(eventPreprintedTickets.qrToken, ticketLookupToken),
               ),
             ))
@@ -2560,15 +2568,17 @@ export function registerEventsRoutes(app: Express) {
 
       const page  = Math.max(1, parseInt(String(req.query.page  || "1"),  10) || 1);
       const limit = Math.min(200, Math.max(10, parseInt(String(req.query.limit || "50"), 10) || 50));
-      const search      = String(req.query.search || "").trim();
+      const search      = normalizeTicketIdSearchInput(req.query.search);
       const statusFilter = String(req.query.status || "").trim().toLowerCase();
       const batchFilter  = String(req.query.batch  || "").trim().toUpperCase();
 
       // Build WHERE conditions for the ticket detail query
       const conditions: any[] = [eq(eventPreprintedTickets.eventId, ev.id)];
       if (search) {
+        const bookingIdConditions = getPartialTicketIdPatterns(search)
+          .map((pattern) => ilike(eventPreprintedTickets.bookingId, pattern));
         conditions.push(or(
-          ilike(eventPreprintedTickets.bookingId, `%${search}%`),
+          or(...bookingIdConditions),
           ilike(eventPreprintedTickets.batchCode, `%${search}%`),
         ));
       }
@@ -2643,6 +2653,7 @@ export function registerEventsRoutes(app: Express) {
       const raw = String(req.query.code || "").trim();
       if (!raw) return res.status(400).json({ error: "code is required" });
       const parsed = parseScanValue(raw);
+      const bookingIdCandidates = getExactTicketIdCandidates(parsed);
       const [row] = await db.select({
         bookingId: eventPreprintedTickets.bookingId,
         status:    eventPreprintedTickets.status,
@@ -2651,7 +2662,7 @@ export function registerEventsRoutes(app: Express) {
         .where(and(
           eq(eventPreprintedTickets.eventId, ev.id),
           or(
-            eq(eventPreprintedTickets.bookingId, parsed.toUpperCase()),
+            inArray(eventPreprintedTickets.bookingId, bookingIdCandidates),
             eq(eventPreprintedTickets.qrToken,   parsed.toLowerCase()),
           ),
         ))
@@ -3517,11 +3528,13 @@ export function registerEventsRoutes(app: Express) {
       if (status) conds.push(inArray(eventRegistrations.status, status.split(",")));
       if (slotDate) conds.push(eq(eventRegistrations.slotDate, slotDate));
       if (q?.trim()) {
+        const bookingIdConditions = getPartialTicketIdPatterns(q)
+          .map((pattern) => ilike(eventRegistrations.bookingId, pattern));
         const needle = `%${q.trim()}%`;
         conds.push(or(
           ilike(eventRegistrations.customerName, needle),
           ilike(eventRegistrations.customerPhone, needle),
-          ilike(eventRegistrations.bookingId, needle),
+          or(...bookingIdConditions),
         ) as any);
       }
       const whereClause = and(...conds);
@@ -3694,10 +3707,12 @@ export function registerEventsRoutes(app: Express) {
       if (type === "billing") {
         const whereConditions = [eq(eventRegistrations.eventId, ev.id)];
         if (search) {
+          const bookingIdConditions = getPartialTicketIdPatterns(search)
+            .map((pattern) => ilike(eventRegistrations.bookingId, pattern));
           whereConditions.push(
             or(
               ilike(eventRegistrations.customerName, `%${search}%`),
-              ilike(eventRegistrations.bookingId, `%${search}%`),
+              or(...bookingIdConditions),
             ) as any,
           );
         }
@@ -4393,10 +4408,12 @@ export function registerEventsRoutes(app: Express) {
 
       const whereConditions: any[] = [eq(eventParkingLogs.eventId, ev.id)];
       if (search) {
+        const bookingIdConditions = getPartialTicketIdPatterns(search)
+          .map((pattern) => ilike(eventParkingLogs.bookingId, pattern));
         whereConditions.push(
           or(
             ilike(eventParkingLogs.customerName,    `%${search}%`),
-            ilike(eventParkingLogs.bookingId,       `%${search}%`),
+            or(...bookingIdConditions),
             ilike(eventParkingLogs.customerPhone,   `%${search}%`),
             ilike(eventParkingLogs.vehicleRegNumber, `%${search}%`),
           ) as any,
