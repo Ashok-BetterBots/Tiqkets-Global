@@ -28,7 +28,7 @@ function startExpo() {
 
   expo = spawn(
     process.platform === "win32" ? "npx.cmd" : "npx",
-    ["expo", "start", "--tunnel", "--clear"],
+    ["expo", "start", "--tunnel"],
     {
       env: {
         ...env,
