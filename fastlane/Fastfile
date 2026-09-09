@@ -61,9 +61,10 @@ platform :android do
       track: ENV.fetch("PLAY_TRACK"),
       release_status: ENV.fetch("PLAY_STATUS"),
       metadata_path: File.join(ROOT, "fastlane/metadata/android"),
-      # Store listing assets are managed separately; releases only need the
-      # signed bundle and the changelog generated from the GitHub Release.
-      skip_upload_metadata: true,
+      # Text metadata includes the changelog generated from the GitHub Release.
+      # Images remain separately managed so a binary release cannot replace
+      # the reviewed store artwork.
+      skip_upload_metadata: false,
       skip_upload_images: true,
       skip_upload_screenshots: true
     )
