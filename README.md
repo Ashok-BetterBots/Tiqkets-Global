@@ -53,6 +53,11 @@ store API credentials.
 
 Customer-facing GitHub Release notes are used for both stores. A published stable
 release submits production builds; a prerelease targets internal testing; a
-manual build run only creates signed artifacts. See [STORE_RELEASE.md](STORE_RELEASE.md)
-for the complete process and [docs/CLIENT_HANDOFF.md](docs/CLIENT_HANDOFF.md) for
-the current ownership and launch checklist.
+manual build run only creates signed artifacts.
+
+- Follow [docs/RELEASING.md](docs/RELEASING.md) for the step-by-step iOS and
+  Android release process.
+- See [STORE_RELEASE.md](STORE_RELEASE.md) for signing architecture, credential
+  recovery, and detailed store-automation notes.
+- See [docs/CLIENT_HANDOFF.md](docs/CLIENT_HANDOFF.md) for ownership and client
+  handoff information.
