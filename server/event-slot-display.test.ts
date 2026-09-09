@@ -170,7 +170,7 @@ describe("event registration slot display", () => {
 
   test("manual registration uses the supplied WhatsApp icon and clears the default guest count on focus", () => {
     const modal = readFileSync("client/components/EventManualRegModal.tsx", "utf8");
-    assert.match(modal, /icons8-whatsapp-16_1788983574533\.png/);
+    assert.match(modal, /icons8-whatsapp-96_1788984257327\.png/);
     assert.match(modal, /if \(form\.familyMembersCount === "0"\) setField\(\{ familyMembersCount: "" \}\)/);
     assert.match(modal, /if \(!form\.familyMembersCount\) setField\(\{ familyMembersCount: "0" \}\)/);
   });
