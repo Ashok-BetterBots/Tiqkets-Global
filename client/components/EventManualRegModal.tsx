@@ -906,19 +906,19 @@ export function EventManualRegModal({
                     />
                   </Field>
 
-                  <Field label="WhatsApp number">
-                    <View style={styles.iconInput}>
-                      <Image source={WHATSAPP_ICON} style={styles.whatsappIcon} resizeMode="contain" />
-                      <TextInput
-                        value={form.customerPhone}
-                        onChangeText={(v) => setField({ customerPhone: v })}
-                        placeholder="10-digit number"
-                        placeholderTextColor={textSecondary}
-                        keyboardType="phone-pad"
-                        style={[styles.input, styles.inputWithIcon, { color: text, borderColor: border }]}
-                        testID="input-manual-reg-phone"
-                      />
-                    </View>
+                  <Field
+                    label="WhatsApp number"
+                    labelIcon={<Image source={WHATSAPP_ICON} style={styles.whatsappIcon} resizeMode="contain" />}
+                  >
+                    <TextInput
+                      value={form.customerPhone}
+                      onChangeText={(v) => setField({ customerPhone: v })}
+                      placeholder="10-digit number"
+                      placeholderTextColor={textSecondary}
+                      keyboardType="phone-pad"
+                      style={[styles.input, { color: text, borderColor: border }]}
+                      testID="input-manual-reg-phone"
+                    />
                   </Field>
                   </View>
 
@@ -1203,13 +1203,16 @@ export function EventManualRegModal({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, labelIcon, children }: { label: string; labelIcon?: React.ReactNode; children: React.ReactNode }) {
   const textSecondary = "#766C73";
   return (
     <View>
-      <ThemedText style={{ fontSize: 11, fontWeight: "700", color: textSecondary, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.3 }}>
-        {label}
-      </ThemedText>
+      <View style={styles.fieldLabelRow}>
+        {labelIcon}
+        <ThemedText style={{ fontSize: 11, fontWeight: "700", color: textSecondary, textTransform: "uppercase", letterSpacing: 0.3 }}>
+          {label}
+        </ThemedText>
+      </View>
       {children}
     </View>
   );
@@ -1341,9 +1344,8 @@ const styles = StyleSheet.create({
   slotRowField: { flex: 1 },
   availabilityCaption: { color: "#766C73", fontSize: 11, marginTop: 7, marginLeft: 2 },
   splitFields: { flexDirection: "row", gap: 10 },
-  iconInput: { flexDirection: "row", alignItems: "center" },
+  fieldLabelRow: { minHeight: 16, flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
   whatsappIcon: { width: 16, height: 16 },
-  inputWithIcon: { flex: 1, marginLeft: -25, paddingLeft: 34 },
   languageRow: { flexDirection: "row", gap: 4 },
   tileGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 8 },
   categoryTile: { width: "48.5%", minHeight: 52, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8, flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, position: "relative" },
