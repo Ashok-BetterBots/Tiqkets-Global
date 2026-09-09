@@ -13,7 +13,7 @@ import {
   KeyboardAvoidingView,
   useWindowDimensions,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -475,6 +475,7 @@ export function EventManualRegModal({
       navigationBarTranslucent
       onRequestClose={onClose}
     >
+      <SafeAreaProvider style={styles.modalSafeAreaProvider}>
       <View style={styles.overlay}>
         <Pressable
           style={StyleSheet.absoluteFill}
@@ -1179,7 +1180,7 @@ export function EventManualRegModal({
             </KeyboardAwareScrollViewCompat>
 
             {!success && !loadingLocations ? (
-              <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]} testID="manual-reg-footer">
+              <ModalSafeAreaFooter>
                 {step > 1 ? (
                   <Pressable style={[styles.secondaryBtn, { borderColor: BRAND }]} onPress={() => setStep((step - 1) as 1 | 2)}>
                     <ThemedText style={{ color: BRAND, fontWeight: "700" }}>Back</ThemedText>
@@ -1201,12 +1202,23 @@ export function EventManualRegModal({
                     {step === 3 ? (saving ? "Registering…" : "Register") : "Next"}
                   </ThemedText>
                 </Pressable>
-              </View>
+              </ModalSafeAreaFooter>
             ) : null}
           </Pressable>
         </KeyboardAvoidingView>
       </View>
+      </SafeAreaProvider>
     </Modal>
+  );
+}
+
+function ModalSafeAreaFooter({ children }: { children: React.ReactNode }) {
+  const modalInsets = useSafeAreaInsets();
+
+  return (
+    <View style={[styles.footer, { paddingBottom: 16 + modalInsets.bottom }]} testID="manual-reg-footer">
+      {children}
+    </View>
   );
 }
 
@@ -1329,6 +1341,7 @@ function CustomFieldInput({
 }
 
 const styles = StyleSheet.create({
+  modalSafeAreaProvider: { flex: 1 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   card: { width: "100%", borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden" },
   handle: { width: 42, height: 4, borderRadius: 2, alignSelf: "center", marginTop: 10, marginBottom: 5 },
