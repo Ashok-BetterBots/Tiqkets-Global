@@ -733,9 +733,6 @@ export function EventManualRegModal({
                             accessibilityState={{ checked: selected }}
                             testID={`checkbox-special-category-${value}`}
                           >
-                            <View style={[styles.tileCheck, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND : surface }]}>
-                              {selected ? <Feather name="check" size={9} color="#FFF" /> : null}
-                            </View>
                             <Image
                               source={SPECIAL_CATEGORY_IMAGES[value]}
                               style={[styles.specialCategoryImage, { tintColor: selected ? BRAND : textSecondary }]}
@@ -744,6 +741,9 @@ export function EventManualRegModal({
                             <ThemedText style={{ color: selected ? BRAND : text, fontSize: 12, fontWeight: selected ? "800" : "600" }}>
                               {label}
                             </ThemedText>
+                            <View style={[styles.tileCheck, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND : surface }]}>
+                              {selected ? <Feather name="check" size={9} color="#FFF" /> : null}
+                            </View>
                           </Pressable>
                         );
                       })}
@@ -1368,15 +1368,15 @@ const styles = StyleSheet.create({
   whatsappIcon: { width: 21, height: 21 },
   languageRow: { flexDirection: "row", gap: 4 },
   tileGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 8 },
-  categoryTile: { width: "48.5%", minHeight: 52, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8, flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, position: "relative" },
+  categoryTile: { width: "48.5%", minHeight: 40, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, position: "relative" },
   yesNoRow: { flexDirection: "row", gap: Spacing.sm },
   yesNoOption: { flex: 1, minHeight: 46, borderWidth: 1.5, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm },
   radioOuter: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: BRAND },
   specialMembersPanel: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md, marginTop: Spacing.sm },
-  categoryIconRow: { minHeight: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 1 },
+  categoryIconRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 1 },
   specialCategoryImage: { width: 17, height: 17 },
-  tileCheck: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  tileCheck: { position: "absolute", top: 4, right: 4, width: 14, height: 14, borderRadius: 7, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   successBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.lg, alignItems: "center" },
   errorBox: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm },
   paymentBox: { borderWidth: 1, borderRadius: 12, padding: 14, backgroundColor: "#FFFFFF" },
