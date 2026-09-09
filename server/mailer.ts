@@ -234,6 +234,64 @@ export async function sendTransactional(args: SendEmailArgs): Promise<boolean> {
 // Feature templates
 // ---------------------------------------------------------------------------
 
+export async function sendEventTicketEmail(args: {
+  to: string;
+  customerName: string;
+  eventName: string;
+  bookingId: string;
+  qrToken: string;
+  slotDate: string;
+  slotTime: string;
+  locationName?: string | null;
+  guestCount: number;
+}): Promise<boolean> {
+  const ticketUrl = `${getPublicBaseUrl()}/event-ticket/${encodeURIComponent(args.qrToken)}`;
+  const locationRow = args.locationName
+    ? `<tr><td style="padding:5px 12px 5px 0;color:${BRAND_MUTED};">Location</td><td style="padding:5px 0;font-weight:600;">${escapeHtml(args.locationName)}</td></tr>`
+    : "";
+  const inner = `
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(args.customerName)},</p>
+    <p style="margin:0 0 18px;">
+      Your registration for <strong>${escapeHtml(args.eventName)}</strong> is confirmed.
+      Keep this ticket ready to show at the event entrance.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 8px;background:${BRAND_BG};border:1px solid ${BRAND_BORDER};border-radius:8px;padding:14px;">
+      <tr><td style="padding:5px 12px 5px 0;color:${BRAND_MUTED};">Ticket ID</td><td style="padding:5px 0;font-weight:700;">${escapeHtml(args.bookingId)}</td></tr>
+      <tr><td style="padding:5px 12px 5px 0;color:${BRAND_MUTED};">Date</td><td style="padding:5px 0;font-weight:600;">${escapeHtml(args.slotDate)}</td></tr>
+      <tr><td style="padding:5px 12px 5px 0;color:${BRAND_MUTED};">Time</td><td style="padding:5px 0;font-weight:600;">${escapeHtml(args.slotTime)}</td></tr>
+      ${locationRow}
+      <tr><td style="padding:5px 12px 5px 0;color:${BRAND_MUTED};">Guests</td><td style="padding:5px 0;font-weight:600;">${args.guestCount}</td></tr>
+    </table>
+    <p style="margin:16px 0 0;color:${BRAND_MUTED};font-size:13px;">
+      Open the ticket using the button below to view the QR code and complete ticket details.
+    </p>
+  `;
+  const text = `Hi ${args.customerName},
+
+Your registration for ${args.eventName} is confirmed.
+
+Ticket ID: ${args.bookingId}
+Date: ${args.slotDate}
+Time: ${args.slotTime}
+${args.locationName ? `Location: ${args.locationName}\n` : ""}Guests: ${args.guestCount}
+
+View your ticket: ${ticketUrl}
+
+Please keep the ticket ready to show at the event entrance.`;
+
+  return sendTransactional({
+    to: args.to,
+    subject: `Your ticket for ${args.eventName} — ${args.bookingId}`,
+    html: renderEmailHtml({
+      heading: "Your event ticket is ready",
+      preheader: `${args.eventName} ticket ${args.bookingId}`,
+      innerHtml: inner,
+      cta: { label: "View ticket", url: ticketUrl },
+    }),
+    text,
+  });
+}
+
 /**
  * Verify the registrant's email after org sign-up. The token gets baked
  * into a backend URL that flips is_verified=true and renders a confirmation

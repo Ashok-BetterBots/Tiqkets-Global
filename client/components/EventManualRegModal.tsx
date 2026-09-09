@@ -23,6 +23,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { formatEventSlotRange } from "@shared/eventSlots";
 
 const BRAND = "#9C1A5B";
+const WHATSAPP_ICON = require("../../attached_assets/icons8-whatsapp-16_1788983574533.png");
 
 const SPECIAL_CATEGORY_IMAGES = {
   senior_citizen: require("../../attached_assets/person_1788525899674.png"),
@@ -59,6 +60,7 @@ interface Registration {
   id: string;
   customerName: string;
   customerPhone: string;
+  customerEmail?: string | null;
   bookingId?: string;
   qrToken?: string;
 }
@@ -551,6 +553,11 @@ export function EventManualRegModal({
                     <ThemedText style={{ color: textSecondary, fontSize: 12, textAlign: "center", marginTop: 6 }}>
                       Ticket generated and sent on WhatsApp to {success.customerPhone}
                     </ThemedText>
+                    {success.customerEmail ? (
+                      <ThemedText style={{ color: textSecondary, fontSize: 12, textAlign: "center", marginTop: 3 }}>
+                        Email delivery started to {success.customerEmail}
+                      </ThemedText>
+                    ) : null}
                   </View>
                   <Pressable
                     style={[styles.primaryBtn, { backgroundColor: BRAND }]}
@@ -901,7 +908,7 @@ export function EventManualRegModal({
 
                   <Field label="WhatsApp number">
                     <View style={styles.iconInput}>
-                      <Feather name="message-circle" size={16} color={BRAND} />
+                      <Image source={WHATSAPP_ICON} style={styles.whatsappIcon} resizeMode="contain" />
                       <TextInput
                         value={form.customerPhone}
                         onChangeText={(v) => setField({ customerPhone: v })}
@@ -935,6 +942,12 @@ export function EventManualRegModal({
                       <TextInput
                         value={form.familyMembersCount}
                         onChangeText={(v) => setField({ familyMembersCount: v.replace(/[^0-9]/g, "") })}
+                        onFocus={() => {
+                          if (form.familyMembersCount === "0") setField({ familyMembersCount: "" });
+                        }}
+                        onBlur={() => {
+                          if (!form.familyMembersCount) setField({ familyMembersCount: "0" });
+                        }}
                         keyboardType="number-pad"
                         placeholder="0"
                         placeholderTextColor={textSecondary}
@@ -1329,6 +1342,7 @@ const styles = StyleSheet.create({
   availabilityCaption: { color: "#766C73", fontSize: 11, marginTop: 7, marginLeft: 2 },
   splitFields: { flexDirection: "row", gap: 10 },
   iconInput: { flexDirection: "row", alignItems: "center" },
+  whatsappIcon: { width: 16, height: 16 },
   inputWithIcon: { flex: 1, marginLeft: -25, paddingLeft: 34 },
   languageRow: { flexDirection: "row", gap: 4 },
   tileGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 8 },

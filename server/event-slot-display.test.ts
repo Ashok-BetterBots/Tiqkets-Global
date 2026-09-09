@@ -167,4 +167,21 @@ describe("event registration slot display", () => {
       productStatus: "completed",
     }), false);
   });
+
+  test("manual registration uses the supplied WhatsApp icon and clears the default guest count on focus", () => {
+    const modal = readFileSync("client/components/EventManualRegModal.tsx", "utf8");
+    assert.match(modal, /icons8-whatsapp-16_1788983574533\.png/);
+    assert.match(modal, /if \(form\.familyMembersCount === "0"\) setField\(\{ familyMembersCount: "" \}\)/);
+    assert.match(modal, /if \(!form\.familyMembersCount\) setField\(\{ familyMembersCount: "0" \}\)/);
+  });
+
+  test("manual registration emails the issued ticket when an email address is present", () => {
+    const routes = readFileSync("server/events-routes.ts", "utf8");
+    const mailer = readFileSync("server/mailer.ts", "utf8");
+    assert.match(routes, /if \(done\.customerEmail && done\.bookingId && done\.qrToken\)/);
+    assert.match(routes, /sendEventTicketEmail\(\{/);
+    assert.match(mailer, /export async function sendEventTicketEmail/);
+    assert.match(mailer, /Your event ticket is ready/);
+    assert.match(mailer, /cta: \{ label: "View ticket", url: ticketUrl \}/);
+  });
 });

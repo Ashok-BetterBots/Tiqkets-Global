@@ -125,7 +125,7 @@ function requireEventsManageOrBilling() {
 }
 import { renderWaMessage, type WaVars } from "./wa-templates";
 import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTemplateMessage, sendWhatsAppOTP, normalizeIndianPhone } from "./whatsapp";
-import { getPublicBaseUrl } from "./mailer";
+import { getPublicBaseUrl, sendEventTicketEmail } from "./mailer";
 import { isSupportedLanguage } from "@shared/languages";
 import { getApprovedWaTemplate } from "@shared/wa-approved-templates";
 import { ObjectStorageService } from "./objectStorage";
@@ -2451,6 +2451,21 @@ export function registerEventsRoutes(app: Express) {
       // the dashboard also exposes an explicit "Send via WhatsApp" action
       // (resend-ticket) for staff to re-trigger it on demand.
       const done = await issueTicket(ev, reg);
+      if (done.customerEmail && done.bookingId && done.qrToken) {
+        void sendEventTicketEmail({
+          to: done.customerEmail,
+          customerName: done.customerName,
+          eventName: ev.name,
+          bookingId: done.bookingId,
+          qrToken: done.qrToken,
+          slotDate: done.slotDate,
+          slotTime: done.slotTime,
+          locationName: location?.name || null,
+          guestCount: 1 + done.familyMembersCount,
+        }).then((sent) => {
+          if (!sent) console.warn(`[events] ticket email was not sent for registration ${done.id}`);
+        });
+      }
       res.json({ registration: regShape(done), eventName: ev.name });
     } catch (e) {
       console.error("[events] manual registration failed:", e);
