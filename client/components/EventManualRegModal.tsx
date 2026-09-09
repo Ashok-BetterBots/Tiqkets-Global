@@ -156,7 +156,7 @@ export function EventManualRegModal({
   const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const surface = "#FFFFFF";
-  const bg = "#F7F5F0";
+  const bg = "#F7F5FE";
   const text = "#271D24";
   const textSecondary = "#766C73";
   const border = "#E5DFE2";
@@ -1073,7 +1073,7 @@ export function EventManualRegModal({
                     <View
                      style={[styles.paymentBox, {
                        borderColor: balanceDue > 0 ? "#F59E0B40" : "#10B98140",
-                       backgroundColor: balanceDue > 0 ? "#F59E0B12" : "#10B98112",
+                       backgroundColor: bg,
                      }]}
                      testID="manual-reg-payment"
                    >
@@ -1321,9 +1321,9 @@ const styles = StyleSheet.create({
   secondaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center", borderWidth: 1.5, backgroundColor: "#FFFFFF" },
   input: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 10, fontSize: 14 },
   chip: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 8 },
-  sectionCard: { backgroundColor: "#F7F5F0", borderRadius: 12, padding: 14, gap: 12 },
+  sectionCard: { backgroundColor: "#F7F5FE", borderRadius: 12, padding: 14, gap: 12 },
   cardTitle: { color: "#271D24", fontSize: 14, fontWeight: "800", marginBottom: 1 },
-  slotCard: { backgroundColor: "#F7F5F0", borderRadius: 12, padding: 14 },
+  slotCard: { backgroundColor: "#F7F5FE", borderRadius: 12, padding: 14 },
   slotRow: { flexDirection: "row", gap: 10 },
   slotRowField: { flex: 1 },
   availabilityCaption: { color: "#766C73", fontSize: 11, marginTop: 7, marginLeft: 2 },
