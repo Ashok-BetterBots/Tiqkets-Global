@@ -235,7 +235,10 @@ async function serveDevExpoManifest(req: Request, res: Response) {
     res.status(upstream.status);
     res.setHeader("expo-protocol-version", upstream.headers.get("expo-protocol-version") || "1");
     res.setHeader("expo-sfv-version", upstream.headers.get("expo-sfv-version") || "0");
-    res.setHeader("content-type", "application/json");
+    res.setHeader(
+      "content-type",
+      upstream.headers.get("content-type") || "application/expo+json",
+    );
     res.send(rewriteExpoManifest(manifestStr, req));
   } catch (error) {
     log("Unable to load the development Expo manifest:", error);
