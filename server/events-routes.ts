@@ -975,6 +975,18 @@ const PREPRINTED_FONT_FAMILY_CSS: Record<PreprintedBackFontFamily, string> = {
 const PREPRINTED_FONT_FAMILIES = new Set(Object.keys(PREPRINTED_FONT_FAMILY_CSS));
 const PREPRINTED_CANVAS_ASPECT_RATIO = 203 / 82;
 const PREPRINTED_MAX_QR_WIDTH = 100 / PREPRINTED_CANVAS_ASPECT_RATIO;
+const PREPRINTED_PRINT_TICKET_WIDTH_MM = 202;
+const PREPRINTED_PRINT_TICKET_HEIGHT_MM = 82;
+const PREPRINTED_PRINT_GUTTER_MM = 4;
+const PREPRINTED_PRINT_COLUMNS = 3;
+const PREPRINTED_PRINT_ROWS = 2;
+const PREPRINTED_PRINT_TICKETS_PER_SHEET = PREPRINTED_PRINT_COLUMNS * PREPRINTED_PRINT_ROWS;
+const PREPRINTED_PRINT_MARGIN_X_MM =
+  (297 - (PREPRINTED_PRINT_COLUMNS * PREPRINTED_PRINT_TICKET_HEIGHT_MM)
+    - ((PREPRINTED_PRINT_COLUMNS - 1) * PREPRINTED_PRINT_GUTTER_MM)) / 2;
+const PREPRINTED_PRINT_MARGIN_Y_MM =
+  (420 - (PREPRINTED_PRINT_ROWS * PREPRINTED_PRINT_TICKET_WIDTH_MM)
+    - ((PREPRINTED_PRINT_ROWS - 1) * PREPRINTED_PRINT_GUTTER_MM)) / 2;
 
 export function normalizePreprintedBackLayout(raw: unknown): PreprintedBackLayout {
   const source = raw && typeof raw === "object" && !Array.isArray(raw)
@@ -2743,8 +2755,6 @@ export function registerEventsRoutes(app: Express) {
       }));
       if (!rows.length) return res.status(404).send("Ticket batch not found");
       const layout = normalizePreprintedBackLayout(ev.preprintedBackLayout);
-      const hasArtwork = Boolean(ev.preprintedFrontImageUrl || ev.preprintedBackImageUrl);
-      const usesArtworkSheetLayout = hasArtwork;
       const renderedTickets = await mapWithConcurrency(rows, 8, async (ticket, index) => {
         // QR encodes the PTK booking ID directly so the staff desk scanner
         // receives the ID immediately — no URL parsing needed at the counter.
@@ -2754,7 +2764,7 @@ export function registerEventsRoutes(app: Express) {
         });
         return { ticket, qr, serialNumber: String(index + 1).padStart(6, "0") };
       });
-      const frontCards = renderedTickets.map(({ ticket, qr }) => {
+      const renderFrontCard = () => {
         if (ev.preprintedFrontImageUrl) {
           return `<article class="ticket-face artwork-face">
             <img class="artwork" src="${escapeHtml(ev.preprintedFrontImageUrl)}" alt="Front artwork for ${escapeHtml(ev.name)}">
@@ -2763,11 +2773,9 @@ export function registerEventsRoutes(app: Express) {
         return `<article class="ticket-face fallback-face">
           <div class="brand">TIQKETS · PRE-PRINTED</div>
           <h2>${escapeHtml(ev.name)}</h2>
-          <p class="code">${escapeHtml(ticket.bookingId)}</p>
-          <img class="fallback-qr" src="${qr}" alt="Ticket QR code">
           <p class="hint">Assign this ticket to an attendee at the staff desk before entry.</p>
         </article>`;
-      });
+      };
       const backCards = renderedTickets.map(({ ticket, qr, serialNumber }) => {
         if (ev.preprintedBackImageUrl) {
           const overlays = renderPreprintedBackOverlays(layout, {
@@ -2790,16 +2798,20 @@ export function registerEventsRoutes(app: Express) {
           <p class="hint">Assign this ticket to an attendee at the staff desk before entry.</p>
         </article>`;
       });
-      const ticketsPerSheet = usesArtworkSheetLayout ? 3 : 6;
-      const gridClass = usesArtworkSheetLayout ? "grid artwork-grid" : "grid";
-      const duplexSheets: string[] = [];
-      for (let offset = 0; offset < rows.length; offset += ticketsPerSheet) {
-        const sheetNumber = Math.floor(offset / ticketsPerSheet) + 1;
-        const frontSheet = frontCards.slice(offset, offset + ticketsPerSheet);
-        const backSheet = backCards.slice(offset, offset + ticketsPerSheet);
-        duplexSheets.push(
-          `<section class="sheet"><h1 class="sheet-title">Sheet ${sheetNumber} front — ${escapeHtml(ev.name)}</h1><main class="${gridClass}">${frontSheet.join("")}</main></section>`,
-          `<section class="sheet"><h1 class="sheet-title">Sheet ${sheetNumber} back — matching reverse side</h1><main class="${gridClass}">${backSheet.join("")}</main></section>`,
+      const frontSheet = Array.from(
+        { length: PREPRINTED_PRINT_TICKETS_PER_SHEET },
+        () => `<div class="ticket-slot">${renderFrontCard()}</div>`,
+      );
+      const printSheets: string[] = [
+        `<section class="sheet front-sheet"><h1 class="sheet-title">Front master — ${escapeHtml(ev.name)}</h1><main class="ticket-grid">${frontSheet.join("")}</main></section>`,
+      ];
+      for (let offset = 0; offset < rows.length; offset += PREPRINTED_PRINT_TICKETS_PER_SHEET) {
+        const sheetNumber = Math.floor(offset / PREPRINTED_PRINT_TICKETS_PER_SHEET) + 1;
+        const backSheet = backCards
+          .slice(offset, offset + PREPRINTED_PRINT_TICKETS_PER_SHEET)
+          .map((card) => `<div class="ticket-slot">${card}</div>`);
+        printSheets.push(
+          `<section class="sheet back-sheet"><h1 class="sheet-title">Back sheet ${sheetNumber} — ${escapeHtml(ev.name)}</h1><main class="ticket-grid">${backSheet.join("")}</main></section>`,
         );
       }
       await db.update(eventPreprintedTickets)
@@ -2807,23 +2819,26 @@ export function registerEventsRoutes(app: Express) {
         .where(and(eq(eventPreprintedTickets.eventId, ev.id), eq(eventPreprintedTickets.batchCode, batchCode)));
       res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(ev.name)} tickets</title>
         <style>
-           @page { size: A4; margin: 3.5mm; } * { box-sizing: border-box; } body { font-family: Arial,sans-serif; color:#1a1a2e; margin:0; }
+           @page { size: A3 portrait; margin:${PREPRINTED_PRINT_MARGIN_Y_MM}mm ${PREPRINTED_PRINT_MARGIN_X_MM}mm; } * { box-sizing: border-box; } body { font-family: Arial,sans-serif; color:#1a1a2e; margin:0; }
            .print-controls { margin:0 0 10px; padding:10px 12px; border-radius:8px; background:#f5f3f7; color:#514755; font-size:12px; }
            .print { margin-right:8px; padding:8px 12px; border:0; border-radius:6px; background:#8c1867; color:white; font-weight:700; cursor:pointer; }
            .sheet { page-break-after:always; } .sheet:last-of-type { page-break-after:auto; } .sheet-title { color:#8c1867; font-size:12px; font-weight:800; margin:0 0 8px; }
-           .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8mm; } .artwork-grid { grid-template-columns:203mm; justify-content:center; gap:6mm; } .ticket-face { position:relative; width:100%; overflow:hidden; break-inside:avoid; container-type:inline-size; } .artwork-grid .ticket-face { width:203mm; height:82mm; }
+           .ticket-grid { display:grid; grid-template-columns:repeat(${PREPRINTED_PRINT_COLUMNS},${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm); grid-template-rows:repeat(${PREPRINTED_PRINT_ROWS},${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm); column-gap:${PREPRINTED_PRINT_GUTTER_MM}mm; row-gap:${PREPRINTED_PRINT_GUTTER_MM}mm; }
+           .ticket-slot { position:relative; width:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; height:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; }
+           .ticket-face { position:absolute; left:50%; top:50%; width:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; height:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; overflow:hidden; break-inside:avoid; container-type:inline-size; border-radius:3mm; transform:translate(-50%,-50%) rotate(90deg); transform-origin:center; }
+           .ticket-face::after { content:""; position:absolute; z-index:4; top:0; bottom:0; left:52mm; border-left:.3mm dashed rgba(26,26,46,.72); pointer-events:none; }
            .artwork-face { background:#fff; } .artwork { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; display:block; }
-           .fallback-face { border:2px solid #8c1867; border-radius:12px; padding:10px; text-align:center; min-height:92mm; }
+           .fallback-face { border:2px solid #8c1867; padding:10px; text-align:center; }
            .brand { color:#8c1867; font-size:9px; font-weight:800; letter-spacing:.08em; } h2 { font-size:14px; margin:7px 0 4px; } .code { font-family:monospace; font-weight:800; font-size:14px; margin:0 0 5px; }
            .fallback-qr { width:42mm; height:42mm; display:block; margin:5px auto; } .hint { color:#555; font-size:9px; line-height:1.35; margin:5px 0 0; } .back-fallback .serial { font-family:monospace; font-weight:700; margin:3px 0; }
             .overlay { position:absolute; transform:translate(-50%,-50%); z-index:2; } .text-overlay { padding:.12em .3em; border-radius:.15em; font-family:monospace; line-height:1.1; white-space:normal; overflow-wrap:anywhere; }
             .overlay.has-background { background:rgba(255,255,255,.96); } .qr-overlay { height:auto; aspect-ratio:1; object-fit:contain; padding:.15%; }
            @media print { .print-controls { display:none; } .sheet-title { display:none; } }
          </style></head><body>
-         <div class="print-controls"><button class="print" onclick="window.print()">Print front and back pages</button>
-           ${hasArtwork ? "Each front sheet is immediately followed by its matching back sheet for duplex printing." : "No artwork is uploaded yet, so the standard ticket layout is being used."}
+          <div class="print-controls"><button class="print" onclick="window.print()">Print front master and ticket backs</button>
+            One static front master is followed by ${Math.ceil(rows.length / PREPRINTED_PRINT_TICKETS_PER_SHEET)} ticket-specific back page(s), six tickets per A3 sheet.
          </div>
-         ${duplexSheets.join("")}
+          ${printSheets.join("")}
          </body></html>`);
     } catch (e) {
       console.error("[events] pre-printed ticket print failed:", e);
