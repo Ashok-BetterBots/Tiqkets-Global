@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { normalizePreprintedBackLayout, renderPreprintedBackOverlays } from "./events-routes";
 
 describe("normalizePreprintedBackLayout", () => {
-  const canvasAspectRatio = 2550 / 825;
+  const canvasAspectRatio = 203 / 82;
   const maxQrWidth = 100 / canvasAspectRatio;
 
   test("converts the legacy three-field layout without losing placement", () => {
@@ -42,7 +42,7 @@ describe("normalizePreprintedBackLayout", () => {
       layout.elements.map(({ type, x, y }) => ({ type, x, y })),
       [
         { type: "bookingId", x: 87, y: 3 },
-        { type: "qr", x: 100 - maxQrWidth / 2, y: 50 },
+        { type: "qr", x: 80, y: (40 * canvasAspectRatio) / 2 },
         { type: "serialNumber", x: 10, y: 97 },
       ],
     );

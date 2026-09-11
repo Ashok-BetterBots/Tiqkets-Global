@@ -2732,7 +2732,7 @@
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <p class="text-sm font-bold text-gray-800">Duplex ticket artwork</p>
-                      <p class="text-xs text-gray-500 mt-1">Saved for this event and reused by every pre-printed batch. Each front sheet is followed by its matching back sheet for duplex printing.</p>
+                      <p class="text-xs text-gray-500 mt-1">Saved for this event and reused by every pre-printed batch. Front and back artwork use the 20.3 cm × 8.2 cm ticket size. Each front sheet is followed by its matching back sheet for duplex printing.</p>
                     </div>
                     <span x-show="ptkArtworkSaving || ptkArtworkUploadingSide" class="text-xs text-brand font-bold whitespace-nowrap"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Saving…</span>
                   </div>
@@ -2750,7 +2750,7 @@
                                   :disabled="ptkArtworkSaving || ptkArtworkUploadingSide !== ''"
                                   class="text-[11px] font-bold text-red-400 hover:text-red-600">Remove</button>
                         </div>
-                        <div class="relative rounded-lg border border-gray-100 bg-gray-50 overflow-hidden flex items-center justify-center" style="aspect-ratio:2550/825;">
+                        <div class="relative rounded-lg border border-gray-100 bg-gray-50 overflow-hidden flex items-center justify-center" style="aspect-ratio:203/82;">
                           <img x-show="preprintedTicketEvent && preprintedTicketEvent[side.key]"
                                :src="preprintedTicketEvent && preprintedTicketEvent[side.key]"
                                class="w-full h-full object-fill" :alt="side.label">
@@ -2794,7 +2794,7 @@
                         <p class="text-[9px] text-slate-400 mt-3 leading-relaxed">Drag fields on the artwork. Select one to edit.</p>
                       </aside>
                       <div class="rounded-lg border border-slate-300 bg-slate-900/5 p-2">
-                        <div data-ptk-canvas class="relative w-full overflow-hidden rounded border border-slate-300 bg-white select-none" style="aspect-ratio:2550/825;container-type:inline-size;" @pointerdown.self="ptkSelectedId = null" @keydown="ptkEditorKeydown($event)" tabindex="0" role="listbox" aria-label="Back-page ticket objects">
+                        <div data-ptk-canvas class="relative w-full overflow-hidden rounded border border-slate-300 bg-white select-none" style="aspect-ratio:203/82;container-type:inline-size;" @pointerdown.self="ptkSelectedId = null" @keydown="ptkEditorKeydown($event)" tabindex="0" role="listbox" aria-label="Back-page ticket objects">
                           <img :src="preprintedTicketEvent ? preprintedTicketEvent.preprintedBackImageUrl : ''" class="absolute inset-0 w-full h-full object-fill pointer-events-none" alt="Back artwork">
                           <template x-for="element in ptkBackLayout.elements" :key="element.id">
                             <div class="absolute flex items-center px-1 overflow-visible cursor-move"
@@ -7643,8 +7643,8 @@
         ptkClipboard: null,
         ptkDragState: null,
         ptkElementSequence: 0,
-        ptkCanvasAspectRatio: 2550 / 825,
-        ptkMaxQrWidth: 100 / (2550 / 825),
+        ptkCanvasAspectRatio: 203 / 82,
+        ptkMaxQrWidth: 100 / (203 / 82),
         manualRegLocations: [],
         manualRegLoadingLocations: false,
         manualRegSaving: false,

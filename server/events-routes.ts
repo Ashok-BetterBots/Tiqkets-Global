@@ -973,7 +973,7 @@ const PREPRINTED_FONT_FAMILY_CSS: Record<PreprintedBackFontFamily, string> = {
   Verdana: "Verdana, sans-serif",
 };
 const PREPRINTED_FONT_FAMILIES = new Set(Object.keys(PREPRINTED_FONT_FAMILY_CSS));
-const PREPRINTED_CANVAS_ASPECT_RATIO = 2550 / 825;
+const PREPRINTED_CANVAS_ASPECT_RATIO = 203 / 82;
 const PREPRINTED_MAX_QR_WIDTH = 100 / PREPRINTED_CANVAS_ASPECT_RATIO;
 
 export function normalizePreprintedBackLayout(raw: unknown): PreprintedBackLayout {
@@ -2744,7 +2744,7 @@ export function registerEventsRoutes(app: Express) {
       if (!rows.length) return res.status(404).send("Ticket batch not found");
       const layout = normalizePreprintedBackLayout(ev.preprintedBackLayout);
       const hasArtwork = Boolean(ev.preprintedFrontImageUrl || ev.preprintedBackImageUrl);
-      const usesArtworkSheetLayout = Boolean(ev.preprintedFrontImageUrl && ev.preprintedBackImageUrl);
+      const usesArtworkSheetLayout = hasArtwork;
       const renderedTickets = await mapWithConcurrency(rows, 8, async (ticket, index) => {
         // QR encodes the PTK booking ID directly so the staff desk scanner
         // receives the ID immediately — no URL parsing needed at the counter.
@@ -2807,11 +2807,11 @@ export function registerEventsRoutes(app: Express) {
         .where(and(eq(eventPreprintedTickets.eventId, ev.id), eq(eventPreprintedTickets.batchCode, batchCode)));
       res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(ev.name)} tickets</title>
         <style>
-           @page { size: A4; margin: 10mm; } * { box-sizing: border-box; } body { font-family: Arial,sans-serif; color:#1a1a2e; margin:0; }
+           @page { size: A4; margin: 3.5mm; } * { box-sizing: border-box; } body { font-family: Arial,sans-serif; color:#1a1a2e; margin:0; }
            .print-controls { margin:0 0 10px; padding:10px 12px; border-radius:8px; background:#f5f3f7; color:#514755; font-size:12px; }
            .print { margin-right:8px; padding:8px 12px; border:0; border-radius:6px; background:#8c1867; color:white; font-weight:700; cursor:pointer; }
            .sheet { page-break-after:always; } .sheet:last-of-type { page-break-after:auto; } .sheet-title { color:#8c1867; font-size:12px; font-weight:800; margin:0 0 8px; }
-           .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8mm; } .artwork-grid { grid-template-columns:1fr; gap:6mm; } .ticket-face { position:relative; width:100%; aspect-ratio:2550 / 825; overflow:hidden; break-inside:avoid; container-type:inline-size; }
+           .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8mm; } .artwork-grid { grid-template-columns:203mm; justify-content:center; gap:6mm; } .ticket-face { position:relative; width:100%; overflow:hidden; break-inside:avoid; container-type:inline-size; } .artwork-grid .ticket-face { width:203mm; height:82mm; }
            .artwork-face { background:#fff; } .artwork { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; display:block; }
            .fallback-face { border:2px solid #8c1867; border-radius:12px; padding:10px; text-align:center; min-height:92mm; }
            .brand { color:#8c1867; font-size:9px; font-weight:800; letter-spacing:.08em; } h2 { font-size:14px; margin:7px 0 4px; } .code { font-family:monospace; font-weight:800; font-size:14px; margin:0 0 5px; }
