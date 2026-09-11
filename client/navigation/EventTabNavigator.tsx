@@ -83,8 +83,8 @@ function EventTabNavigatorContent() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { currentUser, hasPermission, hasAnyPermission } = useOrganization();
-  const { events } = useEventSelection();
-  const parkingEnabled = events.length === 0 || events.some((event) => event.parkingEnabled !== false);
+  const { selectedEvent } = useEventSelection();
+  const parkingEnabled = selectedEvent?.parkingEnabled !== false;
 
   const tabs = useMemo(() => {
     const list: Array<{

@@ -1144,6 +1144,20 @@ function regShape(r: EventRegistration) {
   };
 }
 
+async function registrationJourney(registrationId: string) {
+  return db
+    .select({
+      id: eventStageLog.id,
+      stage: eventStageLog.stage,
+      createdAt: eventStageLog.createdAt,
+      metadata: eventStageLog.metadata,
+    })
+    .from(eventStageLog)
+    .where(eq(eventStageLog.registrationId, registrationId))
+    .orderBy(desc(eventStageLog.createdAt))
+    .limit(30);
+}
+
 type CheckoutAlert = {
   enabled: boolean;
   maxDurationMinutes: number;
@@ -3933,12 +3947,15 @@ export function registerEventsRoutes(app: Express) {
       const t = SCAN_TRANSITIONS[action];
       if (t && !t.validFrom.includes(reg.status)) {
         const isDup = t.duplicateWhen.includes(reg.status);
+        const journey = isDup ? await registrationJourney(reg.id) : undefined;
         return res.status(409).json({
           error: isDup ? `Already ${reg.status.replace(/_/g, " ")}` : t.invalidMsg(reg.status),
           ...(isDup ? { duplicate: true } : { invalid: true }),
           ...(ev.status === "paused" ? { eventPaused: true } : {}),
           registration: regShape(reg),
           eventName: ev.name,
+          formLabels,
+          ...(journey ? { journey } : {}),
         });
       }
 
@@ -4041,12 +4058,14 @@ export function registerEventsRoutes(app: Express) {
             : { invalidScanAttempts: (current.invalidScanAttempts || 0) + 1, updatedAt: now })
           .where(eq(eventRegistrations.id, current.id));
         await logStage(current.id, isDup ? "duplicate_scan" : "invalid_scan", { action, status: current.status });
+        const journey = isDup ? await registrationJourney(current.id) : undefined;
         return res.status(409).json({
           error: isDup ? `Already ${current.status.replace(/_/g, " ")}` : t.invalidMsg(current.status),
           ...(isDup ? { duplicate: true } : {}),
           ...(ev.status === "paused" ? { eventPaused: true } : {}),
           registration: regShape(current),
           eventName: ev.name,
+          ...(journey ? { journey } : {}),
         });
       };
 

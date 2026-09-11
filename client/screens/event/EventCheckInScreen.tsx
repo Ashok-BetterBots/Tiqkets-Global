@@ -118,6 +118,8 @@ function ScanPanel() {
           error: data.error || "Ticket not found",
           registration: data.registration,
           eventName: data.eventName,
+          formLabels: data.formLabels,
+          journey: data.journey,
         });
         setModalMode("result");
         setModalVisible(true);
@@ -208,6 +210,7 @@ function ScanPanel() {
         registration: body?.registration ?? modalData?.registration,
         eventName: body?.eventName ?? modalData?.eventName,
         eventPaused: body?.eventPaused ?? false,
+        journey: body?.journey,
       });
       setModalMode("result");
     }
