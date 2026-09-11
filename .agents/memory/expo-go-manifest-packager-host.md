@@ -14,3 +14,5 @@ For Expo Go development on this Replit project, run Metro with `expo start --loc
 **Why:** Expo’s ngrok tunnel can fail repeatedly and fall back to a LAN manifest containing `127.0.0.1:8081`; iOS then tries to load Metro from the phone itself. The Replit HTTPS proxy avoids this external tunnel dependency.
 
 **How to apply:** Verify the public iOS and Android manifests directly after a workflow restart. No manifest URL or packager identity may contain localhost/127.0.0.1, and the rewritten public bundle URL must return HTTP 200.
+
+The preview QR and “Open in Expo Go” link must target `exps://<public-host>/manifest`, not the host root. iOS can request the launch URL without an `expo-platform` header; `/manifest` must still return JSON (defaulting to iOS), while `/` remains the HTML landing page.

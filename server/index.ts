@@ -210,12 +210,15 @@ function serveExpoManifest(platform: string, req: Request, res: Response) {
   res.send(rewriteExpoManifest(manifestStr, req));
 }
 
-async function serveDevExpoManifest(req: Request, res: Response) {
+async function serveDevExpoManifest(req: Request, res: Response, fallbackPlatform?: "ios" | "android") {
   try {
     const headers: Record<string, string> = {};
     for (const name of ["expo-platform", "expo-protocol-version", "accept"]) {
       const value = req.header(name);
       if (value) headers[name] = value;
+    }
+    if (!headers["expo-platform"] && fallbackPlatform) {
+      headers["expo-platform"] = fallbackPlatform;
     }
     const upstream = await fetch(`http://127.0.0.1:8081${req.originalUrl}`, { headers });
     const manifestStr = await upstream.text();
@@ -363,11 +366,18 @@ function configureExpoAndLanding(app: express.Application) {
     }
 
     const platform = req.header("expo-platform");
+    if (req.path === "/manifest" && metroProxy) {
+      return void serveDevExpoManifest(
+        req,
+        res,
+        platform === "android" ? "android" : "ios",
+      );
+    }
     if (platform && (platform === "ios" || platform === "android")) {
       // Dev: ask Metro for the up-to-the-minute manifest instead of the
       // (non-existent) static-build manifest.
       if (metroProxy) {
-        return void serveDevExpoManifest(req, res);
+        return void serveDevExpoManifest(req, res, platform);
       }
       return serveExpoManifest(platform, req, res);
     }
