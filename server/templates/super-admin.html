@@ -1363,9 +1363,11 @@
                   Direct Key ID configured: <strong x-text="epDirect.keyIdConfigured ? 'Yes' : 'No'"></strong>
                   <span class="mx-1">·</span>
                   Direct Key Secret configured: <strong x-text="epDirect.secretConfigured ? 'Yes' : 'No'"></strong>
+                  <span class="mx-1">·</span>
+                  Direct Webhook Secret configured: <strong x-text="epDirect.webhookSecretConfigured ? 'Yes' : 'No'"></strong>
                 </div>
                 <div x-show="!epDirect.configured" class="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                  <i class="fa-solid fa-circle-info mr-1"></i>Razorpay Direct is unavailable until RAZORPAY_DIRECT_KEY_ID and RAZORPAY_DIRECT_KEY_SECRET are configured in Replit Secrets. Credential values are never entered or shown here.
+                  <i class="fa-solid fa-circle-info mr-1"></i>Razorpay Direct is unavailable until RAZORPAY_DIRECT_KEY_ID, RAZORPAY_DIRECT_KEY_SECRET, and RAZORPAY_DIRECT_WEBHOOK_SECRET are configured in Replit Secrets. Credential values are never entered or shown here.
                 </div>
                 <div x-show="epSaving" class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i>Saving…</div>
               </div>
@@ -2972,12 +2974,12 @@
         epSaving: false,
         epError: false,
         epPaymentMethod: 'razorpay_route',
-        epDirect: { configured: false, keyIdConfigured: false, secretConfigured: false },
+        epDirect: { configured: false, keyIdConfigured: false, secretConfigured: false, webhookSecretConfigured: false },
         async epLoad() {
           this.epLoading = true;
           this.epError = false;
           try {
-            const r = await fetch('/api/superadmin/event-payment-method', { credentials: 'include' });
+            const r = await fetch('/api/superadmin/event-payment-method?t=' + Date.now(), { credentials: 'include', cache: 'no-store' });
             if (!r.ok) throw new Error('http ' + r.status);
             const j = await r.json();
             this.epPaymentMethod = j.paymentMethod === 'razorpay_direct' ? 'razorpay_direct' : 'razorpay_route';
@@ -2985,6 +2987,7 @@
               configured: !!j.direct?.configured,
               keyIdConfigured: !!j.direct?.keyIdConfigured,
               secretConfigured: !!j.direct?.secretConfigured,
+              webhookSecretConfigured: !!j.direct?.webhookSecretConfigured,
             };
           } catch (e) {
             console.error('epLoad failed', e);
@@ -3015,6 +3018,7 @@
               configured: !!j.direct?.configured,
               keyIdConfigured: !!j.direct?.keyIdConfigured,
               secretConfigured: !!j.direct?.secretConfigured,
+              webhookSecretConfigured: !!j.direct?.webhookSecretConfigured,
             };
             this.ssToast = 'Event payment method saved';
             setTimeout(() => { this.ssToast = ''; }, 2500);

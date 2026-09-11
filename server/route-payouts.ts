@@ -1144,41 +1144,89 @@ export function registerRoutePayoutRoutes(app: Express) {
   const history = async (req: Request, res: Response) => {
     const organizationId = String(req.params.orgId || req.params.organizationId); if (!await assertPayoutOrganizer(req, res, organizationId)) return;
     const requested = payoutHistoryPagination(req.query.page, req.query.limit);
+    const activeMethod = await getEventPaymentMethod();
     const [totalsRow] = await db.select({
       total: sql<number>`count(*)::int`,
-      gross: sql<number>`coalesce(sum(${payments.amount}), 0)::int`,
-    }).from(payments)
-      .innerJoin(eventRegistrations, eq(eventRegistrations.paymentId, payments.id))
-      .innerJoin(events, eq(eventRegistrations.eventId, events.id))
-      .where(and(eq(payments.organizationId, organizationId), eq(payments.status, "captured")));
-    const total = Number(totalsRow?.total || 0);
+      gross: sql<number>`coalesce(sum(${routePayoutAllocations.amount}), 0)::int`,
+      transferred: sql<number>`coalesce(sum(case when ${routePayoutAllocations.status} in ('processed', 'settled', 'reversed', 'refunded') then ${routePayoutAllocations.amount} else 0 end), 0)::int`,
+      settled: sql<number>`coalesce(sum(case when ${routePayoutAllocations.status} = 'settled' then ${routePayoutAllocations.amount} else 0 end), 0)::int`,
+      refunded: sql<number>`coalesce(sum(case when ${routePayoutAllocations.status} = 'refunded' then ${routePayoutAllocations.amount} else 0 end), 0)::int`,
+    }).from(routePayoutAllocations).where(eq(routePayoutAllocations.organizationId, organizationId));
+    const [directTotalsRow] = await db.select({
+      total: sql<number>`count(*)::int`, gross: sql<number>`coalesce(sum(${payments.amount}), 0)::int`,
+    }).from(payments).innerJoin(eventRegistrations, eq(eventRegistrations.paymentId, payments.id))
+      .innerJoin(eventPaymentCheckouts, eq(eventPaymentCheckouts.registrationId, eventRegistrations.id))
+      .where(and(eq(payments.organizationId, organizationId), eq(payments.status, "captured"), eq(eventPaymentCheckouts.adapter, "direct")));
+    const total = Number(totalsRow?.total || 0) + Number(directTotalsRow?.total || 0);
     const totalPages = total ? Math.ceil(total / requested.limit) : 0;
     const page = totalPages ? Math.min(requested.page, totalPages) : 1;
-    const rows = await db.select({ payment: payments, registration: eventRegistrations, event: events }).from(payments)
-      .innerJoin(eventRegistrations, eq(eventRegistrations.paymentId, payments.id))
+    const rows = await db.select({ allocation: routePayoutAllocations, registration: eventRegistrations, event: events, profile: organizerPayoutProfiles }).from(routePayoutAllocations)
+      .innerJoin(eventRegistrations, eq(routePayoutAllocations.registrationId, eventRegistrations.id))
       .innerJoin(events, eq(eventRegistrations.eventId, events.id))
-      .where(and(eq(payments.organizationId, organizationId), eq(payments.status, "captured")))
-      .orderBy(desc(payments.createdAt))
+      .innerJoin(organizerPayoutProfiles, eq(routePayoutAllocations.payoutProfileId, organizerPayoutProfiles.id))
+      .where(eq(routePayoutAllocations.organizationId, organizationId))
+      .orderBy(desc(routePayoutAllocations.createdAt))
       .limit(requested.limit)
       .offset((page - 1) * requested.limit);
-    const items = rows.map(({ payment, registration, event }) => ({
-        id: payment.id,
-        eventName: event.name,
-        bookingId: registration.bookingId,
-        amount: payment.amount,
-        status: payment.status,
-        razorpayOrderId: payment.razorpayOrderId,
-        razorpayPaymentId: payment.razorpayPaymentId,
-        paymentMethod: payment.paymentMethod,
-        paidAt: payment.paidAt,
-        createdAt: payment.createdAt,
-      }));
+    let items = await mapWithConcurrency(rows, 4, async ({ allocation, registration, event, profile }) => {
+      const localTransferStatus = allocation.status === "settled" ? "processed" : allocation.status;
+      const localSettlementStatus = allocation.status === "settled" ? "settled"
+        : allocation.status === "processed" ? "settlement_pending"
+        : allocation.status === "captured" ? "transfer_pending" : allocation.status;
+      const base = {
+        id: allocation.id, eventName: event.name, bookingId: registration.bookingId,
+        adapter: "route" as const,
+        netAmount: allocation.amount, transferStatus: localTransferStatus,
+        settlementStatus: localSettlementStatus, transferId: allocation.razorpayTransferId,
+        sourceId: null as string | null, recipientId: null as string | null,
+        amount: null as number | null, providerCreatedAt: null as string | null,
+        createdAt: allocation.createdAt, providerTransferStatus: null as string | null,
+        providerSettlementStatus: null as string | null,
+        orderTransferred: allocation.razorpayTransferId ? null as boolean | null : false,
+        providerSyncStatus: allocation.razorpayTransferId ? "unavailable" : "not_transferred",
+        razorpayOrderId: allocation.razorpayOrderId, razorpayTransferId: allocation.razorpayTransferId,
+        failureReason: allocation.status === "failed" ? "Razorpay marked this organizer transfer as failed." : null,
+      };
+      if (!allocation.razorpayTransferId || !isValidRazorpayProviderId(allocation.razorpayTransferId, "trf_")) return base;
+      const details = await lookupSafeRouteTransfer({
+        transferId: allocation.razorpayTransferId, amount: allocation.amount,
+        allocationId: allocation.id, recipientId: profile.razorpayAccountId,
+      }, async transferId => {
+        const response = await razorpay(`/transfers/${encodeURIComponent(transferId)}`, { method: "GET" });
+        if (!response.ok) throw new Error("Razorpay transfer lookup unavailable");
+        return response.json();
+      });
+      if (!details) return base;
+      return { ...base, transferId: details.transferId, sourceId: details.sourceId,
+        recipientId: details.recipientId, amount: details.amount, providerCreatedAt: details.createdAt,
+        createdAt: details.createdAt || allocation.createdAt,
+        transferStatus: details.transferStatus || localTransferStatus,
+        settlementStatus: details.settlementStatus || localSettlementStatus,
+        providerTransferStatus: details.transferStatus,
+        providerSettlementStatus: details.settlementStatus,
+        orderTransferred: details.orderTransferred, providerSyncStatus: "synced" };
+    });
+    // Direct captures have no Route allocation. Include them in the same
+    // historical feed even after the global adapter changes.
+    const directRows = await db.select({ payment: payments, registration: eventRegistrations, event: events })
+      .from(payments).innerJoin(eventRegistrations, eq(eventRegistrations.paymentId, payments.id))
+      .innerJoin(events, eq(eventRegistrations.eventId, events.id))
+      .innerJoin(eventPaymentCheckouts, eq(eventPaymentCheckouts.registrationId, eventRegistrations.id))
+      .where(and(eq(payments.organizationId, organizationId), eq(payments.status, "captured"), eq(eventPaymentCheckouts.adapter, "direct")))
+      .orderBy(desc(payments.createdAt));
+    items = [...items, ...directRows.map(({ payment, registration, event }) => ({
+      id: payment.id, adapter: "direct" as const, eventName: event.name, bookingId: registration.bookingId,
+      amount: payment.amount, status: payment.status, razorpayOrderId: payment.razorpayOrderId,
+      razorpayPaymentId: payment.razorpayPaymentId, paymentMethod: payment.paymentMethod,
+      paidAt: payment.paidAt, createdAt: payment.createdAt,
+    }))].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return res.json({
+      activeMethod,
       totals: {
-        gross: Number(totalsRow?.gross || 0),
-         transferred: 0,
-         settled: 0,
-         refunded: 0,
+        gross: Number(totalsRow?.gross || 0) + Number(directTotalsRow?.gross || 0),
+        transferred: Number(totalsRow?.transferred || 0),
+        settled: Number(totalsRow?.settled || 0),
+        refunded: Number(totalsRow?.refunded || 0),
       },
       pagination: { page, limit: requested.limit, total, totalPages },
       items,

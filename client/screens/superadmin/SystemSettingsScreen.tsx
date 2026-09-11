@@ -18,6 +18,7 @@ interface EventPaymentSettings {
     configured: boolean;
     keyIdConfigured: boolean;
     secretConfigured: boolean;
+    webhookSecretConfigured: boolean;
   };
 }
 
@@ -30,6 +31,12 @@ export default function SystemSettingsScreen() {
   });
   const paymentQuery = useQuery<EventPaymentSettings>({
     queryKey: ["/api/superadmin/event-payment-method"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/superadmin/event-payment-method?t=${Date.now()}`);
+      return (await res.json()) as EventPaymentSettings;
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
@@ -244,10 +251,11 @@ export default function SystemSettingsScreen() {
                 <ThemedText style={{ color: theme.textSecondary, fontSize: 12 }}>
                   Direct Key ID configured: {paymentQuery.data.direct.keyIdConfigured ? "Yes" : "No"}
                   {"  ·  "}Direct Key Secret configured: {paymentQuery.data.direct.secretConfigured ? "Yes" : "No"}
+                  {"  ·  "}Direct webhook secret configured: {paymentQuery.data.direct.webhookSecretConfigured ? "Yes" : "No"}
                 </ThemedText>
                 {!paymentQuery.data.direct.configured ? (
                   <ThemedText style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 6 }}>
-                    Razorpay Direct is unavailable until RAZORPAY_DIRECT_KEY_ID and RAZORPAY_DIRECT_KEY_SECRET are configured in Replit Secrets. No credential values are entered here.
+                    Razorpay Direct is unavailable until RAZORPAY_DIRECT_KEY_ID, RAZORPAY_DIRECT_KEY_SECRET, and RAZORPAY_DIRECT_WEBHOOK_SECRET are configured in Replit Secrets. No credential values are entered here.
                   </ThemedText>
                 ) : null}
               </View>
