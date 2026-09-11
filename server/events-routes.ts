@@ -977,12 +977,16 @@ const PREPRINTED_CANVAS_ASPECT_RATIO = 203 / 82;
 const PREPRINTED_MAX_QR_WIDTH = 100 / PREPRINTED_CANVAS_ASPECT_RATIO;
 const PREPRINTED_PRINT_TICKET_WIDTH_MM = 202;
 const PREPRINTED_PRINT_TICKET_HEIGHT_MM = 82;
-const PREPRINTED_PRINT_FRONT_GUTTER_MM = 4;
-const PREPRINTED_PRINT_BACK_GUTTER_MM = 2;
-const PREPRINTED_PRINT_CORNER_RADIUS_MM = 5;
-const PREPRINTED_PRINT_FRONT_TICKETS_PER_SHEET = 6;
-const PREPRINTED_PRINT_BACK_TICKETS_PER_SHEET = 7;
-const PREPRINTED_PRINT_BACK_LEFT_COUNT = 5;
+const PREPRINTED_PRINT_GUTTER_MM = 4;
+const PREPRINTED_PRINT_COLUMNS = 3;
+const PREPRINTED_PRINT_ROWS = 2;
+const PREPRINTED_PRINT_TICKETS_PER_SHEET = PREPRINTED_PRINT_COLUMNS * PREPRINTED_PRINT_ROWS;
+const PREPRINTED_PRINT_MARGIN_X_MM =
+  (297 - (PREPRINTED_PRINT_COLUMNS * PREPRINTED_PRINT_TICKET_HEIGHT_MM)
+    - ((PREPRINTED_PRINT_COLUMNS - 1) * PREPRINTED_PRINT_GUTTER_MM)) / 2;
+const PREPRINTED_PRINT_MARGIN_Y_MM =
+  (420 - (PREPRINTED_PRINT_ROWS * PREPRINTED_PRINT_TICKET_WIDTH_MM)
+    - ((PREPRINTED_PRINT_ROWS - 1) * PREPRINTED_PRINT_GUTTER_MM)) / 2;
 
 export function normalizePreprintedBackLayout(raw: unknown): PreprintedBackLayout {
   const source = raw && typeof raw === "object" && !Array.isArray(raw)
@@ -2795,23 +2799,19 @@ export function registerEventsRoutes(app: Express) {
         </article>`;
       });
       const frontSheet = Array.from(
-        { length: PREPRINTED_PRINT_FRONT_TICKETS_PER_SHEET },
-        () => `<div class="front-ticket-slot rotated-ticket-slot">${renderFrontCard()}</div>`,
+        { length: PREPRINTED_PRINT_TICKETS_PER_SHEET },
+        () => `<div class="ticket-slot">${renderFrontCard()}</div>`,
       );
       const printSheets: string[] = [
-        `<section class="sheet front-sheet"><h1 class="sheet-title">Front master — ${escapeHtml(ev.name)}</h1><main class="front-ticket-grid">${frontSheet.join("")}</main></section>`,
+        `<section class="sheet front-sheet"><h1 class="sheet-title">Front master — ${escapeHtml(ev.name)}</h1><main class="ticket-grid">${frontSheet.join("")}</main></section>`,
       ];
-      for (let offset = 0; offset < rows.length; offset += PREPRINTED_PRINT_BACK_TICKETS_PER_SHEET) {
-        const sheetNumber = Math.floor(offset / PREPRINTED_PRINT_BACK_TICKETS_PER_SHEET) + 1;
-        const pageCards = backCards.slice(offset, offset + PREPRINTED_PRINT_BACK_TICKETS_PER_SHEET);
-        const leftCards = pageCards
-          .slice(0, PREPRINTED_PRINT_BACK_LEFT_COUNT)
-          .map((card) => `<div class="back-left-ticket-slot">${card}</div>`);
-        const rightCards = pageCards
-          .slice(PREPRINTED_PRINT_BACK_LEFT_COUNT)
-          .map((card) => `<div class="back-right-ticket-slot rotated-ticket-slot">${card}</div>`);
+      for (let offset = 0; offset < rows.length; offset += PREPRINTED_PRINT_TICKETS_PER_SHEET) {
+        const sheetNumber = Math.floor(offset / PREPRINTED_PRINT_TICKETS_PER_SHEET) + 1;
+        const backSheet = backCards
+          .slice(offset, offset + PREPRINTED_PRINT_TICKETS_PER_SHEET)
+          .map((card) => `<div class="ticket-slot">${card}</div>`);
         printSheets.push(
-          `<section class="sheet back-sheet"><h1 class="sheet-title">Back sheet ${sheetNumber} — ${escapeHtml(ev.name)}</h1><main class="back-ticket-layout"><div class="back-left-group">${leftCards.join("")}</div><div class="back-right-group">${rightCards.join("")}</div></main></section>`,
+          `<section class="sheet back-sheet"><h1 class="sheet-title">Back sheet ${sheetNumber} — ${escapeHtml(ev.name)}</h1><main class="ticket-grid">${backSheet.join("")}</main></section>`,
         );
       }
       await db.update(eventPreprintedTickets)
@@ -2819,20 +2819,14 @@ export function registerEventsRoutes(app: Express) {
         .where(and(eq(eventPreprintedTickets.eventId, ev.id), eq(eventPreprintedTickets.batchCode, batchCode)));
       res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(ev.name)} tickets</title>
         <style>
-           @page { size: A3 portrait; margin:0; } * { box-sizing:border-box; } html,body { width:297mm; margin:0; } body { font-family:Arial,sans-serif; color:#1a1a2e; }
+           @page { size: A3 portrait; margin:${PREPRINTED_PRINT_MARGIN_Y_MM}mm ${PREPRINTED_PRINT_MARGIN_X_MM}mm; } * { box-sizing: border-box; } body { font-family: Arial,sans-serif; color:#1a1a2e; margin:0; }
            .print-controls { margin:0 0 10px; padding:10px 12px; border-radius:8px; background:#f5f3f7; color:#514755; font-size:12px; }
            .print { margin-right:8px; padding:8px 12px; border:0; border-radius:6px; background:#8c1867; color:white; font-weight:700; cursor:pointer; }
-           .sheet { position:relative; width:297mm; height:420mm; overflow:hidden; page-break-after:always; } .sheet:last-of-type { page-break-after:auto; } .sheet-title { color:#8c1867; font-size:12px; font-weight:800; margin:0 0 8px; }
-           .front-sheet { padding:6mm 21.5mm; }
-           .front-ticket-grid { display:grid; grid-template-columns:repeat(3,${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm); grid-template-rows:repeat(2,${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm); gap:${PREPRINTED_PRINT_FRONT_GUTTER_MM}mm; }
-           .front-ticket-slot,.back-right-ticket-slot { position:relative; width:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; height:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; }
-           .back-ticket-layout { display:flex; gap:${PREPRINTED_PRINT_BACK_GUTTER_MM}mm; width:286mm; height:420mm; margin:0 auto; }
-           .back-left-group { display:flex; flex-direction:column; gap:${PREPRINTED_PRINT_BACK_GUTTER_MM}mm; width:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; height:418mm; margin-top:1mm; }
-           .back-right-group { display:flex; flex-direction:column; gap:${PREPRINTED_PRINT_BACK_GUTTER_MM}mm; width:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; height:406mm; margin-top:7mm; }
-           .back-left-ticket-slot { position:relative; width:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; height:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; }
-           .ticket-face { position:absolute; left:50%; top:50%; width:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; height:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; overflow:hidden; break-inside:avoid; container-type:inline-size; border-radius:${PREPRINTED_PRINT_CORNER_RADIUS_MM}mm; transform:translate(-50%,-50%); transform-origin:center; }
-           .rotated-ticket-slot .ticket-face { transform:translate(-50%,-50%) rotate(90deg); }
-           .back-sheet .ticket-face::after { content:""; position:absolute; z-index:4; top:0; bottom:0; left:57mm; border-left:.3mm dashed rgba(26,26,46,.72); pointer-events:none; }
+           .sheet { page-break-after:always; } .sheet:last-of-type { page-break-after:auto; } .sheet-title { color:#8c1867; font-size:12px; font-weight:800; margin:0 0 8px; }
+           .ticket-grid { display:grid; grid-template-columns:repeat(${PREPRINTED_PRINT_COLUMNS},${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm); grid-template-rows:repeat(${PREPRINTED_PRINT_ROWS},${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm); column-gap:${PREPRINTED_PRINT_GUTTER_MM}mm; row-gap:${PREPRINTED_PRINT_GUTTER_MM}mm; }
+           .ticket-slot { position:relative; width:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; height:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; }
+           .ticket-face { position:absolute; left:50%; top:50%; width:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; height:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; overflow:hidden; break-inside:avoid; container-type:inline-size; border-radius:3mm; transform:translate(-50%,-50%) rotate(90deg); transform-origin:center; }
+           .ticket-face::after { content:""; position:absolute; z-index:4; top:0; bottom:0; left:52mm; border-left:.3mm dashed rgba(26,26,46,.72); pointer-events:none; }
            .artwork-face { background:#fff; } .artwork { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; display:block; }
            .fallback-face { border:2px solid #8c1867; padding:10px; text-align:center; }
            .brand { color:#8c1867; font-size:9px; font-weight:800; letter-spacing:.08em; } h2 { font-size:14px; margin:7px 0 4px; } .code { font-family:monospace; font-weight:800; font-size:14px; margin:0 0 5px; }
@@ -2842,7 +2836,7 @@ export function registerEventsRoutes(app: Express) {
            @media print { .print-controls { display:none; } .sheet-title { display:none; } }
          </style></head><body>
           <div class="print-controls"><button class="print" onclick="window.print()">Print front master and ticket backs</button>
-            One static front master is followed by ${Math.ceil(rows.length / PREPRINTED_PRINT_BACK_TICKETS_PER_SHEET)} ticket-specific back page(s), seven tickets per A3 sheet.
+            One static front master is followed by ${Math.ceil(rows.length / PREPRINTED_PRINT_TICKETS_PER_SHEET)} ticket-specific back page(s), six tickets per A3 sheet.
          </div>
           ${printSheets.join("")}
          </body></html>`);
