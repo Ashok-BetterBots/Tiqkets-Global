@@ -89,6 +89,11 @@ export namespace Audio {
       await this.player.seekTo(0);
     }
 
+    async replayAsync(): Promise<void> {
+      await this.player.seekTo(0);
+      this.player.play();
+    }
+
     async unloadAsync(): Promise<void> {
       this.subscription?.remove();
       this.subscription = null;
