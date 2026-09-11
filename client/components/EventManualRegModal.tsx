@@ -10,14 +10,15 @@ import {
   Alert,
   Image,
   Platform,
+  Keyboard,
   KeyboardAvoidingView,
   useWindowDimensions,
+  findNodeHandle,
 } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
-import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { formatEventSlotRange } from "@shared/eventSlots";
@@ -180,6 +181,36 @@ export function EventManualRegModal({
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const formScrollRef = useRef<any>(null);
   const formScrollOffsetRef = useRef(0);
+  const customerNameInputRef = useRef<TextInput>(null);
+  const customerPhoneInputRef = useRef<TextInput>(null);
+  const customerEmailInputRef = useRef<TextInput>(null);
+  const extraGuestsInputRef = useRef<TextInput>(null);
+  const focusedInputRef = useRef<TextInput | null>(null);
+  const scrollInputIntoView = useCallback((input: TextInput | null) => {
+    if (Platform.OS !== "android" || !input) return;
+    requestAnimationFrame(() => {
+      const inputHandle = findNodeHandle(input);
+      if (inputHandle) {
+        const responder = formScrollRef.current?.getScrollResponder?.() ?? formScrollRef.current;
+        responder?.scrollResponderScrollNativeHandleToKeyboard?.(
+          inputHandle,
+          48,
+          true,
+        );
+      }
+    });
+  }, []);
+  const revealFocusedInput = useCallback((input: TextInput | null) => {
+    focusedInputRef.current = input;
+    scrollInputIntoView(input);
+  }, [scrollInputIntoView]);
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const subscription = Keyboard.addListener("keyboardDidShow", () => {
+      scrollInputIntoView(focusedInputRef.current);
+    });
+    return () => subscription.remove();
+  }, [scrollInputIntoView]);
   const gentlyScrollAfterSlotSelection = useCallback((distance = 96) => {
     requestAnimationFrame(() => {
       formScrollRef.current?.scrollTo?.({
@@ -484,7 +515,7 @@ export function EventManualRegModal({
           accessibilityLabel="Close Add Customer"
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1, width: "100%", justifyContent: "flex-end" }}
           pointerEvents="box-none"
         >
@@ -526,7 +557,7 @@ export function EventManualRegModal({
               </View>
             ) : null}
 
-            <KeyboardAwareScrollViewCompat
+            <ScrollView
               ref={formScrollRef}
               style={[styles.scrollBody, { flex: 1 }]}
               contentContainerStyle={styles.body}
@@ -535,7 +566,6 @@ export function EventManualRegModal({
               showsVerticalScrollIndicator
               nestedScrollEnabled
               directionalLockEnabled
-              bottomOffset={24}
               onScroll={(event: any) => {
                 formScrollOffsetRef.current = event.nativeEvent.contentOffset.y;
               }}
@@ -905,8 +935,10 @@ export function EventManualRegModal({
                     <ThemedText style={styles.cardTitle}>Contact</ThemedText>
                   <Field label="Full name">
                     <TextInput
+                      ref={customerNameInputRef}
                       value={form.customerName}
                       onChangeText={(v) => setField({ customerName: v })}
+                      onFocus={() => revealFocusedInput(customerNameInputRef.current)}
                       placeholder="Full name"
                       placeholderTextColor={textSecondary}
                        style={[styles.input, { color: text, borderColor: border }]}
@@ -919,8 +951,10 @@ export function EventManualRegModal({
                     labelIcon={<Image source={WHATSAPP_ICON} style={styles.whatsappIcon} resizeMode="contain" />}
                   >
                     <TextInput
+                      ref={customerPhoneInputRef}
                       value={form.customerPhone}
                       onChangeText={(v) => setField({ customerPhone: v })}
+                      onFocus={() => revealFocusedInput(customerPhoneInputRef.current)}
                       placeholder="10-digit number"
                       placeholderTextColor={textSecondary}
                       keyboardType="phone-pad"
@@ -934,8 +968,10 @@ export function EventManualRegModal({
                     <ThemedText style={styles.cardTitle}>Additional info</ThemedText>
                   <Field label="Email (optional)">
                     <TextInput
+                      ref={customerEmailInputRef}
                       value={form.customerEmail}
                       onChangeText={(v) => setField({ customerEmail: v })}
+                      onFocus={() => revealFocusedInput(customerEmailInputRef.current)}
                       placeholder="name@email.com"
                       placeholderTextColor={textSecondary}
                       keyboardType="email-address"
@@ -948,9 +984,11 @@ export function EventManualRegModal({
                   <View style={styles.splitFields}>
                     <Field label="Extra guests">
                       <TextInput
+                        ref={extraGuestsInputRef}
                         value={form.familyMembersCount}
                         onChangeText={(v) => setField({ familyMembersCount: v.replace(/[^0-9]/g, "") })}
                         onFocus={() => {
+                          revealFocusedInput(extraGuestsInputRef.current);
                           if (form.familyMembersCount === "0") setField({ familyMembersCount: "" });
                         }}
                         onBlur={() => {
@@ -1177,7 +1215,7 @@ export function EventManualRegModal({
                   ) : null}
                 </View>
               )}
-            </KeyboardAwareScrollViewCompat>
+            </ScrollView>
 
             {!success && !loadingLocations ? (
               <ModalSafeAreaFooter>
