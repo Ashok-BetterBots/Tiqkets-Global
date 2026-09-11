@@ -30,6 +30,7 @@
         "foregroundImage": "./assets/images/icon.png"
       },
       "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.tiqkets.app",
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",

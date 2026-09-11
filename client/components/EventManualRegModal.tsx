@@ -11,9 +11,9 @@ import {
   Image,
   Platform,
   Keyboard,
+  Animated,
   KeyboardAvoidingView,
   useWindowDimensions,
-  findNodeHandle,
 } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -181,36 +181,44 @@ export function EventManualRegModal({
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const formScrollRef = useRef<any>(null);
   const formScrollOffsetRef = useRef(0);
-  const customerNameInputRef = useRef<TextInput>(null);
-  const customerPhoneInputRef = useRef<TextInput>(null);
-  const customerEmailInputRef = useRef<TextInput>(null);
-  const extraGuestsInputRef = useRef<TextInput>(null);
-  const focusedInputRef = useRef<TextInput | null>(null);
-  const scrollInputIntoView = useCallback((input: TextInput | null) => {
-    if (Platform.OS !== "android" || !input) return;
+  const sheetCardRef = useRef<any>(null);
+  const androidSheetKeyboardOffset = useRef(new Animated.Value(0)).current;
+  const moveSheetAboveAndroidKeyboard = useCallback((event: any) => {
+    if (Platform.OS !== "android") return;
+    const keyboardTop = event?.endCoordinates?.screenY;
+    if (typeof keyboardTop !== "number") return;
+
     requestAnimationFrame(() => {
-      const inputHandle = findNodeHandle(input);
-      if (inputHandle) {
-        const responder = formScrollRef.current?.getScrollResponder?.() ?? formScrollRef.current;
-        responder?.scrollResponderScrollNativeHandleToKeyboard?.(
-          inputHandle,
-          48,
-          true,
-        );
-      }
+      sheetCardRef.current?.measureInWindow?.((_x: number, y: number, _width: number, height: number) => {
+        const overlap = Math.max(0, y + height - keyboardTop);
+        Animated.timing(androidSheetKeyboardOffset, {
+          toValue: -overlap,
+          duration: typeof event.duration === "number" && event.duration > 0 ? event.duration : 180,
+          useNativeDriver: true,
+        }).start();
+      });
     });
-  }, []);
-  const revealFocusedInput = useCallback((input: TextInput | null) => {
-    focusedInputRef.current = input;
-    scrollInputIntoView(input);
-  }, [scrollInputIntoView]);
+  }, [androidSheetKeyboardOffset]);
   useEffect(() => {
     if (Platform.OS !== "android") return;
-    const subscription = Keyboard.addListener("keyboardDidShow", () => {
-      scrollInputIntoView(focusedInputRef.current);
+    const showSubscription = Keyboard.addListener("keyboardDidShow", moveSheetAboveAndroidKeyboard);
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      Animated.timing(androidSheetKeyboardOffset, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
     });
-    return () => subscription.remove();
-  }, [scrollInputIntoView]);
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [androidSheetKeyboardOffset, moveSheetAboveAndroidKeyboard]);
+  useEffect(() => {
+    if (Platform.OS === "android" && !visible) {
+      androidSheetKeyboardOffset.setValue(0);
+    }
+  }, [androidSheetKeyboardOffset, visible]);
   const gentlyScrollAfterSlotSelection = useCallback((distance = 96) => {
     requestAnimationFrame(() => {
       formScrollRef.current?.scrollTo?.({
@@ -519,6 +527,10 @@ export function EventManualRegModal({
           style={{ flex: 1, width: "100%", justifyContent: "flex-end" }}
           pointerEvents="box-none"
         >
+          <Animated.View
+            ref={sheetCardRef}
+            style={Platform.OS === "android" ? { transform: [{ translateY: androidSheetKeyboardOffset }] } : undefined}
+          >
           <View
             style={[styles.card, { backgroundColor: surface, height: Math.min(screenHeight * 0.75, screenHeight - insets.top - insets.bottom - 24) }]}
             testID="manual-reg-sheet"
@@ -935,10 +947,8 @@ export function EventManualRegModal({
                     <ThemedText style={styles.cardTitle}>Contact</ThemedText>
                   <Field label="Full name">
                     <TextInput
-                      ref={customerNameInputRef}
                       value={form.customerName}
                       onChangeText={(v) => setField({ customerName: v })}
-                      onFocus={() => revealFocusedInput(customerNameInputRef.current)}
                       placeholder="Full name"
                       placeholderTextColor={textSecondary}
                        style={[styles.input, { color: text, borderColor: border }]}
@@ -951,10 +961,8 @@ export function EventManualRegModal({
                     labelIcon={<Image source={WHATSAPP_ICON} style={styles.whatsappIcon} resizeMode="contain" />}
                   >
                     <TextInput
-                      ref={customerPhoneInputRef}
                       value={form.customerPhone}
                       onChangeText={(v) => setField({ customerPhone: v })}
-                      onFocus={() => revealFocusedInput(customerPhoneInputRef.current)}
                       placeholder="10-digit number"
                       placeholderTextColor={textSecondary}
                       keyboardType="phone-pad"
@@ -968,10 +976,8 @@ export function EventManualRegModal({
                     <ThemedText style={styles.cardTitle}>Additional info</ThemedText>
                   <Field label="Email (optional)">
                     <TextInput
-                      ref={customerEmailInputRef}
                       value={form.customerEmail}
                       onChangeText={(v) => setField({ customerEmail: v })}
-                      onFocus={() => revealFocusedInput(customerEmailInputRef.current)}
                       placeholder="name@email.com"
                       placeholderTextColor={textSecondary}
                       keyboardType="email-address"
@@ -984,11 +990,9 @@ export function EventManualRegModal({
                   <View style={styles.splitFields}>
                     <Field label="Extra guests">
                       <TextInput
-                        ref={extraGuestsInputRef}
                         value={form.familyMembersCount}
                         onChangeText={(v) => setField({ familyMembersCount: v.replace(/[^0-9]/g, "") })}
                         onFocus={() => {
-                          revealFocusedInput(extraGuestsInputRef.current);
                           if (form.familyMembersCount === "0") setField({ familyMembersCount: "" });
                         }}
                         onBlur={() => {
@@ -1243,6 +1247,7 @@ export function EventManualRegModal({
               </ModalSafeAreaFooter>
             ) : null}
           </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       </View>
       </SafeAreaProvider>

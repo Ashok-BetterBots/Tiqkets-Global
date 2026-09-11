@@ -28,13 +28,14 @@ by JourneyManagementScreen and OrgSupportScreen is plain RN `KeyboardAvoidingVie
   Pressable) → put `KeyboardAvoidingView` (style width:'100%') INSIDE the backdrop Pressable
   wrapping only the sheet/Animated.View, never around the whole backdrop (wrapping the backdrop
   shifts the tap area and the whole overlay).
-- For a native modal field that must stay visible on Android, focus can precede the keyboard
-  animation. Keep the currently focused input and call the native ScrollView responder again on
-  `keyboardDidShow`; an immediate focus-time scroll alone can calculate against a zero-height keyboard.
+- A transparent native bottom sheet can still remain fixed above Android's keyboard despite
+  `KeyboardAvoidingView` height behavior. For that case, listen for `keyboardDidShow`, measure the
+  entire sheet in window coordinates, and animate only its remaining overlap above the keyboard.
+  Put the transform on a wrapper around the unchanged card; reset it on hide/close and leave iOS
+  on its existing KAV path.
 
-**Android edge-to-edge gotcha:** `app.json` has `edgeToEdgeEnabled: true`. With it, RN
-`KeyboardAvoidingView` with `behavior={undefined}` on Android is a complete NO-OP — the keyboard
-just overlaps the inputs (reported "can't see what I'm typing", model-dependent). Even
-`behavior="height"` is unreliable under edge-to-edge. So full-screen auth/login forms
-(OrgLoginScreen, LoginScreen) must use `KeyboardAwareScrollViewCompat`, not RN KAV. Never ship a
-full-screen form whose only avoidance is RN KAV with undefined/height behavior on Android.
+**Android edge-to-edge gotcha:** Never leave an Android form with
+`KeyboardAvoidingView` `behavior={undefined}`; it is a complete NO-OP and the keyboard overlaps
+the inputs. `softwareKeyboardLayoutMode: "resize"` should be explicit in the Expo config, but a
+transparent core Modal may still need its own measured container adjustment. Full-screen
+auth/login forms should use `KeyboardAwareScrollViewCompat`, not only RN KAV.
