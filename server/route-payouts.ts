@@ -1407,7 +1407,6 @@ export function registerRoutePayoutRoutes(app: Express) {
     const directAuthenticated = Buffer.isBuffer(raw) && verifyRazorpaySignature(raw, signature, process.env.RAZORPAY_DIRECT_WEBHOOK_SECRET);
     if (!routeAuthenticated && !directAuthenticated) return res.status(401).json({ error: "Invalid webhook signature" });
     const payload: any = req.body;
-    const directWebhook = !routeAuthenticated && directAuthenticated;
     const eventId = String(req.header("x-razorpay-event-id") || crypto.createHash("sha256").update(raw).digest("hex"));
     try {
       const [receipt] = await db.insert(razorpayWebhookReceipts).values({ eventId, eventType: String(payload?.event || "unknown"), payloadHash: crypto.createHash("sha256").update(raw).digest("hex") }).onConflictDoNothing().returning();
@@ -1427,9 +1426,25 @@ export function registerRoutePayoutRoutes(app: Express) {
         // fetches order + payment and verifies every binding before issuing.
         const paymentId = String(payload?.payload?.payment?.entity?.id || "");
         const orderId = String(payload?.payload?.payment?.entity?.order_id || "");
-         outcome = paymentId && orderId
-           ? (directWebhook ? await recoverDirectCapturedPayment(orderId, paymentId) : await recoverCapturedPayment(orderId, paymentId))
-           : "failed";
+        if (paymentId && orderId) {
+          const [checkout] = await db.select({ adapter: eventPaymentCheckouts.adapter })
+            .from(eventPaymentCheckouts)
+            .where(eq(eventPaymentCheckouts.razorpayOrderId, orderId))
+            .limit(1);
+          if (checkout?.adapter === "direct") {
+            outcome = directAuthenticated
+              ? await recoverDirectCapturedPayment(orderId, paymentId)
+              : "failed";
+          } else {
+            // Legacy Route orders may predate checkout snapshots, so absence of
+            // a snapshot continues through the existing Route recovery path.
+            outcome = routeAuthenticated
+              ? await recoverCapturedPayment(orderId, paymentId)
+              : "failed";
+          }
+        } else {
+          outcome = "failed";
+        }
       } else if (eventType === "transfer.processed" || eventType === "transfer.failed") {
         const transferId = String(payload?.payload?.transfer?.entity?.id || "");
         outcome = await reconcileTransferWebhook(transferId, eventType);
