@@ -2398,6 +2398,16 @@
                       <input type="number" min="1" x-model="eventForm.maxGuestsPerRegistration" class="input-field mt-1">
                       <p class="text-[10px] text-gray-400 mt-1">Includes the registrant themselves</p>
                     </div>
+                     <div>
+                       <label class="text-[11px] font-bold text-gray-400 uppercase">Pre-printed ticket prefix</label>
+                       <div class="flex items-center mt-1">
+                         <input x-model="eventForm.preprintedTicketPrefix" maxlength="8"
+                                @input="eventForm.preprintedTicketPrefix = String($event.target.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)"
+                                class="input-field font-mono uppercase rounded-r-none" placeholder="EVT">
+                         <span class="h-[42px] px-3 flex items-center rounded-r-lg border border-l-0 border-gray-200 bg-gray-50 text-gray-400 font-mono">-</span>
+                       </div>
+                       <p class="text-[10px] text-gray-400 mt-1">2–8 letters or numbers. Used for new pre-printed tickets only.</p>
+                     </div>
                     <div>
                       <label class="text-[11px] font-bold text-gray-400 uppercase">Registration fee (₹, 0 = free)</label>
                       <input type="number" min="0" step="0.01" x-model="eventForm.registrationFeeRupees" :disabled="!eventRegistrationFeesReady()" class="input-field mt-1 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed">
@@ -2869,7 +2879,7 @@
                 <div x-show="ptkValidatePanelOpen" x-transition class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
                   <p class="text-sm font-bold text-gray-700">Look up a booking ID or QR value</p>
                   <div class="flex gap-2">
-                    <input x-model="ptkValidateCode" placeholder="PTK-… or paste QR URL"
+                    <input x-model="ptkValidateCode" placeholder="Booking ID or paste QR URL"
                            class="input-field text-sm flex-1 font-mono"
                            @keydown.enter.prevent="validatePtkTicket()" autocomplete="off">
                     <button @click="validatePtkTicket()" :disabled="ptkValidateBusy || !ptkValidateCode.trim()"
@@ -3344,11 +3354,11 @@
                           <div class="relative mt-1">
                             <input x-model="manualRegForm.preprintedTicketCode"
                                    @change="manualRegForm.preprintedTicketCode = await resolvePreprintedCode($event.target.value, selectedEvent && selectedEvent.id)"
-                                   placeholder="PTK-… or scan QR"
+                                   :placeholder="((selectedEvent && selectedEvent.preprintedTicketPrefix) || 'EVT') + '-… or scan QR'"
                                    class="input-field text-sm font-mono w-full" style="text-transform:uppercase" autocomplete="off">
                             <span x-show="manualRegPtkResolving" class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><i class="fa-solid fa-spinner fa-spin text-gray-400 text-xs"></i></span>
                           </div>
-                          <p class="text-[10px] text-gray-400 mt-1">Scan the QR on the physical ticket or type the PTK-… ID. Each ticket can only be assigned once.</p>
+                          <p class="text-[10px] text-gray-400 mt-1">Scan the QR on the physical ticket or type its booking ID. Each ticket can only be assigned once.</p>
                         </div>
                       </div>
 
@@ -7593,6 +7603,7 @@
           checkoutAlertIconUrl: '',
           refundable: false,
           refundMessage: '',
+          preprintedTicketPrefix: 'EVT',
           whatsappTriggers: { reminder_day: true, reminder_hour: true, checked_in: true, billing: true, thank_you_feedback: true },
         },
         eventFaqDraft: { question: '', answer: '' },
@@ -13361,6 +13372,7 @@
               slotDurationMinutes: ev.slotDurationMinutes || 30,
               maxCapacityPerSlot: ev.maxCapacityPerSlot || 50,
               maxGuestsPerRegistration: ev.maxGuestsPerRegistration || 10,
+              preprintedTicketPrefix: ev.preprintedTicketPrefix || 'EVT',
               registrationFeeRupees: ((ev.registrationFee || 0) / 100) || 0,
               registrationFeeCustomText: typeof ev.registrationFeeCustomText === 'string' ? ev.registrationFeeCustomText : '',
               refundable: ev.refundable === true,
@@ -13400,6 +13412,7 @@
               startDate: '', endDate: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00',
               slotDurationMinutes: 30, maxCapacityPerSlot: 50, maxGuestsPerRegistration: 10, registrationFeeRupees: 0, registrationFeeCustomText: '',
               refundable: false, refundMessage: '',
+              preprintedTicketPrefix: 'EVT',
               parkingTotalSpaces: 0, parkingEnabled: true,
               registrationOtpEnabled: true, billingOtpEnabled: true,
               checkoutAlertEnabled: false, checkoutAlertMaxDurationMinutes: 60,
@@ -13441,6 +13454,8 @@
           const f = this.eventForm;
           if (!f.name || !f.startDate || !f.endDate) { this.showToast('Name, start date and end date are required', 'error'); return; }
           if (new Date(f.endDate) < new Date(f.startDate)) { this.showToast('End date must be after start date', 'error'); return; }
+          const preprintedTicketPrefix = String(f.preprintedTicketPrefix || '').trim().toUpperCase();
+          if (!/^[A-Z0-9]{2,8}$/.test(preprintedTicketPrefix)) { this.showToast('Ticket prefix must be 2–8 letters or numbers', 'error'); return; }
           const checkoutDuration = parseInt(f.checkoutAlertMaxDurationMinutes, 10);
           if (f.checkoutAlertEnabled && (!checkoutDuration || checkoutDuration < 1 || checkoutDuration > 10080)) {
             this.showToast('Checkout alert duration must be between 1 and 10,080 minutes', 'error'); return;
@@ -13466,6 +13481,7 @@
               slotDurationMinutes: parseInt(f.slotDurationMinutes, 10) || 30,
               maxCapacityPerSlot: parseInt(f.maxCapacityPerSlot, 10) || 50,
               maxGuestsPerRegistration: parseInt(f.maxGuestsPerRegistration, 10) || 10,
+              preprintedTicketPrefix,
               registrationFee: !this.eventRegistrationFeesReady()
                 ? 0
                 : Math.max(0, Math.round(parseFloat(f.registrationFeeRupees || '0') * 100) || 0),
@@ -13807,7 +13823,7 @@
           return ({ bookingId: 'fa-solid fa-ticket', qr: 'fa-solid fa-qrcode', amountPaid: 'fa-solid fa-indian-rupee-sign', serialNumber: 'fa-solid fa-hashtag', eventName: 'fa-solid fa-calendar-days' })[type] || 'fa-solid fa-square';
         },
         ptkSampleText(type) {
-          return ({ bookingId: 'PTK-PREVIEW', amountPaid: 'Amount Paid: ₹1,250.00', serialNumber: 'S/N 000001', eventName: this.preprintedTicketEvent?.name || 'Event name' })[type] || '';
+          return ({ bookingId: `${this.preprintedTicketEvent?.preprintedTicketPrefix || 'EVT'}-PREVIEW`, amountPaid: 'Amount Paid: ₹1,250.00', serialNumber: 'S/N 000001', eventName: this.preprintedTicketEvent?.name || 'Event name' })[type] || '';
         },
         ptkSelectedElement() {
           return this.ptkBackLayout?.elements?.find(element => element.id === this.ptkSelectedId) || null;
@@ -14203,15 +14219,15 @@
           this.manualRegConfirmedFingerprint = this.manualRegConfirmationFingerprint();
           this.manualRegStep = 2;
         },
-        // Resolve any scan value (full URL or PTK ID) to the canonical booking ID.
+        // Resolve any scan value (full URL or pre-printed ID) to the canonical booking ID.
         // Called by the preprintedTicketCode @change handler so the field always
-        // shows the clean PTK-… identifier, not a raw QR URL.
+        // shows the clean booking identifier, not a raw QR URL.
         async resolvePreprintedCode(raw, eventId) {
           const v = (raw || '').trim().toUpperCase();
           if (!v) return '';
-          // Already looks like a PTK ID — no resolution needed.
-          if (/^PTK-[A-Z0-9]{6,}$/i.test(v)) return v;
-          // Looks like a URL or hex token — resolve to a PTK booking ID via API.
+          // Already looks like a generated pre-printed ID — no resolution needed.
+          if (/^[A-Z0-9]{2,8}-[A-Z0-9]{6,}$/i.test(v)) return v;
+          // Looks like a URL or hex token — resolve to a booking ID via API.
           this.manualRegPtkResolving = true;
           let result = v;
           try {

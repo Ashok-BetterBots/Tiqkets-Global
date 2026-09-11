@@ -162,22 +162,35 @@ function makeBookingId(): string {
   const bytes = crypto.randomBytes(6);
   let s = "";
   for (const byte of bytes) s += chars[byte % chars.length];
-  return `EVT-${s}`;
+  return `TIQ-${s}`;
 }
 
 function makeQrToken(): string {
   return crypto.randomBytes(20).toString("hex");
 }
 
-function makePreprintedTicketId(): string {
-  // PTK-XXXXXXXXXX: PTK prefix + 10 random alphanumeric chars (no numeric suffix).
-  // Total length = 14 chars, well within the varchar(20) booking_id column.
+const DEFAULT_PREPRINTED_TICKET_PREFIX = "EVT";
+
+export function normalizePreprintedTicketPrefix(
+  value: unknown,
+  fallback = DEFAULT_PREPRINTED_TICKET_PREFIX,
+): string {
+  const normalized = String(value ?? fallback).trim().toUpperCase().replace(/-+$/, "");
+  if (!/^[A-Z0-9]{2,8}$/.test(normalized)) {
+    throw new Error("Ticket prefix must be 2–8 letters or numbers");
+  }
+  return normalized;
+}
+
+function makePreprintedTicketId(prefix: string): string {
+  // PREFIX-XXXXXXXXXX: organizer prefix + 10 random unambiguous characters.
+  // Maximum length is 19 chars, within the varchar(20) booking_id column.
   // Each ticket is independently random — uniqueness is enforced by the DB.
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes = crypto.randomBytes(10);
   let s = "";
   for (const byte of bytes) s += chars[byte % chars.length];
-  return `PTK-${s}`;
+  return `${normalizePreprintedTicketPrefix(prefix)}-${s}`;
 }
 
 function makePreprintedBatchCode(): string {
@@ -1233,7 +1246,7 @@ async function findRegistrationByAny(idOrCode: string): Promise<EventRegistratio
   return rows[0] || null;
 }
 
-// Public-route lookup: qrToken ONLY. Booking IDs (EVT-XXXXXX) are short and
+// Public-route lookup: qrToken ONLY. Human-readable booking IDs are short and
 // guessable, so they must never resolve tickets on unauthenticated paths —
 // only the 40-hex-char unguessable token may.
 async function findRegistrationByToken(token: string): Promise<EventRegistration | null> {
@@ -2515,6 +2528,7 @@ export function registerEventsRoutes(app: Express) {
       // overflows the created_by_user_id varchar(36) column. Treat those as null.
       const rawUserId = getRequestUserId(req);
       const createdByUserId = rawUserId && !rawUserId.startsWith("owner:") ? rawUserId : null;
+      const ticketPrefix = normalizePreprintedTicketPrefix(ev.preprintedTicketPrefix);
 
       let batchCode = "";
       let totalCreated = 0;
@@ -2528,7 +2542,7 @@ export function registerEventsRoutes(app: Express) {
         const stock = Array.from({ length: count }, (_, index) => ({
           eventId: ev.id,
           batchCode,
-          bookingId: makePreprintedTicketId(),
+          bookingId: makePreprintedTicketId(ticketPrefix),
           qrToken: makeQrToken(),
           status: "available" as const,
           createdByUserId,
@@ -3168,6 +3182,7 @@ export function registerEventsRoutes(app: Express) {
       let refundPolicy: EventRefundPolicy;
       let parkingEnabled: boolean;
       let checkoutAlert: CheckoutAlert;
+      let preprintedTicketPrefix: string;
       try {
         whatsappTriggers = normalizeEventWhatsappTriggers(b.whatsappTriggers);
         otpSettings = normalizeEventOtpSettings(b.otpSettings);
@@ -3177,6 +3192,7 @@ export function registerEventsRoutes(app: Express) {
         });
         parkingEnabled = normalizeEventParkingEnabled(b.parkingEnabled);
         checkoutAlert = normalizeCheckoutAlert(b.checkoutAlert);
+        preprintedTicketPrefix = normalizePreprintedTicketPrefix(b.preprintedTicketPrefix);
       } catch (e) {
         return res.status(400).json({ error: (e as Error).message });
       }
@@ -3216,6 +3232,7 @@ export function registerEventsRoutes(app: Express) {
         brandPrimaryColor: b.brandPrimaryColor || null,
         brandButtonColor: b.brandButtonColor || null,
         brandFontFamily: b.brandFontFamily || null,
+        preprintedTicketPrefix,
         messageTemplates: b.messageTemplates && typeof b.messageTemplates === "object" ? b.messageTemplates : {},
         whatsappTriggers,
         otpSettings,
@@ -3261,6 +3278,13 @@ export function registerEventsRoutes(app: Express) {
       if ("registrationFeeCustomText" in b) {
         try {
           patch.registrationFeeCustomText = normalizeRegistrationFeeCustomText(b.registrationFeeCustomText, ev.registrationFeeCustomText);
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
+      if ("preprintedTicketPrefix" in b) {
+        try {
+          patch.preprintedTicketPrefix = normalizePreprintedTicketPrefix(b.preprintedTicketPrefix);
         } catch (e) {
           return res.status(400).json({ error: (e as Error).message });
         }

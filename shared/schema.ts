@@ -1524,6 +1524,9 @@ export const events = pgTable("events", {
   // same template can be replaced without changing ticket inventory.
   preprintedFrontImageUrl: text("preprinted_front_image_url"),
   preprintedBackImageUrl: text("preprinted_back_image_url"),
+  // Uppercase alphanumeric prefix used only for newly created pre-printed
+  // ticket inventory. Existing issued IDs are immutable.
+  preprintedTicketPrefix: varchar("preprinted_ticket_prefix", { length: 8 }).default("EVT").notNull(),
   preprintedBackLayout: jsonb("preprinted_back_layout").$type<PreprintedBackLayout>().default({
     version: 2,
     elements: [
