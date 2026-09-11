@@ -349,6 +349,18 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
+    // Replit's Expo preview proxy can add expo-platform to normal browser
+    // requests. A browser explicitly asking for HTML must still receive the
+    // QR launch page; Expo Go requests do not include text/html in Accept.
+    if (req.path === "/" && req.header("accept")?.includes("text/html")) {
+      return serveLandingPage({
+        req,
+        res,
+        landingPageTemplate,
+        appName,
+      });
+    }
+
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       // Dev: ask Metro for the up-to-the-minute manifest instead of the
