@@ -132,71 +132,6 @@ function getAppName(): string {
   }
 }
 
-function rewriteExpoManifest(manifestStr: string, req: Request): string {
-  // Dynamically rewrite the manifest's download URLs to match the current
-  // deployment domain. This makes the Docker image portable: even if the image
-  // was built with a different APP_DOMAIN (or none), Expo Go will fetch bundles
-  // and assets from the server that actually answered the manifest request.
-  try {
-    const { protocol, host } = getPublicHost(req);
-    const actualBase = `${protocol}://${host}`;
-    const manifest = JSON.parse(manifestStr);
-
-    const patchUrl = (url: string): string => {
-      if (!url) return url;
-      try {
-        const u = new URL(url);
-        const actual = new URL(actualBase);
-        u.protocol = actual.protocol;
-        u.hostname = actual.hostname;
-        u.port = actual.port;
-        return u.toString();
-      } catch {
-        return url;
-      }
-    };
-
-    const rewriteLocalUrls = (value: unknown): unknown => {
-      if (typeof value === "string") {
-        return /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?(?:\/|$)/i.test(value)
-          ? patchUrl(value)
-          : value;
-      }
-      if (Array.isArray(value)) {
-        return value.map(rewriteLocalUrls);
-      }
-      if (value && typeof value === "object") {
-        return Object.fromEntries(
-          Object.entries(value as Record<string, unknown>).map(([key, nested]) => [
-            key,
-            rewriteLocalUrls(nested),
-          ]),
-        );
-      }
-      return value;
-    };
-
-    const rewrittenManifest = rewriteLocalUrls(manifest) as typeof manifest;
-
-    // hostUri/debuggerHost are packager identities, not URLs. They must be the
-    // bare public host; platform path suffixes can leave Android Expo Go stuck
-    // on its native "Loading project..." screen before JavaScript starts.
-    const actualHost = host;
-
-    if (rewrittenManifest.extra?.expoClient?.hostUri) {
-      rewrittenManifest.extra.expoClient.hostUri = actualHost;
-    }
-    if (rewrittenManifest.extra?.expoGo?.debuggerHost) {
-      rewrittenManifest.extra.expoGo.debuggerHost = actualHost;
-    }
-
-    return JSON.stringify(rewrittenManifest);
-  } catch {
-    // If JSON parse or patching fails for any reason, fall back to the raw file
-    return manifestStr;
-  }
-}
-
 function serveExpoManifest(platform: string, req: Request, res: Response) {
   const manifestPath = path.resolve(
     process.cwd(),
@@ -216,32 +151,70 @@ function serveExpoManifest(platform: string, req: Request, res: Response) {
   res.setHeader("content-type", "application/json");
 
   const manifestStr = fs.readFileSync(manifestPath, "utf-8");
-  res.send(rewriteExpoManifest(manifestStr, req));
-}
 
-async function serveDevExpoManifest(req: Request, res: Response, fallbackPlatform?: "ios" | "android") {
+  // Dynamically rewrite the manifest's download URLs to match the current
+  // deployment domain. This makes the Docker image portable: even if the image
+  // was built with a different APP_DOMAIN (or none), Expo Go will fetch bundles
+  // and assets from the server that actually answered the manifest request.
   try {
-    const headers: Record<string, string> = {};
-    for (const name of ["expo-platform", "expo-protocol-version", "accept"]) {
-      const value = req.header(name);
-      if (value) headers[name] = value;
-    }
-    if (!headers["expo-platform"] && fallbackPlatform) {
-      headers["expo-platform"] = fallbackPlatform;
-    }
-    const upstream = await fetch(`http://127.0.0.1:8081${req.originalUrl}`, { headers });
-    const manifestStr = await upstream.text();
+    const { protocol, host } = getPublicHost(req);
+    const actualBase = `${protocol}://${host}`;
+    const manifest = JSON.parse(manifestStr);
 
-    res.status(upstream.status);
-    res.setHeader("expo-protocol-version", upstream.headers.get("expo-protocol-version") || "1");
-    res.setHeader("expo-sfv-version", upstream.headers.get("expo-sfv-version") || "0");
-    res.setHeader("content-type", upstream.headers.get("content-type") || "application/expo+json");
-    const cacheControl = upstream.headers.get("cache-control");
-    if (cacheControl) res.setHeader("cache-control", cacheControl);
-    res.send(rewriteExpoManifest(manifestStr, req));
-  } catch (error) {
-    log("Unable to load the development Expo manifest:", error);
-    res.status(503).json({ error: "Expo Metro is not ready. Please retry." });
+    // Extract the domain that was baked in at build time so we can replace it.
+    const builtBase = manifest.launchAsset?.url
+      ? (() => {
+          try {
+            const u = new URL(manifest.launchAsset.url);
+            return `${u.protocol}//${u.host}`;
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+
+    const patchUrl = (url: string): string => {
+      if (!url) return url;
+      try {
+        const u = new URL(url);
+        const actual = new URL(actualBase);
+        u.protocol = actual.protocol;
+        u.host = actual.host;
+        return u.toString();
+      } catch {
+        return url;
+      }
+    };
+
+    // Patch launchAsset (the JS bundle URL)
+    if (manifest.launchAsset?.url) {
+      manifest.launchAsset.url = patchUrl(manifest.launchAsset.url);
+    }
+
+    // Patch all asset download URLs
+    if (Array.isArray(manifest.assets)) {
+      manifest.assets = manifest.assets.map((a: Record<string, unknown>) => ({
+        ...a,
+        url: a.url ? patchUrl(a.url as string) : a.url,
+      }));
+    }
+
+    // hostUri/debuggerHost are packager identities, not URLs. They must be the
+    // bare public host; platform path suffixes can leave Android Expo Go stuck
+    // on its native "Loading project..." screen before JavaScript starts.
+    const actualHost = host;
+
+    if (manifest.extra?.expoClient?.hostUri) {
+      manifest.extra.expoClient.hostUri = actualHost;
+    }
+    if (manifest.extra?.expoGo?.debuggerHost) {
+      manifest.extra.expoGo.debuggerHost = actualHost;
+    }
+
+    res.send(JSON.stringify(manifest));
+  } catch {
+    // If JSON parse or patching fails for any reason, fall back to the raw file
+    res.send(manifestStr);
   }
 }
 
@@ -377,26 +350,11 @@ function configureExpoAndLanding(app: express.Application) {
     }
 
     const platform = req.header("expo-platform");
-    const acceptsExpoManifest = req.accepts("application/expo+json") === "application/expo+json";
-    if (req.path === "/" && metroProxy && acceptsExpoManifest) {
-      return void serveDevExpoManifest(
-        req,
-        res,
-        platform === "android" ? "android" : "ios",
-      );
-    }
-    if (req.path === "/manifest" && metroProxy) {
-      return void serveDevExpoManifest(
-        req,
-        res,
-        platform === "android" ? "android" : "ios",
-      );
-    }
     if (platform && (platform === "ios" || platform === "android")) {
       // Dev: ask Metro for the up-to-the-minute manifest instead of the
       // (non-existent) static-build manifest.
       if (metroProxy) {
-        return void serveDevExpoManifest(req, res, platform);
+        return metroProxy(req, res, next);
       }
       return serveExpoManifest(platform, req, res);
     }

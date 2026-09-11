@@ -39,10 +39,7 @@ test("keeps lookup and check-in APIs unchanged while adding the timing display g
 
   assert.match(screen, /\/api\/dashboard\/events\/scan\/lookup/);
   assert.match(screen, /apiRequest\("POST", "\/api\/dashboard\/events\/scan"/);
-  assert.match(screen, /timingStatus\.kind !== "within-window"[\s\S]*playTimingWarningTone\(\);[\s\S]*else \{[\s\S]*playSuccessTone\(\)/);
-  assert.doesNotMatch(screen, /setTimeout\(playTimingWarningTone/);
-  assert.match(screen, /if \(!timingStatus \|\| timingStatus\.kind === "within-window"\) \{[\s\S]*playSuccessTone\(\)/);
-  assert.match(screen, /if \(!res\.ok\)[\s\S]*playErrorTone\(\)/);
+  assert.match(screen, /playSuccessTone\(\);[\s\S]*timingStatus\.kind !== "within-window"[\s\S]*setTimeout\(playTimingWarningTone, 2200\)/);
   assert.match(sounds, /early-late-tone\.mp3/);
   assert.match(modal, /testID="ticket-valid-corner-tick"/);
   assert.match(modal, /testID="button-timing-skip"/);
