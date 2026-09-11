@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-test("event ticket artwork uses 20.3 cm by 8.2 cm for front and back", () => {
+test("event ticket artwork editor preserves its existing design dimensions", () => {
   const dashboard = readFileSync("server/templates/dashboard.html", "utf8");
   const routes = readFileSync("server/events-routes.ts", "utf8");
 
@@ -12,6 +12,22 @@ test("event ticket artwork uses 20.3 cm by 8.2 cm for front and back", () => {
   assert.match(dashboard, /ptkMaxQrWidth: 100 \/ \(203 \/ 82\)/);
 
   assert.match(routes, /PREPRINTED_CANVAS_ASPECT_RATIO = 203 \/ 82/);
-  assert.match(routes, /\.artwork-grid \.ticket-face \{ width:203mm; height:82mm; \}/);
-  assert.match(routes, /const usesArtworkSheetLayout = hasArtwork/);
+});
+
+test("print sheets use the A3 six-up rotated layout and front-master pagination", () => {
+  const routes = readFileSync("server/events-routes.ts", "utf8");
+
+  assert.match(routes, /PREPRINTED_PRINT_TICKET_WIDTH_MM = 202/);
+  assert.match(routes, /PREPRINTED_PRINT_TICKET_HEIGHT_MM = 82/);
+  assert.match(routes, /PREPRINTED_PRINT_GUTTER_MM = 4/);
+  assert.match(routes, /PREPRINTED_PRINT_COLUMNS = 3/);
+  assert.match(routes, /PREPRINTED_PRINT_ROWS = 2/);
+  assert.match(routes, /@page \{ size: A3 portrait;/);
+  assert.match(routes, /border-radius:3mm;/);
+  assert.match(routes, /rotate\(90deg\)/);
+  assert.match(routes, /left:52mm; border-left:\.3mm dashed/);
+  assert.match(routes, /const printSheets: string\[\] = \[/);
+  assert.match(routes, /offset \+= PREPRINTED_PRINT_TICKETS_PER_SHEET/);
+  assert.match(routes, /Math\.ceil\(rows\.length \/ PREPRINTED_PRINT_TICKETS_PER_SHEET\)/);
+  assert.doesNotMatch(routes, /const duplexSheets/);
 });
