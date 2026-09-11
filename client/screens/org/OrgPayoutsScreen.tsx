@@ -116,25 +116,26 @@ export default function OrgPayoutsScreen() {
   const setBank = (key: keyof Form["bank_account"], value: string) => setForm(current => ({ ...current, bank_account: { ...current.bank_account, [key]: value } }));
 
   if (!orgId) return <ThemedView style={styles.center}><ActivityIndicator color={theme.primary} /></ThemedView>;
+  const isRoute = profile?.paymentMethod !== "razorpay_direct";
   const statusColor = profile?.canAcceptPaidTickets ? "#15803d" : "#b45309";
   const onboardingStage = profile?.onboarding?.currentStage || "linked_account";
   return (
     <ThemedView style={styles.root}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Spacing["3xl"] + insets.bottom }]}>
         <View style={styles.titleRow}>
-          <View style={{ flex: 1 }}><ThemedText type="h2">Ticket Payments</ThemedText><ThemedText type="body" style={{ color: theme.textSecondary }}>Razorpay Route payouts for paid event tickets.</ThemedText></View>
+          <View style={{ flex: 1 }}><ThemedText type="h2">Ticket Payments</ThemedText><ThemedText type="body" style={{ color: theme.textSecondary }}>{isRoute ? "Razorpay Route payouts for paid event tickets." : "Razorpay Direct payments for paid event tickets."}</ThemedText></View>
           <Pressable accessibilityRole="button" onPress={() => reconcile.mutate()} disabled={reconcile.isPending} style={[styles.outlineButton, { borderColor: theme.border }]}><Feather name="refresh-cw" size={16} color={theme.text} /><ThemedText>{reconcile.isPending ? "Refreshing" : "Refresh"}</ThemedText></Pressable>
         </View>
         <View style={[styles.card, { borderColor: statusColor, backgroundColor: `${statusColor}10` }]}>
-          <ThemedText type="h4" style={{ color: statusColor }}>{profile?.canAcceptPaidTickets ? "Ready for paid registrations" : "Payout setup required"}</ThemedText>
-          <ThemedText type="body" style={{ color: theme.textSecondary }}>{profile?.actionRequired || profile?.statusReason || "Submit organizer payout details to enable paid ticket checkout."}</ThemedText>
+          <ThemedText type="h4" style={{ color: statusColor }}>{isRoute ? (profile?.canAcceptPaidTickets ? "Ready for paid registrations" : "Payout setup required") : (profile?.directReady ? "Razorpay Direct payments active" : "Razorpay Direct unavailable")}</ThemedText>
+          <ThemedText type="body" style={{ color: theme.textSecondary }}>{isRoute ? (profile?.actionRequired || profile?.statusReason || "Submit organizer payout details to enable paid ticket checkout.") : (profile?.directReady ? "Paid event registrations are processed directly through the platform Razorpay account." : "Razorpay Direct must be configured by the Super Admin before paid registrations can be accepted.")}</ThemedText>
           {profile?.coolingEndsAt ? <ThemedText type="small" style={{ color: theme.textSecondary }}>Available after {dateLabel(profile.coolingEndsAt)}.</ThemedText> : null}
-           {profile?.configured ? <View style={styles.providerDetails}>
+            {isRoute && profile?.configured ? <View style={styles.providerDetails}>
              <View style={styles.providerDetail}><ThemedText type="small" style={{ color: theme.textSecondary }}>Razorpay Product ID</ThemedText><ThemedText type="small" style={{ fontWeight: "800" }}>{profile.productId || "Not requested yet"}</ThemedText></View>
              <View style={styles.providerDetail}><ThemedText type="small" style={{ color: theme.textSecondary }}>Final activation status</ThemedText><ThemedText type="small" style={{ fontWeight: "800" }}>{statusLabel(profile.finalActivationStatus || profile.status)}</ThemedText></View>
            </View> : null}
         </View>
-        {!profile?.canAcceptPaidTickets ? <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}>
+         {isRoute && !profile?.canAcceptPaidTickets ? <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}>
           <ThemedText type="h3">{profile?.configured ? "Continue Route setup" : "Set up payouts"}</ThemedText>
           <ThemedText type="small" style={{ color: theme.textSecondary }}>{profile?.configured ? "Your linked account is saved. Complete the current step below; a second account will not be created." : "Business and tax details are submitted directly to Razorpay and are never shown from your payout profile."}</ThemedText>
           {profile?.onboarding?.steps?.map(step => <View key={step.id} style={[styles.step, { borderColor: step.status === "complete" ? "#86efac" : step.status === "current" ? theme.primary : theme.border, backgroundColor: step.status === "complete" ? "#f0fdf4" : step.status === "current" ? `${theme.primary}10` : theme.backgroundRoot }]}><ThemedText type="small" style={{ fontWeight: "800" }}>{step.status === "complete" ? "Complete" : step.status === "current" ? "Current" : "Upcoming"} · {step.label}</ThemedText></View>)}
