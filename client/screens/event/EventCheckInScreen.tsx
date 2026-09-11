@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { playSuccessTone, playErrorTone } from "@/utils/alertSounds";
+import { playSuccessTone, playErrorTone, playTimingWarningTone } from "@/utils/alertSounds";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -135,11 +135,13 @@ function ScanPanel() {
 
         // Valid ticket found — show preview with Confirm / Skip
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        if (
-          getTicketTimingStatus(data.registration?.slotDate, data.registration?.slotTime)?.kind ===
-          "within-window"
-        ) {
-          playSuccessTone();
+        const timingStatus = getTicketTimingStatus(
+          data.registration?.slotDate,
+          data.registration?.slotTime,
+        );
+        playSuccessTone();
+        if (timingStatus && timingStatus.kind !== "within-window") {
+          setTimeout(playTimingWarningTone, 2200);
         }
         setPendingValue(resolvedId);
         setModalData({

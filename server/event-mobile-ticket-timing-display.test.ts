@@ -35,11 +35,15 @@ test("classifies wrong-date arrivals by calendar-day difference", () => {
 test("keeps lookup and check-in APIs unchanged while adding the timing display gate", () => {
   const screen = readFileSync("client/screens/event/EventCheckInScreen.tsx", "utf8");
   const modal = readFileSync("client/components/event/TicketScanResultModal.tsx", "utf8");
+  const sounds = readFileSync("client/utils/alertSounds.ts", "utf8");
 
   assert.match(screen, /\/api\/dashboard\/events\/scan\/lookup/);
   assert.match(screen, /apiRequest\("POST", "\/api\/dashboard\/events\/scan"/);
+  assert.match(screen, /playSuccessTone\(\);[\s\S]*timingStatus\.kind !== "within-window"[\s\S]*setTimeout\(playTimingWarningTone, 2200\)/);
+  assert.match(sounds, /early-late-tone\.mp3/);
   assert.match(modal, /testID="ticket-valid-corner-tick"/);
   assert.match(modal, /testID="button-timing-skip"/);
   assert.match(modal, /testID="button-timing-proceed"/);
   assert.match(modal, /timingStatus\.kind === "different-day"/);
+  assert.doesNotMatch(modal, /duplicate-ticket-journey|Ticket Journey/);
 });
