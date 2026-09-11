@@ -966,6 +966,9 @@ export function EventManualRegModal({
                       placeholder="10-digit number"
                       placeholderTextColor={textSecondary}
                       keyboardType="phone-pad"
+                      autoComplete={Platform.OS === "android" ? "off" : undefined}
+                      importantForAutofill={Platform.OS === "android" ? "no" : undefined}
+                      autoCorrect={Platform.OS === "android" ? false : undefined}
                       style={[styles.input, { color: text, borderColor: border }]}
                       testID="input-manual-reg-phone"
                     />
@@ -982,6 +985,9 @@ export function EventManualRegModal({
                       placeholderTextColor={textSecondary}
                       keyboardType="email-address"
                       autoCapitalize="none"
+                      autoComplete={Platform.OS === "android" ? "off" : undefined}
+                      importantForAutofill={Platform.OS === "android" ? "no" : undefined}
+                      autoCorrect={Platform.OS === "android" ? false : undefined}
                       style={[styles.input, { color: text, borderColor: border }]}
                       testID="input-manual-reg-email"
                     />
