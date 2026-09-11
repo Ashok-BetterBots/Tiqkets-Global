@@ -13,6 +13,8 @@ For Expo Go development on Replit, start Metro in localhost mode and expose it t
 
 The development manifest proxy must rewrite launch-asset and asset URLs from Metro’s loopback origin to the public Replit HTTPS origin. Explicitly clear Metro’s internal `:8081` port while rewriting; assigning only the hostname can retain the old port in WHATWG URLs. Keep `hostUri` and `debuggerHost` as the bare public host.
 
+Preserve Metro’s `application/expo+json` content type and Expo protocol headers when proxying a development manifest. Serving the same update-manifest body as generic `application/json` can make iOS choose the wrong decoder and report a misleading invalid-date error even when `createdAt` is valid RFC 3339.
+
 **Why:** Expo’s ngrok launcher failed before Metro opened, then localhost Metro produced a manifest whose bundle URL still pointed to loopback/port 8081. Starting Metro independently and rewriting the proxied manifest made both manifest and bundle reachable through Replit HTTPS.
 
-**How to apply:** Verify the phone-facing manifest through the public domain with an `expo-platform` header, assert every launch/asset URL uses that same host without port 8081, then fetch the returned bundle URL. Preserve Metro’s cache during normal starts; use `--clear` only for targeted cache troubleshooting.
+**How to apply:** Verify the phone-facing manifest through the public domain with an `expo-platform` header, assert the content type is `application/expo+json`, confirm `createdAt` parses, ensure launch/asset URLs use the same host without port 8081, then fetch the returned bundle URL. Preserve Metro’s cache during normal starts; use `--clear` only for targeted cache troubleshooting.
