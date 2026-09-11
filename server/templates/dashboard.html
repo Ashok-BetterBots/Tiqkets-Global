@@ -6235,7 +6235,7 @@
           <div x-show="currentPage === 'ticketPayments'" x-transition>
             <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
               <div>
-                <p class="text-sm text-gray-500">Razorpay Route payouts for paid event tickets. Ticket revenue is routed to your organizer account.</p>
+                <p class="text-sm text-gray-500" x-text="payoutProfile?.paymentMethod === 'razorpay_direct' ? 'Razorpay Direct payments for paid event tickets.' : 'Razorpay Route payouts for paid event tickets. Ticket revenue is routed to your organizer account.'"></p>
               </div>
               <button @click="reconcilePayouts()" :disabled="payoutReconciling || payoutLoading" class="btn-secondary text-xs whitespace-nowrap disabled:opacity-60">
                 <i class="fa-solid fa-rotate" :class="{ 'fa-spin': payoutReconciling }"></i>
@@ -6261,17 +6261,17 @@
               <div class="dash-card border-brand-100 bg-gradient-to-r from-brand-50/60 via-white to-purple-50/30">
                 <div class="flex flex-col sm:flex-row sm:items-start gap-4">
                   <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                    :class="payoutProfile?.onboarding?.currentStage === 'complete' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'">
-                    <i :class="payoutProfile?.onboarding?.currentStage === 'complete' ? 'fa-solid fa-circle-check' : 'fa-solid fa-building-columns'"></i>
+                    :class="(payoutProfile?.paymentMethod === 'razorpay_direct' ? payoutProfile?.directReady : payoutProfile?.onboarding?.currentStage === 'complete') ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'">
+                    <i :class="(payoutProfile?.paymentMethod === 'razorpay_direct' ? payoutProfile?.directReady : payoutProfile?.onboarding?.currentStage === 'complete') ? 'fa-solid fa-circle-check' : 'fa-solid fa-building-columns'"></i>
                   </div>
                   <div class="flex-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <h2 class="text-base font-extrabold text-gray-900" x-text="payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Awaiting Razorpay activation') : 'Payout setup required'"></h2>
-                      <span class="badge" :class="payoutProfile?.onboarding?.currentStage === 'complete' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
-                        x-text="payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Under review') : (payoutProfile?.configured ? 'Action needed' : 'Not set up')"></span>
+                      <h2 class="text-base font-extrabold text-gray-900" x-text="payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? 'Razorpay Direct payments active' : 'Razorpay Direct unavailable') : (payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Awaiting Razorpay activation') : 'Payout setup required')"></h2>
+                      <span class="badge" :class="(payoutProfile?.paymentMethod === 'razorpay_direct' ? payoutProfile?.directReady : payoutProfile?.onboarding?.currentStage === 'complete') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
+                        x-text="payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Unavailable') : (payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Under review') : (payoutProfile?.configured ? 'Action needed' : 'Not set up'))"></span>
                     </div>
-                    <p class="text-sm text-gray-500 mt-1" x-text="payoutProfile?.actionRequired || payoutProfile?.statusReason || 'Submit organizer payout details to enable paid ticket checkout.'"></p>
-                     <div x-show="payoutProfile?.configured" class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                    <p class="text-sm text-gray-500 mt-1" x-text="payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? 'Paid event registrations are processed directly through the platform Razorpay account.' : 'Razorpay Direct must be configured by the Super Admin before paid registrations can be accepted.') : (payoutProfile?.actionRequired || payoutProfile?.statusReason || 'Submit organizer payout details to enable paid ticket checkout.')"></p>
+                     <div x-show="payoutProfile?.paymentMethod === 'razorpay_route' && payoutProfile?.configured" class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
                       <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Razorpay account ID</span><code class="block font-bold text-gray-700 mt-0.5 break-all" x-text="payoutProfile?.accountId || '—'"></code></div>
                       <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Razorpay stakeholder ID</span><code class="block font-bold text-gray-700 mt-0.5 break-all" x-text="payoutProfile?.stakeholderId || 'Not created yet'"></code></div>
                        <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Razorpay Product ID</span><code class="block font-bold text-gray-700 mt-0.5 break-all" x-text="payoutProfile?.productId || 'Not requested yet'"></code></div>
@@ -6284,7 +6284,7 @@
                 </div>
               </div>
 
-              <form x-show="!payoutProfile?.configured" @submit.prevent="submitPayoutSetup()" class="dash-card">
+              <form x-show="payoutProfile?.paymentMethod === 'razorpay_route' && !payoutProfile?.configured" @submit.prevent="submitPayoutSetup()" class="dash-card">
                 <div class="flex items-start gap-3 mb-6">
                   <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-shield-halved"></i></div>
                   <div>
@@ -6440,7 +6440,7 @@
                 </div>
               </form>
 
-              <div x-show="payoutProfile?.configured" class="dash-card">
+              <div x-show="payoutProfile?.paymentMethod === 'razorpay_route' && payoutProfile?.configured" class="dash-card">
                 <div class="flex items-center justify-between gap-3 mb-4">
                   <div><h2 class="font-extrabold text-gray-900">Update payout details</h2><p class="text-xs text-gray-500 mt-1">Updates are sent to Razorpay using the saved provider IDs. Sensitive values are never loaded from the profile.</p></div>
                   <i class="fa-solid fa-pen-to-square text-gray-400"></i>
@@ -6454,7 +6454,7 @@
                 </div>
               </div>
 
-              <form x-show="payoutUpdateMode" @submit.prevent="submitPayoutSetup()" class="dash-card">
+              <form x-show="payoutProfile?.paymentMethod === 'razorpay_route' && payoutUpdateMode" @submit.prevent="submitPayoutSetup()" class="dash-card">
                 <div class="flex items-start justify-between gap-3 mb-5">
                   <div><h2 class="font-extrabold text-gray-900">Edit <span x-text="payoutUpdateMode === 'update_account' ? 'account details' : (payoutUpdateMode === 'update_stakeholder' ? 'stakeholder details' : 'settlement details')"></span></h2><p class="text-xs text-gray-500 mt-1">Enter the values again for this update. Razorpay remains the source of truth.</p></div>
                   <button type="button" class="text-xs font-bold text-gray-500" @click="payoutUpdateMode = null">Cancel</button>
@@ -6483,7 +6483,7 @@
                 <button type="submit" :disabled="payoutSaving" class="btn-primary mt-5 disabled:opacity-60"><i class="fa-solid fa-floppy-disk"></i><span x-text="payoutSaving ? 'Updating…' : 'Update details'"></span></button>
               </form>
 
-              <form x-show="payoutProfile?.configured && payoutProfile?.onboarding?.currentStage !== 'complete'" @submit.prevent="submitPayoutSetup()" class="dash-card">
+              <form x-show="payoutProfile?.paymentMethod === 'razorpay_route' && payoutProfile?.configured && payoutProfile?.onboarding?.currentStage !== 'complete'" @submit.prevent="submitPayoutSetup()" class="dash-card">
                 <div class="flex items-start gap-3 mb-6">
                   <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-list-check"></i></div>
                   <div>
