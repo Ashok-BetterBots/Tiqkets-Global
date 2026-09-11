@@ -10,12 +10,6 @@ let audioModeReady = false;
 let lastSuccessAt = 0;
 let lastErrorAt   = 0;
 
-function toneAsset(kind: "success" | "error") {
-  return kind === "success"
-    ? require("../assets/sounds/success-tone.mp3")
-    : require("../assets/sounds/error-tone.mp3");
-}
-
 async function ensureAudioMode(): Promise<void> {
   if (audioModeReady) return;
   try {
@@ -29,23 +23,6 @@ async function ensureAudioMode(): Promise<void> {
     audioModeReady = true;
   } catch {
     // non-fatal — playback will still be attempted
-  }
-}
-
-export async function preloadAlertTones(): Promise<void> {
-  if (Platform.OS === "web") return;
-  try {
-    await ensureAudioMode();
-    if (!successSound) {
-      const loaded = await Audio.Sound.createAsync(toneAsset("success"), { shouldPlay: false });
-      successSound = loaded.sound;
-    }
-    if (!errorSound) {
-      const loaded = await Audio.Sound.createAsync(toneAsset("error"), { shouldPlay: false });
-      errorSound = loaded.sound;
-    }
-  } catch (err) {
-    console.log("Alert tone preload error:", err);
   }
 }
 
@@ -65,23 +42,35 @@ async function playTone(kind: "success" | "error"): Promise<void> {
   try {
     await ensureAudioMode();
 
-    let sound = kind === "success" ? successSound : errorSound;
-    if (!sound) {
-      const loaded = await Audio.Sound.createAsync(toneAsset(kind), {
-        shouldPlay: false,
-        volume: 1.0,
-      });
-      sound = loaded.sound;
-      if (kind === "success") successSound = sound;
-      else errorSound = sound;
+    if (kind === "success" && successSound) {
+      await successSound.unloadAsync();
+      successSound = null;
     }
+    if (kind === "error" && errorSound) {
+      await errorSound.unloadAsync();
+      errorSound = null;
+    }
+
+    const asset =
+      kind === "success"
+        ? require("../assets/sounds/success-tone.mp3")
+        : require("../assets/sounds/error-tone.mp3");
+
+    const { sound } = await Audio.Sound.createAsync(asset, {
+      shouldPlay: true,
+      volume: 1.0,
+    });
+
+    if (kind === "success") successSound = sound;
+    else errorSound = sound;
 
     sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
       if (status.isLoaded && status.didJustFinish) {
-        sound?.stopAsync().catch(() => {});
+        sound.unloadAsync().catch(() => {});
+        if (kind === "success" && successSound === sound) successSound = null;
+        if (kind === "error" && errorSound === sound) errorSound = null;
       }
     });
-    await sound.replayAsync();
   } catch (err) {
     console.log(`Alert tone (${kind}) playback error:`, err);
   }
