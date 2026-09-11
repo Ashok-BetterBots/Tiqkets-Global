@@ -1,0 +1,65 @@
+CURRENT BEHAVIOR: Date and Time are currently two separate dropdown
+fields. I want to replace both with a chip-based selector as described
+below.
+
+NEW DESIGN:
+
+1. DATE ROW — horizontally scrollable chips:
+   - Replace the date dropdown with a horizontally scrollable row of date
+     chips (e.g. using a horizontal `FlatList` or `ScrollView` with
+     `horizontal` and `showsHorizontalScrollIndicator={false}`).
+   - Only 3 date chips should be visible in the viewport at a time; the
+     rest are revealed by scrolling left/right within this row.
+   - Each chip shows the date (e.g. "Thu, 10 Sep"). The selected date chip
+     gets a distinct selected state (raspberry #9C1A5B border/fill,
+     matching the rest of the modal's selected-state styling).
+   - Only one date can be selected at a time.
+
+2. TIME ROW — appears below the date row, also as horizontally scrollable
+   chips:
+   - Once a date is selected, show a second horizontally scrollable row
+     of time-slot chips for that date (e.g. "9 AM – 12 PM", "12 PM – 3 PM",
+     etc.), using the same chip style and selection behavior as the date
+     row.
+   - IMPORTANT: the time slots shown must be specific to the currently
+     selected date — if the user changes the selected date, the time row
+     must update to reflect that date's available time slots (pull from
+     whatever data/API already powers the existing date/time dropdowns —
+     do not change that data source, only how it's displayed and how the
+     UI reacts to selection).
+   - Only one time slot can be selected at a time.
+
+3. AVAILABILITY TEXT:
+   - Directly below the time row, show a small gray caption text with the
+     number of slots available for the currently selected time chip (e.g.
+     "1,000 slots left"), matching the existing "(1000 left)" data that's
+     already shown today — just relocate/restyle it, don't change the
+     underlying count logic.
+   - This text should update whenever the selected time chip changes.
+
+4. GIFT MESSAGE:
+   - The existing "A surprise gift awaits! Enter and exit the shop within
+     3 hours to receive a surprise gift." banner should only appear once a
+     time chip has been selected (not before), positioned directly below
+     the availability text, in the same section. Keep its existing
+     copy/condition/logic — only change when it becomes visible (i.e. tied
+     to time-chip selection instead of always visible or tied to whatever
+     condition currently shows it, if that's different).
+
+BEHAVIOR RULES:
+- If the user changes the selected date after already picking a time
+  slot, clear/reset the previously selected time slot (since time slots
+  are date-dependent) and hide the availability text and gift message
+  until a new time slot is chosen for the new date.
+- The "Next" button's existing validation (requiring both date and time
+  to be selected before proceeding) must continue to work exactly as
+  before — just driven by chip selection instead of dropdown selection.
+- Do not change any other part of step 1 (product category, accessibility
+  toggle) or any part of steps 2 and 3.
+- Do not change the modal's overall styling, spacing conventions, or
+  brand color usage outside of this date/time section — match the
+  existing card/chip visual style already used elsewhere in this modal.
+
+After implementing, confirm: how date and time chips are populated (data
+source unchanged), how the time row reacts to date changes, and that
+existing validation before "Next" still works correctly.
