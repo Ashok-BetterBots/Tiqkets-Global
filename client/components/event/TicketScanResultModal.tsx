@@ -188,21 +188,6 @@ function fmtTimestamp(value?: string | null): string {
   }
 }
 
-const JOURNEY_META: Record<string, {
-  icon: React.ComponentProps<typeof Feather>["name"];
-  label: string;
-  color: string;
-}> = {
-  registration_started: { icon: "user-plus", label: "Registration Started", color: BRAND },
-  payment_completed: { icon: "dollar-sign", label: "Payment Completed", color: "#F59E0B" },
-  ticket_generated: { icon: "credit-card", label: "Ticket Generated", color: "#8B5CF6" },
-  arrived: { icon: "navigation", label: "Arrived at Venue", color: "#3B82F6" },
-  checked_in: { icon: "log-in", label: "Checked In", color: "#10B981" },
-  exited: { icon: "log-out", label: "Exited", color: "#6B7280" },
-  feedback_submitted: { icon: "star", label: "Feedback Submitted", color: "#F59E0B" },
-  duplicate_scan: { icon: "alert-circle", label: "Duplicate Scan", color: "#F97316" },
-};
-
 // ─── Component ────────────────────────────────────────────────────────────────
 interface Props {
   visible: boolean;
@@ -459,61 +444,6 @@ export function TicketScanResultModal({
                   />
                 </View>
 
-                {data.journey?.length ? (
-                  <View
-                    style={[
-                      styles.journeyCard,
-                      { backgroundColor: theme.backgroundRoot, borderColor: theme.border },
-                    ]}
-                    testID="duplicate-ticket-journey"
-                  >
-                    <View style={styles.journeyHeader}>
-                      <Feather name="clock" size={15} color={BRAND} />
-                      <ThemedText style={styles.journeyHeaderText}>Ticket Journey</ThemedText>
-                    </View>
-                    {data.journey.map((row, index) => {
-                      const meta = JOURNEY_META[row.stage] ?? {
-                        icon: "activity" as const,
-                        label: row.stage.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-                        color: BRAND,
-                      };
-                      const isLast = index === data.journey!.length - 1;
-                      const isCurrent = index === 0;
-                      return (
-                        <View key={row.id} style={styles.journeyItem}>
-                          {!isLast ? (
-                            <View style={[styles.journeyLine, { backgroundColor: theme.border }]} />
-                          ) : null}
-                          <View
-                            style={[
-                              styles.journeyDot,
-                              {
-                                backgroundColor: isCurrent ? meta.color : theme.surface,
-                                borderColor: meta.color,
-                                borderWidth: isCurrent ? 0 : 2,
-                              },
-                            ]}
-                          >
-                            <Feather name={meta.icon} size={10} color={isCurrent ? "#FFFFFF" : meta.color} />
-                          </View>
-                          <View style={{ flex: 1, paddingBottom: isLast ? 0 : Spacing.lg }}>
-                            <ThemedText
-                              style={[
-                                styles.journeyStage,
-                                { color: isCurrent ? meta.color : theme.text },
-                              ]}
-                            >
-                              {meta.label}
-                            </ThemedText>
-                            <ThemedText style={[styles.journeyTime, { color: theme.textSecondary }]}>
-                              {fmtTimestamp(row.createdAt)}
-                            </ThemedText>
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </View>
-                ) : null}
               </>
             ) : null}
 
@@ -792,51 +722,6 @@ const styles = StyleSheet.create({
   duplicateStatusValue: {
     fontSize: 16,
     fontWeight: "800",
-    marginTop: 2,
-  },
-  journeyCard: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-  },
-  journeyHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    marginBottom: Spacing.lg,
-  },
-  journeyHeaderText: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  journeyItem: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    paddingLeft: 2,
-  },
-  journeyLine: {
-    position: "absolute",
-    left: 11,
-    top: 20,
-    width: 1.5,
-    bottom: 0,
-    zIndex: 0,
-  },
-  journeyDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  journeyStage: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  journeyTime: {
-    fontSize: 11,
     marginTop: 2,
   },
   /* ── Validity banner ── */
