@@ -79,3 +79,4 @@
 - [Event fee payout gate](event-fee-payout-gate.md) — event fees unlock when a valid Razorpay Product ID exists; enforce the same rule on create and update.
 - [Android safe-area positioning](android-safe-area-positioning.md) — SDK 57/target 36 uses runtime insets; legacy app.json system-bar keys are deprecated no-ops.
 - [Expo browser landing precedence](expo-browser-landing-precedence.md) — Replit may add expo-platform to Safari requests; explicit text/html on / must win over native manifest routing.
+- [Event payment adapter persistence](event-payment-adapter-persistence.md) — Route and Direct share ticket completion, but each checkout must freeze its adapter/order/amount; Direct credentials stay in Replit Secrets.

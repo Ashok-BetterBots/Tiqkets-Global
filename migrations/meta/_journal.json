@@ -131,12 +131,26 @@
     {
       "idx": 18,
       "version": "7",
+      "when": 1788750000000,
+      "tag": "0018_event_registration_category_selections",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788770000000,
+      "tag": "0019_event_preprinted_ticket_prefix",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
       "when": 1788800000000,
       "tag": "0020_event_payment_checkouts",
       "breakpoints": true
     },
     {
-      "idx": 19,
+      "idx": 21,
       "version": "7",
       "when": 1788900000000,
       "tag": "0021_checkout_intent_backfill",
