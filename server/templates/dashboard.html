@@ -6373,7 +6373,10 @@
                     </div>
                     <div>
                       <label class="block text-xs font-bold text-gray-700 mb-1.5">State <span class="text-red-500">*</span></label>
-                      <input x-model.trim="payoutForm.profile.addresses.registered.state" required class="input-field" autocomplete="address-level1">
+                     <select x-model="payoutForm.profile.addresses.registered.state" required class="input-field" autocomplete="address-level1">
+                       <option value="">Select state</option>
+                       <option>ANDHRA PRADESH</option><option>ARUNACHAL PRADESH</option><option>ASSAM</option><option>BIHAR</option><option>CHHATTISGARH</option><option>GOA</option><option>GUJARAT</option><option>HARYANA</option><option>HIMACHAL PRADESH</option><option>JHARKHAND</option><option>KARNATAKA</option><option>KERALA</option><option>MADHYA PRADESH</option><option>MAHARASHTRA</option><option>MANIPUR</option><option>MEGHALAYA</option><option>MIZORAM</option><option>NAGALAND</option><option>ODISHA</option><option>PUNJAB</option><option>RAJASTHAN</option><option>SIKKIM</option><option>TAMIL NADU</option><option>TELANGANA</option><option>TRIPURA</option><option>UTTAR PRADESH</option><option>UTTARAKHAND</option><option>WEST BENGAL</option><option>ANDAMAN AND NICOBAR ISLANDS</option><option>CHANDIGARH</option><option>DADRA AND NAGAR HAVELI AND DAMAN AND DIU</option><option>DELHI</option><option>JAMMU AND KASHMIR</option><option>LADAKH</option><option>LAKSHADWEEP</option><option>PUDUCHERRY</option>
+                     </select>
                     </div>
                     <div>
                       <label class="block text-xs font-bold text-gray-700 mb-1.5">Postal code <span class="text-red-500">*</span></label>
@@ -6462,7 +6465,7 @@
                   <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-700 mb-1.5">Registered address line 1 <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.street1" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
                   <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-700 mb-1.5">Registered address line 2 <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.street2" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">City <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.city" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">State <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.state" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">State <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.state" placeholder="Full state name, e.g. Tamil Nadu" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Postal code <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.postal_code" class="input-field" :required="payoutUpdateMode === 'update_account'" pattern="[0-9]{6}"></div>
                 </div>
                 <div x-show="payoutUpdateMode === 'update_stakeholder'" class="grid grid-cols-1 md:grid-cols-2 gap-4">

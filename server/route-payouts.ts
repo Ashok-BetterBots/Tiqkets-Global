@@ -386,7 +386,7 @@ export function payoutProviderMessage(stage: string, failure: {
         street1: "Registered address line 1: enter the primary street or building address, up to 100 characters.",
         street2: "Registered address line 2: this field is required by Razorpay and must be 100 characters or fewer.",
         city: "Registered address city: enter the city name.",
-        state: "Registered address state: enter the full Indian state name.",
+        state: "Registered address state: Razorpay rejected this value. Select the full Indian state name (for example, Tamil Nadu), not an unrecognized abbreviation.",
         postal_code: "Registered address postal code: enter exactly 6 digits.",
         pan: razorpayCredentialMode() === "test"
           ? "PAN: Test Mode requires AAACL1234C. Configure platform live keys before submitting a real PAN."
@@ -1029,6 +1029,7 @@ export function registerRoutePayoutRoutes(app: Express) {
               field: diagnostics.field,
               issue: diagnostics.issue,
             },
+            ...(diagnostics.field ? { fieldErrors: { [diagnostics.field]: outcome.error } } : {}),
           } : {}),
         });
       }

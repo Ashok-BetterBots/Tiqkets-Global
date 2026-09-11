@@ -96,6 +96,28 @@ export type AccountUpdateInput = {
 
 type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
+const INDIAN_STATE_NAMES: Record<string, string> = {
+  AP: "ANDHRA PRADESH", AR: "ARUNACHAL PRADESH", AS: "ASSAM", BR: "BIHAR",
+  CG: "CHHATTISGARH", GA: "GOA", GJ: "GUJARAT", HR: "HARYANA",
+  HP: "HIMACHAL PRADESH", JH: "JHARKHAND", KA: "KARNATAKA", KL: "KERALA",
+  MP: "MADHYA PRADESH", MH: "MAHARASHTRA", MN: "MANIPUR", ML: "MEGHALAYA",
+  MZ: "MIZORAM", NL: "NAGALAND", OD: "ODISHA", OR: "ODISHA", PB: "PUNJAB",
+  RJ: "RAJASTHAN", SK: "SIKKIM", TN: "TAMIL NADU", TS: "TELANGANA",
+  TG: "TELANGANA", TR: "TRIPURA", UP: "UTTAR PRADESH", UK: "UTTARAKHAND",
+  UT: "UTTARAKHAND", WB: "WEST BENGAL", AN: "ANDAMAN AND NICOBAR ISLANDS",
+  CH: "CHANDIGARH", DN: "DADRA AND NAGAR HAVELI AND DAMAN AND DIU",
+  DD: "DADRA AND NAGAR HAVELI AND DAMAN AND DIU", DL: "DELHI",
+  JK: "JAMMU AND KASHMIR", LA: "LADAKH", LD: "LAKSHADWEEP", PY: "PUDUCHERRY",
+};
+
+export function normalizeIndianState(value: unknown): string | null {
+  const input = String(value || "").trim().toUpperCase().replace(/[._-]+/g, " ").replace(/\s+/g, " ");
+  if (!input) return null;
+  if (INDIAN_STATE_NAMES[input]) return INDIAN_STATE_NAMES[input];
+  const compact = input.replace(/\s+/g, "");
+  return Object.values(INDIAN_STATE_NAMES).find(state => state.replace(/\s+/g, "") === compact) || null;
+}
+
 function parseBody(body: unknown): Record<string, unknown> | null {
   return body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : null;
 }
@@ -110,14 +132,14 @@ function parseRegisteredAddress(profile: Record<string, unknown> | null): Valida
   const street1 = String(address.street1 || "").trim();
   const street2 = String(address.street2 || "").trim();
   const city = String(address.city || "").trim();
-  const state = String(address.state || "").trim().toUpperCase();
+  const state = normalizeIndianState(address.state);
   const postalCode = String(address.postal_code || "").replace(/\s/g, "");
   if (!street1) return { ok: false, error: "Registered address line 1 is required" };
   if (street1.length > 100) return { ok: false, error: "Registered address line 1 must be 100 characters or fewer" };
   if (!street2) return { ok: false, error: "Registered address line 2 is required" };
   if (street2.length > 100) return { ok: false, error: "Registered address line 2 must be 100 characters or fewer" };
   if (!city) return { ok: false, error: "Registered address city is required" };
-  if (!state) return { ok: false, error: "Registered address state is required" };
+  if (!state) return { ok: false, error: "Registered address state must be a valid Indian state or union territory (for example, Tamil Nadu)" };
   if (!/^\d{6}$/.test(postalCode)) return { ok: false, error: "Registered address postal code must contain exactly 6 digits" };
   return { ok: true, value: { street1, street2, city, state, postal_code: postalCode, country: "IN" } };
 }

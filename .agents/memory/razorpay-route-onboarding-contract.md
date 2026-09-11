@@ -32,3 +32,11 @@ Treat actual Razorpay credential mode (the `rzp_test_` versus `rzp_live_` key pr
 **Why:** A production deployment can still use test credentials. Razorpay then rejects real KYC data, while its linked-account 400 response may set `field` to null. Razorpay's documented sample sends the Indian national phone without the country code.
 
 **How to apply:** Derive both the UI Test Mode notice and dummy-data enforcement from credential mode. Classify provider `description`/`reason` transiently into allowlisted field/issue enums, but never log, persist, or return raw provider text or submitted KYC values.
+
+## Registered address state format
+
+Send the registered Indian state as Razorpay's canonical uppercase full name. Normalize common postal abbreviations and spacing variants before building the provider payload.
+
+**Why:** Razorpay rejected a linked-account request with `field=state` and `issue=invalid_value`; the generic error was previously mislabeled as a business-type problem.
+
+**How to apply:** Keep the web form restricted to the accepted state list, normalize native/free-text input server-side, and expose only the safe `state`/`invalid_value` classification—not the submitted address.

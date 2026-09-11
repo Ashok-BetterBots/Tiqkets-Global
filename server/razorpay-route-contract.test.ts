@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeAllocationStatusFromTransferEntity, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, safeRouteTransferDetails, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
+import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, normalizeIndianState, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeAllocationStatusFromTransferEntity, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, safeRouteTransferDetails, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
 import { isDefinitiveProviderRejection, isRazorpayCredentialTestMode, isRazorpayTestMode, lookupSafeRouteTransfer, mapWithConcurrency, payoutHistoryPagination, payoutProviderMessage, pendingRouteOnboardingStages, razorpayApiUrl, razorpayFailure, razorpayTestDataError, savedRouteProfileIdError } from "./route-payouts";
 
 test("onboarding validation accepts transit-only business request", () => {
@@ -53,6 +53,20 @@ test("linked-account form requires the documented contact and legal information"
   assert.equal(invalidName.ok, false);
   if (!invalidName.ok) assert.match(invalidName.error, /Legal business name/);
   assert.equal(validateOnboardingInput({ ...base, business_type: "individual", legal_info: { ...base.legal_info, gst: "" } }).ok, true);
+});
+test("linked-account state is normalized to Razorpay's canonical full name", () => {
+  assert.equal(normalizeIndianState("TN"), "TAMIL NADU");
+  assert.equal(normalizeIndianState("Tamilnadu"), "TAMIL NADU");
+  assert.equal(normalizeIndianState("Tamil Nadu"), "TAMIL NADU");
+  assert.equal(normalizeIndianState("not a state"), null);
+  const linked = validateLinkedAccountInput({
+    legal_business_name: "Venue Pvt Ltd", email: "organizer@example.com", phone: "9876543210",
+    contact_name: "Venue Owner", business_type: "proprietorship", tnc_accepted: true,
+    profile: { addresses: { registered: { street1: "1 Road", street2: "Hall 2", city: "Coimbatore", state: "TN", postal_code: "641010" } } },
+    legal_info: { pan: "ABCDE1234F", gst: "" },
+  });
+  assert.equal(linked.ok, true);
+  if (linked.ok) assert.equal(buildLinkedAccountPayload(linked.value).profile.addresses.registered.state, "TAMIL NADU");
 });
 test("non-GST organizers omit GST from the linked-account provider payload", () => {
   const input = {
@@ -340,6 +354,12 @@ test("Route provider errors become field-specific without exposing raw descripti
   assert.equal(fieldFailure.field, "postal_code");
   assert.equal(fieldFailure.issue, "invalid_length");
   assert.match(payoutProviderMessage("Razorpay onboarding", fieldFailure), /^Registered address postal code:/);
+
+  const stateFailure = await razorpayFailure(new Response(JSON.stringify({
+    error: { code: "BAD_REQUEST_ERROR", field: "profile.addresses.registered.state", description: "State is invalid" },
+  }), { status: 400 }));
+  assert.equal(stateFailure.field, "state");
+  assert.match(payoutProviderMessage("Razorpay onboarding", stateFailure), /^Registered address state: Razorpay rejected this value/);
 });
 test("Route onboarding only accepts valid provider identifiers", () => {
   assert.equal(isValidRazorpayProviderId("acc_123abc", "acc_"), true);
