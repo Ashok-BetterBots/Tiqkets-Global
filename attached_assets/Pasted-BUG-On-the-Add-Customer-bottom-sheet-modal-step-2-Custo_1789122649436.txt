@@ -1,0 +1,37 @@
+BUG: On the "Add Customer" bottom sheet modal, step 2 (Customer info),
+when the user taps the WhatsApp Number or Email fields, Android shows a
+dropdown of previously entered/historical values (autofill/autocomplete
+suggestions from past inputs on the device). This suggestion dropdown
+takes up screen space and pushes the modal content upward, which further
+hides the field the user is trying to fill, in addition to being visual
+clutter that shouldn't appear at all.
+
+FIX:
+- Disable autofill/autocomplete suggestions specifically for the
+  WhatsApp Number and Email fields in this modal (step 2), so no
+  historical value dropdown appears when they're focused.
+- For each of these two `TextInput` components, set:
+  - `autoComplete="off"` (and where relevant, a non-matching specific
+    value rather than `"tel"`/`"email"`, since some Android keyboards
+    still show suggestions based on `autoComplete`/`keyboardType` hints)
+  - `importantForAutofill="no"` (Android-specific prop on `TextInput`)
+  - `autoCorrect={false}` if not already set, to avoid unrelated
+    suggestion bars as well
+- Verify this doesn't disable normal typing, keyboard type (numeric for
+  WhatsApp Number, email keyboard for Email), or any existing validation
+  — the fields must otherwise behave exactly as before, just without the
+  historical-value suggestion dropdown.
+- Do not change this behavior on any other fields (Full Name, Extra
+  Guests) unless they show the same issue — if they do, apply the same
+  fix there too and mention it explicitly.
+- Do not change iOS behavior — apply this only where it's needed to fix
+  the Android autofill dropdown; if iOS doesn't show this issue, leave it
+  untouched.
+
+TEST: On an Android device/emulator, tap the WhatsApp Number field, then
+the Email field, and confirm no historical/autofill suggestion dropdown
+appears, the modal does not shift due to a suggestion list, and the
+correct keyboard type still appears for each field.
+
+After implementing, confirm exactly which fields and props were changed,
+and confirm no other styling, validation, or functionality was affected.
