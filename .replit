@@ -6,7 +6,7 @@ channel = "stable-24_05"
 packages = ["unzip"]
 
 [deployment]
-deploymentTarget = "vm"
+deploymentTarget = "cloudrun"
 build = ["sh", "-c", "npm run expo:static:build && npm run server:build"]
 run = ["sh", "-c", "npm run server:prod"]
 
