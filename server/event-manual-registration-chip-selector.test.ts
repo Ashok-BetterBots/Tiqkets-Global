@@ -11,6 +11,10 @@ test("Add Customer uses date-dependent date and time chip selectors", () => {
   assert.match(source, /accessibilityRole="radio"/);
   assert.match(source, /setField\(\{ slotDate: day\.date, slotTime: "" \}\)/);
   assert.match(source, /const selectedTimeSlot = useMemo/);
+  assert.match(
+    source,
+    /formatSlotRange\(selectedTimeSlot\)\} - \{selectedTimeSlot\.available/,
+  );
   assert.match(source, /selectedTimeSlot\.available\.toLocaleString\("en-IN"\)/);
   assert.match(source, /selectedTimeSlot \? \(/);
 
