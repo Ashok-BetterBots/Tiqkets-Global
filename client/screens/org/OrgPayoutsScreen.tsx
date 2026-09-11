@@ -149,7 +149,7 @@ export default function OrgPayoutsScreen() {
             <Field label="Registered address *" value={form.profile.addresses.registered.street1} error={errors.address} onChangeText={v => setAddress("street1", v)} />
             <Field label="Address line 2 *" value={form.profile.addresses.registered.street2} error={errors.address} onChangeText={v => setAddress("street2", v)} />
             <Field label="City *" value={form.profile.addresses.registered.city} onChangeText={v => setAddress("city", v)} />
-            <Field label="State *" value={form.profile.addresses.registered.state} onChangeText={v => setAddress("state", v)} />
+            <Field label="State *" value={form.profile.addresses.registered.state} error={errors.state} placeholder="Tamil Nadu" hint="Enter the full Indian state name." onChangeText={v => setAddress("state", v)} />
             <Field label="Postal code *" value={form.profile.addresses.registered.postal_code} keyboardType="number-pad" onChangeText={v => setAddress("postal_code", v)} />
             <Field label="PAN *" value={form.legal_info.pan} error={errors.pan} secureTextEntry autoCapitalize="characters" onChangeText={v => setForm(c => ({ ...c, legal_info: { ...c.legal_info, pan: v } }))} />
             <Field label="GSTIN (if registered)" value={form.legal_info.gst} error={errors.gst} secureTextEntry autoCapitalize="characters" onChangeText={v => setForm(c => ({ ...c, legal_info: { ...c.legal_info, gst: v } }))} />
