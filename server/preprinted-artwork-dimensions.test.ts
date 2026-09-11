@@ -14,6 +14,17 @@ test("event ticket artwork editor preserves its existing design dimensions", () 
   assert.match(routes, /PREPRINTED_CANVAS_ASPECT_RATIO = 203 \/ 82/);
 });
 
+test("opening batch creation brings the form to the top of the inventory popup", () => {
+  const dashboard = readFileSync("server/templates/dashboard.html", "utf8");
+
+  assert.match(dashboard, /@click="togglePreprintedCreatePanel\(\)"/);
+  assert.match(dashboard, /x-ref="ptkCreatePanel"[^>]*x-show="ptkCreatePanelOpen"/);
+  assert.match(
+    dashboard,
+    /this\.\$refs\.ptkCreatePanel\?\.scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/,
+  );
+});
+
 test("print sheets use the A3 six-up rotated layout and front-master pagination", () => {
   const routes = readFileSync("server/events-routes.ts", "utf8");
 

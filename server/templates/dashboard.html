@@ -2724,7 +2724,7 @@
 
                 <!-- Action bar -->
                 <div class="flex flex-wrap items-center gap-2">
-                  <button @click="ptkCreatePanelOpen = !ptkCreatePanelOpen; ptkValidatePanelOpen = false"
+                  <button @click="togglePreprintedCreatePanel()"
                           :class="ptkCreatePanelOpen ? 'bg-brand text-white border-brand' : 'btn-primary'"
                           class="btn-primary text-xs">
                     <i class="fa-solid fa-plus mr-1"></i>Create &amp; print batch
@@ -2856,7 +2856,7 @@
                 </div>
 
                 <!-- Inline create batch panel -->
-                <div x-show="ptkCreatePanelOpen" x-transition class="rounded-xl border border-brand/20 bg-brand/5 p-4 space-y-3">
+                <div x-ref="ptkCreatePanel" x-show="ptkCreatePanelOpen" x-transition class="rounded-xl border border-brand/20 bg-brand/5 p-4 space-y-3 scroll-mt-4">
                   <p class="text-sm font-bold text-gray-800">Create a new ticket batch</p>
                   <p class="text-xs text-gray-500">Each batch gets a unique code. Tickets are numbered 000001 → N. Large batches (50k+) may take up to a minute to generate.</p>
                   <div class="flex items-center gap-3 flex-wrap">
@@ -13969,6 +13969,16 @@
           this.ptkCreatePanelOpen = false;
           this.ptkCreateCount = 100;
           await this.loadPreprintedTickets();
+        },
+        togglePreprintedCreatePanel() {
+          const opening = !this.ptkCreatePanelOpen;
+          this.ptkCreatePanelOpen = opening;
+          this.ptkValidatePanelOpen = false;
+          if (opening) {
+            this.$nextTick(() => {
+              this.$refs.ptkCreatePanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }
         },
         async savePreprintedArtwork(showSuccess = true) {
           const ev = this.preprintedTicketEvent;
