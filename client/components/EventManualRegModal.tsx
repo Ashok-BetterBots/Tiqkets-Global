@@ -156,7 +156,7 @@ export function EventManualRegModal({
   eventName?: string;
   onSuccess?: () => void;
 }) {
-  const { height: screenHeight } = useWindowDimensions();
+  const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const surface = "#FFFFFF";
   const bg = "#F7F5FE";
@@ -170,8 +170,6 @@ export function EventManualRegModal({
   const [form, setForm] = useState<EmptyForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState<Registration | null>(null);
-  const [showDateDropdown, setShowDateDropdown] = useState(false);
-  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [eventSlotDurationMinutes, setEventSlotDurationMinutes] = useState(30);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraScanned, setCameraScanned] = useState(false);
@@ -244,8 +242,6 @@ export function EventManualRegModal({
       amountCollected,
     });
     setLoadError(null);
-    setShowDateDropdown(false);
-    setShowTimeDropdown(false);
     setCameraOpen(false);
     setCameraScanned(false);
     setCameraError(null);
@@ -307,6 +303,13 @@ export function EventManualRegModal({
     () => (selectedDay?.times || []).filter((t) => !t.past && t.available > 0),
     [selectedDay],
   );
+  const selectedTimeSlot = useMemo(
+    () => bookableTimes.find((slot) => slot.time === form.slotTime) || null,
+    [bookableTimes, form.slotTime],
+  );
+  // The slot card has 16px page padding and 14px internal padding. Accounting
+  // for two 8px gaps leaves room for precisely three date/time chips.
+  const slotChipWidth = Math.floor((screenWidth - 76) / 3);
 
   const minDate = useMemo(() => {
     if (!slotDates.length) return new Date();
@@ -360,10 +363,9 @@ export function EventManualRegModal({
       return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
     } catch { return dateStr; }
   };
-  const formatSlotOption = useCallback((slot: SlotTime): string => {
+  const formatSlotRange = useCallback((slot: SlotTime): string => {
     const duration = selectedLocation?.slotDurationMinutes ?? eventSlotDurationMinutes;
-    const range = slot.rangeLabel || formatEventSlotRange(slot.time, duration);
-    return `${range} (${slot.available} left)`;
+    return slot.rangeLabel || formatEventSlotRange(slot.time, duration);
   }, [eventSlotDurationMinutes, selectedLocation]);
 
   const amountDue = Number(selectedLocation?.registrationFee || 0) / 100;
@@ -642,7 +644,6 @@ export function EventManualRegModal({
                               key={l.id}
                                onPress={() => {
                                  setField({ locationId: l.id, slotDate: "", slotTime: "", amountCollected: String(Number(l.registrationFee || 0) / 100) });
-                                 setShowTimeDropdown(false);
                                }}
                               style={[styles.chip, { borderColor: sel ? BRAND : border, backgroundColor: sel ? BRAND + "15" : "transparent" }]}
                               testID={`chip-location-${l.id}`}
@@ -720,8 +721,6 @@ export function EventManualRegModal({
                               setRegularDateConfirmedFingerprint(null);
                               if (!answer) {
                                 setField({ selectedSpecialCategories: [], slotDate: "", slotTime: "" });
-                                setShowDateDropdown(false);
-                                setShowTimeDropdown(false);
                               }
                             }}
                             style={[
@@ -767,8 +766,6 @@ export function EventManualRegModal({
                                 slotDate: next.length > 0 ? (lastDate?.date || "") : "",
                                 slotTime: "",
                               });
-                              setShowDateDropdown(false);
-                              setShowTimeDropdown(false);
                             }}
                             style={[styles.categoryTile, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : surface }]}
                             accessibilityRole="checkbox"
@@ -798,146 +795,128 @@ export function EventManualRegModal({
                   </Field>
                   </View>
 
-                  {/* ── Slot date — locked (special needs) or dropdown ── */}
                   <View style={styles.slotCard}>
-                  <View style={styles.slotRow}>
-                  <View style={styles.slotRowField}>
-                  <Field label="Slot date">
-                    {form.selectedSpecialCategories.length > 0 ? (
-                      <View style={[styles.input, { borderColor: border, flexDirection: "row", alignItems: "center", gap: Spacing.sm, opacity: 0.85 }]}>
-                        <Feather name="lock" size={14} color={BRAND} />
-                        <ThemedText style={{ color: text, flex: 1 }}>
-                          {form.slotDate
-                            ? formatDropdownDate(form.slotDate)
-                            : lastDate
-                              ? "Updating available date…"
-                              : "No dates available"}
-                        </ThemedText>
-                        {form.slotDate === lastDate?.date ? (
-                          <ThemedText style={{ color: textSecondary, fontSize: 11 }}>Last day</ThemedText>
-                        ) : null}
-                      </View>
-                    ) : (
-                      <>
-                        {showDateDropdown && (
-                          <View style={{ borderWidth: 1, borderColor: border, borderRadius: 10, marginBottom: 4, overflow: "hidden" }}>
-                            {regularDates.length === 0 ? (
-                              <View style={{ padding: Spacing.md }}>
-                                <ThemedText style={{ color: textSecondary, fontSize: 13 }}>No dates available</ThemedText>
-                              </View>
-                            ) : regularDates.map((d, idx) => {
-                              const sel = d.date === form.slotDate;
+                    <Field label="Slot date">
+                      {form.selectedSpecialCategories.length > 0 ? (
+                        <View style={styles.slotChipScroll}>
+                          <View
+                            style={[
+                              styles.slotChip,
+                              styles.slotChipSelected,
+                              { width: slotChipWidth, borderColor: BRAND },
+                            ]}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: true, disabled: true }}
+                            testID="chip-manual-reg-date-locked"
+                          >
+                            <Feather name="lock" size={14} color={BRAND} />
+                            <ThemedText style={styles.slotChipTextSelected} numberOfLines={1}>
+                              {form.slotDate
+                                ? formatDropdownDate(form.slotDate)
+                                : lastDate
+                                  ? "Updating available date…"
+                                  : "No dates available"}
+                            </ThemedText>
+                          </View>
+                        </View>
+                      ) : regularDates.length > 0 ? (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.slotChipScroll}
+                          accessibilityRole="radiogroup"
+                          testID="manual-reg-date-chip-list"
+                        >
+                          {regularDates.map((day) => {
+                            const selected = day.date === form.slotDate;
+                            return (
+                              <Pressable
+                                key={day.date}
+                                onPress={() => {
+                                  setField({ slotDate: day.date, slotTime: "" });
+                                  gentlyScrollAfterSlotSelection();
+                                }}
+                                style={[
+                                  styles.slotChip,
+                                  { width: slotChipWidth, borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : surface },
+                                ]}
+                                accessibilityRole="radio"
+                                accessibilityLabel={`Select ${formatDropdownDate(day.date)}`}
+                                accessibilityState={{ checked: selected }}
+                                testID={`chip-manual-reg-date-${day.date}`}
+                              >
+                                <Feather name="calendar" size={14} color={selected ? BRAND : textSecondary} />
+                                <ThemedText style={[styles.slotChipText, { color: selected ? BRAND : text, fontWeight: selected ? "800" : "600" }]} numberOfLines={1}>
+                                  {day.label || formatDropdownDate(day.date)}
+                                </ThemedText>
+                                {selected ? <Feather name="check" size={14} color={BRAND} /> : null}
+                              </Pressable>
+                            );
+                          })}
+                        </ScrollView>
+                      ) : (
+                        <ThemedText style={styles.slotEmptyText}>No dates available</ThemedText>
+                      )}
+                    </Field>
+
+                    {form.slotDate ? (
+                      <Field label="Slot time">
+                        {bookableTimes.length > 0 ? (
+                          <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.slotChipScroll}
+                            accessibilityRole="radiogroup"
+                            testID="manual-reg-time-chip-list"
+                          >
+                            {bookableTimes.map((slot) => {
+                              const selected = slot.time === form.slotTime;
                               return (
                                 <Pressable
-                                  key={d.date}
-                                   onPress={() => {
-                                    setField({ slotDate: d.date, slotTime: "" });
-                                    setShowDateDropdown(false);
-                                    setShowTimeDropdown(false);
-                                    gentlyScrollAfterSlotSelection();
+                                  key={slot.time}
+                                  onPress={() => {
+                                    setField({ slotTime: slot.time });
+                                    gentlyScrollAfterSlotSelection(72);
                                   }}
-                                  style={[{ paddingHorizontal: Spacing.md, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: Spacing.sm, backgroundColor: sel ? BRAND + "15" : surface }, idx > 0 ? { borderTopWidth: 1, borderTopColor: border } : {}]}
+                                  style={[
+                                    styles.slotChip,
+                                    { width: slotChipWidth, borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : surface },
+                                  ]}
+                                  accessibilityRole="radio"
+                                  accessibilityLabel={`Select ${formatSlotRange(slot)}`}
+                                  accessibilityState={{ checked: selected }}
+                                  testID={`chip-manual-reg-time-${slot.time}`}
                                 >
-                                  <ThemedText style={{ color: sel ? BRAND : text, fontWeight: sel ? "700" : "500", flex: 1 }}>{formatDropdownDate(d.date)}</ThemedText>
-                                  {sel && <Feather name="check" size={14} color={BRAND} />}
+                                  <Feather name="clock" size={14} color={selected ? BRAND : textSecondary} />
+                                  <ThemedText style={[styles.slotChipText, { color: selected ? BRAND : text, fontWeight: selected ? "800" : "600" }]} numberOfLines={1}>
+                                    {formatSlotRange(slot)}
+                                  </ThemedText>
+                                  {selected ? <Feather name="check" size={14} color={BRAND} /> : null}
                                 </Pressable>
                               );
                             })}
-                          </View>
+                          </ScrollView>
+                        ) : (
+                          <ThemedText style={styles.slotEmptyText}>No available times for this date</ThemedText>
                         )}
-                        <Pressable
-                          onPress={() => setShowDateDropdown((v) => !v)}
-                          style={[styles.input, { borderColor: showDateDropdown ? BRAND : border, flexDirection: "row", alignItems: "center", gap: Spacing.sm }]}
-                          testID="button-manual-reg-date"
-                        >
-                          <Feather name="calendar" size={15} color={BRAND} />
-                          <ThemedText style={{ color: form.slotDate ? text : textSecondary, flex: 1 }}>
-                            {form.slotDate ? formatDropdownDate(form.slotDate) : "Select a date"}
-                          </ThemedText>
-                          <Feather name={showDateDropdown ? "chevron-up" : "chevron-down"} size={15} color={textSecondary} />
-                        </Pressable>
-                      </>
-                    )}
-                  </Field>
-                  </View>
+                      </Field>
+                    ) : null}
 
-                  {form.slotDate ? (
-                    <View style={styles.slotRowField}>
-                    <Field label="Slot time">
-                      {bookableTimes.length === 0 ? (
-                        <ThemedText style={{ color: textSecondary, fontSize: 13 }}>No available times for this date</ThemedText>
-                      ) : (
-                        <>
-                          {showTimeDropdown && (
-                            <View style={{ borderWidth: 1, borderColor: border, borderRadius: 10, marginBottom: 4, overflow: "hidden" }}>
-                              {bookableTimes.map((t, idx) => {
-                                const sel = t.time === form.slotTime;
-                                return (
-                                  <Pressable
-                                    key={t.time}
-                                    onPress={() => {
-                                      setField({ slotTime: t.time });
-                                      setShowTimeDropdown(false);
-                                      gentlyScrollAfterSlotSelection(72);
-                                    }}
-                                    style={[
-                                      { paddingHorizontal: Spacing.md, paddingVertical: 11, flexDirection: "row", alignItems: "center", gap: Spacing.sm, backgroundColor: sel ? BRAND + "15" : surface },
-                                      idx > 0 ? { borderTopWidth: 1, borderTopColor: border } : {},
-                                    ]}
-                                    testID={`option-manual-reg-time-${t.time}`}
-                                  >
-                                    <ThemedText style={{ color: sel ? BRAND : text, fontWeight: sel ? "700" : "500", flex: 1 }}>
-                                      {formatSlotOption(t)}
-                                    </ThemedText>
-                                    {sel && <Feather name="check" size={14} color={BRAND} />}
-                                  </Pressable>
-                                );
-                              })}
-                            </View>
-                          )}
-                          <Pressable
-                            onPress={() => setShowTimeDropdown((v) => !v)}
-                            style={[styles.input, { borderColor: showTimeDropdown ? BRAND : border, flexDirection: "row", alignItems: "center", gap: Spacing.sm }]}
-                            testID="button-manual-reg-time"
-                          >
-                            <Feather name="clock" size={15} color={BRAND} />
-                            <ThemedText style={{ color: form.slotTime ? text : textSecondary, flex: 1 }}>
-                              {form.slotTime
-                                ? formatSlotOption(bookableTimes.find((t) => t.time === form.slotTime) || bookableTimes[0])
-                                : "Select a time slot"}
-                            </ThemedText>
-                            <Feather name={showTimeDropdown ? "chevron-up" : "chevron-down"} size={15} color={textSecondary} />
-                          </Pressable>
-                        </>
-                      )}
-                    </Field>
-                    </View>
-                  ) : (
-                    <View style={styles.slotRowField}>
-                    <Field label="Slot time">
-                      <View style={[styles.input, { borderColor: border, flexDirection: "row", alignItems: "center", gap: Spacing.sm, opacity: 0.7 }]}>
-                        <Feather name="clock" size={15} color={BRAND} />
-                        <ThemedText style={{ color: textSecondary, flex: 1 }}>Select a date first</ThemedText>
-                      </View>
-                    </Field>
-                    </View>
-                  )}
+                    {selectedTimeSlot ? (
+                      <>
+                        <ThemedText style={styles.availabilityCaption}>
+                          {selectedTimeSlot.available.toLocaleString("en-IN")} {selectedTimeSlot.available === 1 ? "slot" : "slots"} left
+                        </ThemedText>
+                        <View style={styles.giftAnnouncement} testID="manual-reg-gift-announcement">
+                          <Feather name="gift" size={21} color="#9A6700" />
+                          <View style={{ flex: 1 }}>
+                            <ThemedText style={styles.giftTitle}>A surprise gift awaits!</ThemedText>
+                            <ThemedText style={styles.giftMessage}>Enter and exit the shop within 3 hours to receive a surprise gift.</ThemedText>
+                          </View>
+                        </View>
+                      </>
+                    ) : null}
                   </View>
-                  {form.slotTime ? (
-                    <ThemedText style={styles.availabilityCaption}>
-                      {formatSlotOption(bookableTimes.find((t) => t.time === form.slotTime) || bookableTimes[0])}
-                    </ThemedText>
-                  ) : null}
-                  </View>
-                  {form.slotTime ? (
-                    <View style={styles.giftAnnouncement} testID="manual-reg-gift-announcement">
-                      <Feather name="gift" size={21} color="#9A6700" />
-                      <View style={{ flex: 1 }}>
-                        <ThemedText style={styles.giftTitle}>A surprise gift awaits!</ThemedText>
-                        <ThemedText style={styles.giftMessage}>Enter and exit the shop within 3 hours to receive a surprise gift.</ThemedText>
-                      </View>
-                    </View>
-                  ) : null}
                     </>
                   ) : null}
 
@@ -1408,10 +1387,14 @@ const styles = StyleSheet.create({
   chip: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 8 },
   sectionCard: { backgroundColor: "#F7F5FE", borderRadius: 12, padding: 14, gap: 12 },
   cardTitle: { color: "#271D24", fontSize: 14, fontWeight: "800", marginBottom: 1 },
-  slotCard: { backgroundColor: "#F7F5FE", borderRadius: 12, padding: 14 },
-  slotRow: { flexDirection: "row", gap: 10 },
-  slotRowField: { flex: 1 },
-  availabilityCaption: { color: "#766C73", fontSize: 11, marginTop: 7, marginLeft: 2 },
+  slotCard: { backgroundColor: "#F7F5FE", borderRadius: 12, padding: 14, gap: 12 },
+  slotChipScroll: { gap: Spacing.xs, paddingRight: 2 },
+  slotChip: { minHeight: 42, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
+  slotChipSelected: { backgroundColor: BRAND + "15" },
+  slotChipText: { flex: 1, fontSize: 12, textAlign: "center" },
+  slotChipTextSelected: { flex: 1, color: BRAND, fontSize: 12, fontWeight: "800", textAlign: "center" },
+  slotEmptyText: { color: "#766C73", fontSize: 13, paddingVertical: 10 },
+  availabilityCaption: { color: "#766C73", fontSize: 11, marginTop: -5, marginLeft: 2 },
   splitFields: { flexDirection: "row", gap: 10 },
   fieldLabelRow: { minHeight: 16, flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
   whatsappIcon: { width: 21, height: 21 },
