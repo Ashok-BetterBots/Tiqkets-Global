@@ -21,7 +21,11 @@ import { useTheme } from "@/hooks/useTheme";
 import { apiRequest, ApiError, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RecentActivityList } from "@/components/event/RecentActivityList";
-import { TicketScanResultModal, ScanResponseData } from "@/components/event/TicketScanResultModal";
+import {
+  TicketScanResultModal,
+  ScanResponseData,
+} from "@/components/event/TicketScanResultModal";
+import { getTicketTimingStatus } from "@/components/event/ticketTiming";
 import { notifyEventDataChanged } from "@/lib/event-live-refresh";
 import { SelectedEventBanner } from "@/components/event/SelectedEventBanner";
 import { useEventSelection } from "@/contexts/EventSelectionContext";
@@ -129,6 +133,12 @@ function ScanPanel() {
 
         // Valid ticket found — show preview with Confirm / Skip
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        if (
+          getTicketTimingStatus(data.registration?.slotDate, data.registration?.slotTime)?.kind ===
+          "within-window"
+        ) {
+          playSuccessTone();
+        }
         setPendingValue(resolvedId);
         setModalData({
           registration: data.registration,
