@@ -156,32 +156,41 @@ function rewriteExpoManifest(manifestStr: string, req: Request): string {
       }
     };
 
-    // Patch launchAsset (the JS bundle URL)
-    if (manifest.launchAsset?.url) {
-      manifest.launchAsset.url = patchUrl(manifest.launchAsset.url);
-    }
+    const rewriteLocalUrls = (value: unknown): unknown => {
+      if (typeof value === "string") {
+        return /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?(?:\/|$)/i.test(value)
+          ? patchUrl(value)
+          : value;
+      }
+      if (Array.isArray(value)) {
+        return value.map(rewriteLocalUrls);
+      }
+      if (value && typeof value === "object") {
+        return Object.fromEntries(
+          Object.entries(value as Record<string, unknown>).map(([key, nested]) => [
+            key,
+            rewriteLocalUrls(nested),
+          ]),
+        );
+      }
+      return value;
+    };
 
-    // Patch all asset download URLs
-    if (Array.isArray(manifest.assets)) {
-      manifest.assets = manifest.assets.map((a: Record<string, unknown>) => ({
-        ...a,
-        url: a.url ? patchUrl(a.url as string) : a.url,
-      }));
-    }
+    const rewrittenManifest = rewriteLocalUrls(manifest) as typeof manifest;
 
     // hostUri/debuggerHost are packager identities, not URLs. They must be the
     // bare public host; platform path suffixes can leave Android Expo Go stuck
     // on its native "Loading project..." screen before JavaScript starts.
     const actualHost = host;
 
-    if (manifest.extra?.expoClient?.hostUri) {
-      manifest.extra.expoClient.hostUri = actualHost;
+    if (rewrittenManifest.extra?.expoClient?.hostUri) {
+      rewrittenManifest.extra.expoClient.hostUri = actualHost;
     }
-    if (manifest.extra?.expoGo?.debuggerHost) {
-      manifest.extra.expoGo.debuggerHost = actualHost;
+    if (rewrittenManifest.extra?.expoGo?.debuggerHost) {
+      rewrittenManifest.extra.expoGo.debuggerHost = actualHost;
     }
 
-    return JSON.stringify(manifest);
+    return JSON.stringify(rewrittenManifest);
   } catch {
     // If JSON parse or patching fails for any reason, fall back to the raw file
     return manifestStr;
@@ -226,7 +235,9 @@ async function serveDevExpoManifest(req: Request, res: Response, fallbackPlatfor
     res.status(upstream.status);
     res.setHeader("expo-protocol-version", upstream.headers.get("expo-protocol-version") || "1");
     res.setHeader("expo-sfv-version", upstream.headers.get("expo-sfv-version") || "0");
-    res.setHeader("content-type", "application/json");
+    res.setHeader("content-type", upstream.headers.get("content-type") || "application/expo+json");
+    const cacheControl = upstream.headers.get("cache-control");
+    if (cacheControl) res.setHeader("cache-control", cacheControl);
     res.send(rewriteExpoManifest(manifestStr, req));
   } catch (error) {
     log("Unable to load the development Expo manifest:", error);
@@ -366,6 +377,14 @@ function configureExpoAndLanding(app: express.Application) {
     }
 
     const platform = req.header("expo-platform");
+    const acceptsExpoManifest = req.accepts("application/expo+json") === "application/expo+json";
+    if (req.path === "/" && metroProxy && acceptsExpoManifest) {
+      return void serveDevExpoManifest(
+        req,
+        res,
+        platform === "android" ? "android" : "ios",
+      );
+    }
     if (req.path === "/manifest" && metroProxy) {
       return void serveDevExpoManifest(
         req,

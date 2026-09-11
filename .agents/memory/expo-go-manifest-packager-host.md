@@ -15,4 +15,4 @@ For Expo Go development on this Replit project, run Metro with `expo start --loc
 
 **How to apply:** Verify the public iOS and Android manifests directly after a workflow restart. No manifest URL or packager identity may contain localhost/127.0.0.1, and the rewritten public bundle URL must return HTTP 200.
 
-The preview QR and “Open in Expo Go” link must target `exps://<public-host>/manifest`, not the host root. iOS can request the launch URL without an `expo-platform` header; `/manifest` must still return JSON (defaulting to iOS), while `/` remains the HTML landing page.
+The preview QR and “Open in Expo Go” link must use the canonical `exps://<public-host>` root. Route root requests with `Accept: application/expo+json` to Metro even when iOS omits `expo-platform`; preserve Metro’s content type and recursively rewrite every localhost URL. Normal `Accept: text/html` root requests still receive the landing page.
