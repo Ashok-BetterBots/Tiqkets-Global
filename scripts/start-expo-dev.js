@@ -17,15 +17,23 @@ delete env.EXPO_NO_QR_CODE;
 
 let stopped = false;
 let expo = null;
+let retryTimer = null;
+let attempt = 0;
+const maxAttempts = 5;
 
 function startExpo() {
-  console.log("Starting Expo Metro behind the Replit HTTPS proxy...");
+  attempt += 1;
+  const tunnelSubdomain = `tiqkets-${Date.now().toString(36)}-${process.pid}-${attempt}`;
+  console.log(`Starting Expo tunnel (attempt ${attempt}/${maxAttempts})...`);
 
   expo = spawn(
     process.platform === "win32" ? "npx.cmd" : "npx",
-    ["expo", "start", "--localhost"],
+    ["expo", "start", "--tunnel"],
     {
-      env,
+      env: {
+        ...env,
+        EXPO_TUNNEL_SUBDOMAIN: tunnelSubdomain,
+      },
       stdio: "inherit",
     },
   );
@@ -52,13 +60,22 @@ function startExpo() {
       return;
     }
 
-    process.exit(code ?? 1);
+    if (attempt >= maxAttempts) {
+      console.error(`Expo tunnel failed after ${maxAttempts} attempts.`);
+      process.exit(code ?? 1);
+      return;
+    }
+
+    const delayMs = attempt * 5000;
+    console.warn(`Expo tunnel exited with code ${code ?? 1}; retrying in ${delayMs / 1000}s...`);
+    retryTimer = setTimeout(startExpo, delayMs);
   });
 }
 
 function stop(signal) {
   if (stopped) return;
   stopped = true;
+  if (retryTimer) clearTimeout(retryTimer);
   if (expo) {
     expo.kill(signal);
   } else {

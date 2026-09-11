@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { playSuccessTone, playErrorTone, preloadAlertTones } from "@/utils/alertSounds";
+import { playSuccessTone, playErrorTone } from "@/utils/alertSounds";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -25,6 +25,7 @@ import {
   TicketScanResultModal,
   ScanResponseData,
 } from "@/components/event/TicketScanResultModal";
+import { getTicketTimingStatus } from "@/components/event/ticketTiming";
 import { notifyEventDataChanged } from "@/lib/event-live-refresh";
 import { SelectedEventBanner } from "@/components/event/SelectedEventBanner";
 import { useEventSelection } from "@/contexts/EventSelectionContext";
@@ -80,10 +81,6 @@ function ScanPanel() {
   const selectionGenerationRef = useRef(0);
 
   useEffect(() => {
-    preloadAlertTones();
-  }, []);
-
-  useEffect(() => {
     selectionGenerationRef.current += 1;
     setModalVisible(false);
     setModalData(null);
@@ -112,8 +109,8 @@ function ScanPanel() {
       if (!res.ok) {
         if (data.eventEnded) setEventEndedName(data.eventName || null);
         // Invalid ticket — show error result immediately
-        playErrorTone();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playErrorTone();
         setModalData({
           success: false,
           invalid: data.invalid ?? true,
@@ -137,8 +134,13 @@ function ScanPanel() {
           value;
 
         // Valid ticket found — show preview with Confirm / Skip
-        playSuccessTone();
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        if (
+          getTicketTimingStatus(data.registration?.slotDate, data.registration?.slotTime)?.kind ===
+          "within-window"
+        ) {
+          playSuccessTone();
+        }
         setPendingValue(resolvedId);
         setModalData({
           registration: data.registration,
@@ -152,8 +154,8 @@ function ScanPanel() {
       }
     } catch (e: any) {
       if (selectionGeneration !== selectionGenerationRef.current) return;
-      playErrorTone();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playErrorTone();
       setModalData({ success: false, invalid: true, error: "Lookup failed. Please try again." });
       setModalMode("result");
       setModalVisible(true);
@@ -175,8 +177,8 @@ function ScanPanel() {
       const data = await res.json();
       notifyEventDataChanged(data.registration?.eventId);
       if (selectionGeneration !== selectionGenerationRef.current) return;
-      playSuccessTone();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSuccessTone();
       setModalData({
         success: true,
         registration: data.registration,
@@ -198,8 +200,8 @@ function ScanPanel() {
       const apiErr = e instanceof ApiError ? e : null;
       const body = apiErr?.body;
       if (body?.eventEnded) setEventEndedName(body.eventName || null);
-      playErrorTone();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playErrorTone();
       setModalData({
         success: false,
         duplicate: body?.duplicate ?? false,
