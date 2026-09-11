@@ -906,6 +906,28 @@ export const routePayoutAllocations = pgTable("route_payout_allocations", {
   index("route_allocation_org_status_idx").on(table.organizationId, table.status),
 ]);
 
+// Immutable checkout snapshot for event payments.  This is deliberately
+// separate from the mutable Route allocation so switching the active adapter
+// cannot change an in-flight checkout.
+export const eventPaymentCheckouts = pgTable("event_payment_checkouts", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  registrationId: varchar("registration_id", { length: 36 }).notNull().references(() => eventRegistrations.id, { onDelete: "cascade" }),
+  adapter: text("adapter").notNull(), // route | direct
+  // Bound after the provider order is created.  Keeping the intent durable
+  // before the external call makes retries recoverable without an orphan
+  // registration or duplicate provider order.
+  razorpayOrderId: text("razorpay_order_id"),
+  amount: integer("amount").notNull(),
+  currency: text("currency").notNull().default("INR"),
+  status: text("status").notNull().default("initiated"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("event_payment_checkout_registration_unique").on(table.registrationId),
+  uniqueIndex("event_payment_checkout_order_unique").on(table.razorpayOrderId),
+  index("event_payment_checkout_status_idx").on(table.status),
+]);
+
 // Webhook delivery receipts make Razorpay retries harmless and provide a
 // durable recovery queue for deliveries that fail after signature validation.
 export const razorpayWebhookReceipts = pgTable("razorpay_webhook_receipts", {

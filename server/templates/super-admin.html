@@ -1312,6 +1312,66 @@
             </template>
           </div>
 
+          <!-- GLOBAL EVENT PAYMENT METHOD -->
+          <div class="sa-card mt-5">
+            <div class="flex items-start gap-3 mb-4">
+              <div class="text-brand text-lg"><i class="fa-solid fa-credit-card"></i></div>
+              <div>
+                <div class="text-base font-bold text-slate-900">Global event payment method</div>
+                <div class="text-xs text-slate-500 mt-1">Choose the Razorpay checkout path used for new event registrations. Select one method at a time.</div>
+              </div>
+            </div>
+            <template x-if="epLoading">
+              <div class="py-6 text-center text-slate-400 text-sm"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Loading payment method…</div>
+            </template>
+            <template x-if="!epLoading && epError">
+              <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 flex items-center justify-between">
+                <div class="text-sm text-rose-700"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Unable to load payment method.</div>
+                <button @click="epLoad()" class="sa-btn sa-btn-ghost"><i class="fa-solid fa-rotate"></i> Retry</button>
+              </div>
+            </template>
+            <template x-if="!epLoading && !epError">
+              <div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button type="button" role="radio" :aria-checked="epPaymentMethod === 'razorpay_route'"
+                          @click="epSelect('razorpay_route')" :disabled="epSaving"
+                          class="text-left rounded-xl border p-4 transition"
+                          :class="epPaymentMethod === 'razorpay_route' ? 'border-brand bg-brand/5 ring-1 ring-brand' : 'border-slate-200 bg-white hover:border-slate-300'">
+                    <div class="flex items-start gap-3">
+                      <span class="mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center"
+                            :class="epPaymentMethod === 'razorpay_route' ? 'border-brand' : 'border-slate-300'">
+                        <span x-show="epPaymentMethod === 'razorpay_route'" class="h-2 w-2 rounded-full bg-brand"></span>
+                      </span>
+                      <span><span class="block text-sm font-bold text-slate-900">Razorpay Route</span><span class="block text-xs text-slate-500 mt-1">Organizer route payouts</span></span>
+                    </div>
+                  </button>
+                  <button type="button" role="radio" :aria-checked="epPaymentMethod === 'razorpay_direct'"
+                          @click="epSelect('razorpay_direct')" :disabled="epSaving || !epDirect.configured"
+                          class="text-left rounded-xl border p-4 transition disabled:cursor-not-allowed"
+                          :class="epPaymentMethod === 'razorpay_direct' ? 'border-brand bg-brand/5 ring-1 ring-brand' : 'border-slate-200 bg-white hover:border-slate-300'"
+                          :style="!epDirect.configured ? 'opacity: .5' : ''">
+                    <div class="flex items-start gap-3">
+                      <span class="mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center"
+                            :class="epPaymentMethod === 'razorpay_direct' ? 'border-brand' : 'border-slate-300'">
+                        <span x-show="epPaymentMethod === 'razorpay_direct'" class="h-2 w-2 rounded-full bg-brand"></span>
+                      </span>
+                      <span><span class="block text-sm font-bold text-slate-900">Razorpay Direct</span><span class="block text-xs text-slate-500 mt-1">Platform account checkout</span></span>
+                    </div>
+                  </button>
+                </div>
+                <div class="mt-4 text-xs text-slate-500">
+                  Direct Key ID configured: <strong x-text="epDirect.keyIdConfigured ? 'Yes' : 'No'"></strong>
+                  <span class="mx-1">·</span>
+                  Direct Key Secret configured: <strong x-text="epDirect.secretConfigured ? 'Yes' : 'No'"></strong>
+                </div>
+                <div x-show="!epDirect.configured" class="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <i class="fa-solid fa-circle-info mr-1"></i>Razorpay Direct is unavailable until RAZORPAY_DIRECT_KEY_ID and RAZORPAY_DIRECT_KEY_SECRET are configured in Replit Secrets. Credential values are never entered or shown here.
+                </div>
+                <div x-show="epSaving" class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i>Saving…</div>
+              </div>
+            </template>
+          </div>
+
           <!-- ============ INVOICE DETAILS ============ -->
           <div class="sa-card mt-5">
             <div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
@@ -2907,6 +2967,66 @@
         ssCustomerLoginEnabled: true,
         ssLastSavedAt: null,
         ssToast: '',
+        // ---- Global event payment method (credentials remain in Replit Secrets) ----
+        epLoading: false,
+        epSaving: false,
+        epError: false,
+        epPaymentMethod: 'razorpay_route',
+        epDirect: { configured: false, keyIdConfigured: false, secretConfigured: false },
+        async epLoad() {
+          this.epLoading = true;
+          this.epError = false;
+          try {
+            const r = await fetch('/api/superadmin/event-payment-method', { credentials: 'include' });
+            if (!r.ok) throw new Error('http ' + r.status);
+            const j = await r.json();
+            this.epPaymentMethod = j.paymentMethod === 'razorpay_direct' ? 'razorpay_direct' : 'razorpay_route';
+            this.epDirect = {
+              configured: !!j.direct?.configured,
+              keyIdConfigured: !!j.direct?.keyIdConfigured,
+              secretConfigured: !!j.direct?.secretConfigured,
+            };
+          } catch (e) {
+            console.error('epLoad failed', e);
+            this.epError = true;
+          } finally {
+            this.epLoading = false;
+          }
+        },
+        async epSelect(method) {
+          if (this.epSaving || (method === 'razorpay_direct' && !this.epDirect.configured)) return;
+          const previous = this.epPaymentMethod;
+          this.epPaymentMethod = method;
+          this.epSaving = true;
+          try {
+            const r = await fetch('/api/superadmin/event-payment-method', {
+              method: 'PUT',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentMethod: method }),
+            });
+            if (!r.ok) {
+              const body = await r.json().catch(() => ({}));
+              throw new Error(body.error || ('http ' + r.status));
+            }
+            const j = await r.json();
+            this.epPaymentMethod = j.paymentMethod === 'razorpay_direct' ? 'razorpay_direct' : 'razorpay_route';
+            this.epDirect = {
+              configured: !!j.direct?.configured,
+              keyIdConfigured: !!j.direct?.keyIdConfigured,
+              secretConfigured: !!j.direct?.secretConfigured,
+            };
+            this.ssToast = 'Event payment method saved';
+            setTimeout(() => { this.ssToast = ''; }, 2500);
+          } catch (e) {
+            console.error('epSelect failed', e);
+            this.epPaymentMethod = previous;
+            this.ssToast = e?.message || 'Could not save payment method';
+            setTimeout(() => { this.ssToast = ''; }, 3000);
+          } finally {
+            this.epSaving = false;
+          }
+        },
         async ssLoad() {
           this.ssLoading = true;
           this.ssError = false;
@@ -3559,7 +3679,7 @@
           else if (id === 'support') this.saLoadSupport();
           else if (id === 'logs' && (tab === 'audit' || !tab)) this.saLoadAuditLogs();
           else if (id === 'notifications') this.nsLoad();
-          else if (id === 'system-settings') { this.ssLoad(); this.invLoad(); }
+          else if (id === 'system-settings') { this.ssLoad(); this.epLoad(); this.invLoad(); }
         },
         currentLogs() {
           if (this.tab === 'audit') return this.auditLogs;
