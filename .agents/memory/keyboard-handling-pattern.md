@@ -28,6 +28,9 @@ by JourneyManagementScreen and OrgSupportScreen is plain RN `KeyboardAvoidingVie
   Pressable) → put `KeyboardAvoidingView` (style width:'100%') INSIDE the backdrop Pressable
   wrapping only the sheet/Animated.View, never around the whole backdrop (wrapping the backdrop
   shifts the tap area and the whole overlay).
+- For a native modal field that must stay visible on Android, focus can precede the keyboard
+  animation. Keep the currently focused input and call the native ScrollView responder again on
+  `keyboardDidShow`; an immediate focus-time scroll alone can calculate against a zero-height keyboard.
 
 **Android edge-to-edge gotcha:** `app.json` has `edgeToEdgeEnabled: true`. With it, RN
 `KeyboardAvoidingView` with `behavior={undefined}` on Android is a complete NO-OP — the keyboard
