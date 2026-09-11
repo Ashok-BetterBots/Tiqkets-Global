@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Platform,
   useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -604,7 +605,16 @@ export function TicketScanResultModal({
                 </Pressable>
               </View>
             ) : (
-              <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: BRAND }]}>
+              <Pressable
+                onPress={onClose}
+                style={[
+                  styles.closeBtn,
+                  { backgroundColor: BRAND },
+                  Platform.OS === "android" && (isInvalidResult || isDuplicateResult)
+                    ? { marginBottom: Spacing.md }
+                    : null,
+                ]}
+              >
                 <ThemedText style={styles.closeBtnText}>
                   {action === "exit" && mode === "result" && data.error ? "Cancel" : "Close"}
                 </ThemedText>
