@@ -1101,7 +1101,7 @@ export function EventManualRegModal({
                        <TextInput
                          value={form.preprintedTicketCode}
                          onChangeText={(v) => setField({ preprintedTicketCode: v.toUpperCase() })}
-                         placeholder="Or enter PTK-…"
+                         placeholder="Or enter booking ID"
                          placeholderTextColor={textSecondary}
                          autoCapitalize="none"
                          autoCorrect={false}
