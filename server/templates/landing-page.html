@@ -385,7 +385,7 @@
             </div>
             <p class="step-description">Use your phone's camera or Expo Go</p>
             <div class="qr-code" id="qr-code"></div>
-            <a href="exps://EXPS_URL_PLACEHOLDER/manifest" class="open-button"
+            <a href="exps://EXPS_URL_PLACEHOLDER" class="open-button"
               >Open in Expo Go</a
             >
           </div>
@@ -405,7 +405,7 @@
           /iPhone|iPad|iPod/i.test(ua) ||
           (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
-        const deepLink = "exps://EXPS_URL_PLACEHOLDER/manifest";
+        const deepLink = "exps://EXPS_URL_PLACEHOLDER";
 
         // Adjust store buttons based on platform
         const appStoreBtn = document.getElementById("app-store-btn");
