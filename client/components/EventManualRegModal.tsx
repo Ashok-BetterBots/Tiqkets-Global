@@ -905,7 +905,7 @@ export function EventManualRegModal({
                     {selectedTimeSlot ? (
                       <>
                         <ThemedText style={styles.availabilityCaption}>
-                          {selectedTimeSlot.available.toLocaleString("en-IN")} {selectedTimeSlot.available === 1 ? "slot" : "slots"} left
+                          {formatSlotRange(selectedTimeSlot)} - {selectedTimeSlot.available.toLocaleString("en-IN")} {selectedTimeSlot.available === 1 ? "Slot" : "Slots"} Left
                         </ThemedText>
                         <View style={styles.giftAnnouncement} testID="manual-reg-gift-announcement">
                           <Feather name="gift" size={21} color="#9A6700" />
