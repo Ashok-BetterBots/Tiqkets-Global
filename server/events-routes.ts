@@ -978,6 +978,8 @@ const PREPRINTED_MAX_QR_WIDTH = 100 / PREPRINTED_CANVAS_ASPECT_RATIO;
 const PREPRINTED_PRINT_TICKET_WIDTH_MM = 202;
 const PREPRINTED_PRINT_TICKET_HEIGHT_MM = 82;
 const PREPRINTED_PRINT_GUTTER_MM = 4;
+const PREPRINTED_PRINT_CORNER_RADIUS_MM = 4;
+const PREPRINTED_PRINT_BACK_CUT_LINE_OFFSET_MM = 57;
 const PREPRINTED_PRINT_COLUMNS = 3;
 const PREPRINTED_PRINT_ROWS = 2;
 const PREPRINTED_PRINT_TICKETS_PER_SHEET = PREPRINTED_PRINT_COLUMNS * PREPRINTED_PRINT_ROWS;
@@ -2825,8 +2827,8 @@ export function registerEventsRoutes(app: Express) {
            .sheet { page-break-after:always; } .sheet:last-of-type { page-break-after:auto; } .sheet-title { color:#8c1867; font-size:12px; font-weight:800; margin:0 0 8px; }
            .ticket-grid { display:grid; grid-template-columns:repeat(${PREPRINTED_PRINT_COLUMNS},${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm); grid-template-rows:repeat(${PREPRINTED_PRINT_ROWS},${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm); column-gap:${PREPRINTED_PRINT_GUTTER_MM}mm; row-gap:${PREPRINTED_PRINT_GUTTER_MM}mm; }
            .ticket-slot { position:relative; width:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; height:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; }
-           .ticket-face { position:absolute; left:50%; top:50%; width:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; height:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; overflow:hidden; break-inside:avoid; container-type:inline-size; border-radius:3mm; transform:translate(-50%,-50%) rotate(90deg); transform-origin:center; }
-           .ticket-face::after { content:""; position:absolute; z-index:4; top:0; bottom:0; left:52mm; border-left:.3mm dashed rgba(26,26,46,.72); pointer-events:none; }
+           .ticket-face { position:absolute; left:50%; top:50%; width:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; height:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; overflow:hidden; break-inside:avoid; container-type:inline-size; border-radius:${PREPRINTED_PRINT_CORNER_RADIUS_MM}mm; transform:translate(-50%,-50%) rotate(90deg); transform-origin:center; }
+           .back-sheet .ticket-face::after { content:""; position:absolute; z-index:4; top:0; bottom:0; left:${PREPRINTED_PRINT_BACK_CUT_LINE_OFFSET_MM}mm; border-left:.3mm dashed rgba(26,26,46,.72); pointer-events:none; }
            .artwork-face { background:#fff; } .artwork { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; display:block; }
            .fallback-face { border:2px solid #8c1867; padding:10px; text-align:center; }
            .brand { color:#8c1867; font-size:9px; font-weight:800; letter-spacing:.08em; } h2 { font-size:14px; margin:7px 0 4px; } .code { font-family:monospace; font-weight:800; font-size:14px; margin:0 0 5px; }

@@ -1,0 +1,53 @@
+I need to update the ticket print/PDF layout in my app (Tiqkets),
+replacing the current mixed 5+2 back-page layout with a uniform grid, and
+slightly increase the corner rounding again. Do NOT change ticket data,
+QR/ID generation, or the cut line position (stays at 5.7 cm on back
+pages, and still absent on the front page) — this is a layout/arrangement
+change plus one visual tweak only.
+
+TICKET SIZE: 20.2 cm (width) × 8.2 cm (height) in normal orientation.
+PAPER: A3, portrait (29.7 cm × 42 cm).
+
+CHANGE 1 — GRID ARRANGEMENT (replaces the previous 5-left + 2-right mixed
+layout):
+- Go back to a single uniform grid of 6 tickets per A3 page: 2 rows × 3
+  columns.
+- Every ticket is rotated 90° (so each ticket occupies 8.2 cm width ×
+  20.2 cm height on the page) and arranged so the tickets read
+  "vertically" — i.e. all 6 tickets in this orientation, tiled 3 columns
+  wide × 2 rows tall (3 × 8.2 cm = 24.6 cm width, 2 × 20.2 cm = 40.4 cm
+  height — fits within the A3 portrait sheet).
+- Apply gutter-cut spacing consistently between all 6 tickets (columns
+  and rows), same gutter width already established in the current
+  implementation.
+- Update page-count pagination: back pages = ceil(N / 6) for a batch of N
+  tickets (this replaces the ceil(N/7) formula from the previous mixed
+  layout).
+
+CHANGE 2 — SAME ARRANGEMENT METHOD FOR FRONT AND BACK PAGES:
+- The front page should use this exact same 2×3 rotated grid arrangement,
+  positions, and gutter spacing as the back pages — i.e. front and back
+  pages are laid out identically in terms of grid/orientation/spacing.
+- The ONLY differences between front and back remain: (a) the front page
+  has no cut line, while back pages keep the 5.7 cm cut line
+  (transformed correctly for the rotated orientation, as already
+  implemented), and (b) the front page is still printed as a single
+  static page only, regardless of batch size — it does not repeat per
+  batch. All remaining pages needed for the batch are back pages, using
+  ceil(N/6).
+
+CHANGE 3 — CORNER ROUNDING:
+- Increase the existing corner-radius value again so the rounding is
+  slightly more pronounced than the current setting (adjust the existing
+  corner-radius constant, don't hardcode a new one inline). Apply this to
+  all tickets on both front and back pages consistently.
+
+Do not change ticket content, QR generation, ID logic, or the 5.7 cm cut
+line's underlying position — only the grid arrangement, the fact that
+front/back now share the same layout method, and the corner radius.
+
+After implementing, confirm: the exact grid math for 6 tickets per page
+(2×3, rotated, dimensions/margins), confirm front and back pages now use
+identical positioning, confirm the front page still prints only once
+with no cut line while back pages use ceil(N/6), and state the old vs
+new corner radius values.
