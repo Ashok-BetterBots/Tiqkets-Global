@@ -1,0 +1,40 @@
+CRITICAL CONSTRAINTS TO AVOID BREAKING THE APP:
+- Do NOT modify any file, function, or import unrelated to the sound-
+  playing logic for these two scan-result cases. Do not touch scanning
+  logic itself (QR detection, API calls, ticket validation), navigation,
+  or any UI beyond what's needed to trigger the correct sound.
+- Do NOT introduce new audio libraries or replace the existing sound-
+  playback mechanism (e.g. if `expo-av` or similar is already used, keep
+  using it exactly as before — same API, same import pattern already
+  present elsewhere in the codebase).
+- Confirm the `early_arrival.mp3` file already exists in the project's
+  assets and is already referenced/loadable somewhere in the code (since
+  it's mentioned as an existing file) — do not assume its path, verify it
+  from the current codebase before wiring it in.
+- Ensure any sound object is properly loaded/unloaded (no dangling
+  Audio.Sound instances, no missing `await`, no calling `.playAsync()` on
+  an unloaded/unmounted sound object) — a common cause of crashes in Expo
+  Go with `expo-av` is unhandled promise rejections or playing a sound
+  object that wasn't properly initialized first.
+- After making the change, do NOT introduce any new console errors or
+  warnings on scan — check the Expo Go logs for the scan flow specifically
+  after this change.
+- Make this change in small, isolated steps: first show me exactly which
+  file(s) and function(s) currently control tone selection on scan
+  result, before writing any code — then implement only the minimal
+  conditional logic change needed for the two cases above.
+
+TEST BEFORE CONFIRMING DONE:
+- Simulate/trigger an early arrival scan result → confirm only
+  `early_arrival.mp3` plays, no success tone.
+- Simulate/trigger a late arrival scan result → same as above.
+- Simulate/trigger an invalid or already-scanned result → confirm the
+  alert tone plays immediately with no delay.
+- Simulate/trigger a normal valid first-time scan → confirm success tone
+  still plays exactly as before.
+- Confirm the app opens and runs normally in Expo Go after this change,
+  with no crash on launch or on any scan result.
+
+After implementing, tell me exactly which file(s)/function(s) you
+changed, show the before/after logic for tone selection, and confirm you
+tested all four scan-result cases above in Expo Go without a crash.
