@@ -20,7 +20,7 @@ test("print sheets use the A3 six-up rotated layout and front-master pagination"
   assert.match(routes, /PREPRINTED_PRINT_TICKET_WIDTH_MM = 202/);
   assert.match(routes, /PREPRINTED_PRINT_TICKET_HEIGHT_MM = 82/);
   assert.match(routes, /PREPRINTED_PRINT_GUTTER_MM = 4/);
-  assert.match(routes, /PREPRINTED_PRINT_CORNER_RADIUS_MM = 5/);
+  assert.match(routes, /PREPRINTED_PRINT_CORNER_RADIUS_MM = 6/);
   assert.match(routes, /PREPRINTED_PRINT_BACK_CUT_LINE_OFFSET_MM = 57/);
   assert.match(routes, /PREPRINTED_PRINT_COLUMNS = 3/);
   assert.match(routes, /PREPRINTED_PRINT_ROWS = 2/);
