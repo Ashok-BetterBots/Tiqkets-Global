@@ -139,9 +139,10 @@ function ScanPanel() {
           data.registration?.slotDate,
           data.registration?.slotTime,
         );
-        playSuccessTone();
         if (timingStatus && timingStatus.kind !== "within-window") {
-          setTimeout(playTimingWarningTone, 2200);
+          playTimingWarningTone();
+        } else {
+          playSuccessTone();
         }
         setPendingValue(resolvedId);
         setModalData({
