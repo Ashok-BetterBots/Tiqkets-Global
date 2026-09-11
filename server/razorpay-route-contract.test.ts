@@ -360,6 +360,16 @@ test("Route provider errors become field-specific without exposing raw descripti
   }), { status: 400 }));
   assert.equal(stateFailure.field, "state");
   assert.match(payoutProviderMessage("Razorpay onboarding", stateFailure), /^Registered address state: Razorpay rejected this value/);
+
+  const businessTypeMessage = payoutProviderMessage("Razorpay onboarding", {
+    errorCode: "BAD_REQUEST_ERROR",
+    requestId: null,
+    field: "business_type",
+    issue: "invalid_value",
+    submittedBusinessType: "proprietorship",
+  });
+  assert.match(businessTypeMessage, /Razorpay rejected “proprietorship”/);
+  assert.match(businessTypeMessage, /PAN and GSTIN belong to that same entity/);
 });
 test("Route onboarding only accepts valid provider identifiers", () => {
   assert.equal(isValidRazorpayProviderId("acc_123abc", "acc_"), true);
