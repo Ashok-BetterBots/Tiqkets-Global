@@ -161,6 +161,8 @@ interface EventForm {
 
 interface PayoutProfileResponse {
   profile?: {
+    paymentMethod?: "razorpay_route" | "razorpay_direct";
+    directReady?: boolean;
     productId?: string | null;
     productStatus?: string | null;
   } | null;
@@ -227,7 +229,9 @@ export default function OrgEventManageScreen() {
   });
   const payoutProfile = payoutProfileQuery.data?.profile;
   const razorpayProductId = String(payoutProfile?.productId || "").trim();
-  const registrationFeesReady = /^acc_prd_[A-Za-z0-9]+$/.test(razorpayProductId);
+  const registrationFeesReady = payoutProfile?.paymentMethod === "razorpay_direct"
+    ? payoutProfile.directReady === true
+    : /^acc_prd_[A-Za-z0-9]+$/.test(razorpayProductId);
 
   // ── Create / edit form ──────────────────────────────────────────────────
   const [editing, setEditing] = useState<EventRow | null>(null);

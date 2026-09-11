@@ -19,7 +19,7 @@ describe("event registration slot display", () => {
     assert.match(mobile, /registrationFee: !registrationFeesReady\s*\?\s*0/);
     assert.match(dashboard, /:disabled="!eventRegistrationFeesReady\(\)"/);
     assert.match(dashboard, /registrationFee: !this\.eventRegistrationFeesReady\(\)\s*\?\s*0/);
-    assert.match(routes, /patch\.registrationFee = canConfigureEventRegistrationFee\(payoutProfile\)/);
+    assert.match(routes, /patch\.registrationFee = canConfigureEventRegistrationFeeForMethod\(paymentMethod, payoutProfile\)/);
   });
 
   test("keeps both registration surfaces as dropdown selectors", () => {

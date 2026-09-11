@@ -24,6 +24,7 @@ import { registerBillingRoutes } from "./billing-routes";
 import { registerReportRoutes } from "./reports";
 import { registerQueueTicketRoutes } from "./queue-ticket-routes";
 import { registerRoutePayoutRoutes } from "./route-payouts";
+import { directCredentialStatus, getEventPaymentMethod, setEventPaymentMethod } from "./event-payment-method";
 import { broadcastAnnouncement, broadcastQueueUpdate, resolveEffectiveQueueMode } from "./announcements";
 import {
   checkAndSendQueueNotifications,
@@ -6499,6 +6500,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ customerAppLoginEnabled: enabled });
     } catch (err) {
       console.error("update customer-app-login setting failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Global event checkout provider selection. Route remains the safe default
+  // when the setting is absent or was written by an older/invalid client.
+  app.get("/api/superadmin/event-payment-method", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const paymentMethod = await getEventPaymentMethod();
+      res.json({ paymentMethod, direct: directCredentialStatus() });
+    } catch (err) {
+      console.error("get event payment method failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.put("/api/superadmin/event-payment-method", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const paymentMethod = await setEventPaymentMethod(req.body?.paymentMethod);
+      res.json({ paymentMethod, direct: directCredentialStatus() });
+    } catch (err) {
+      if (err instanceof Error && err.message === "Invalid event payment method") {
+        return res.status(400).json({ error: "paymentMethod must be razorpay_route or razorpay_direct" });
+      }
+      if (err instanceof Error && (err.message === "Direct Razorpay credentials are not configured" || err.message === "Direct Razorpay credentials are not configured: key, secret, and webhook secret are required")) {
+        return res.status(409).json({ error: "Direct Razorpay key, secret, and webhook secret are required", direct: directCredentialStatus() });
+      }
+      console.error("update event payment method failed:", err);
       res.status(500).json({ error: "Failed" });
     }
   });
