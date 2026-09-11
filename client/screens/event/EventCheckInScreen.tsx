@@ -139,9 +139,10 @@ function ScanPanel() {
           data.registration?.slotDate,
           data.registration?.slotTime,
         );
-        playSuccessTone();
         if (timingStatus && timingStatus.kind !== "within-window") {
-          setTimeout(playTimingWarningTone, 2200);
+          playTimingWarningTone();
+        } else {
+          playSuccessTone();
         }
         setPendingValue(resolvedId);
         setModalData({
@@ -180,7 +181,13 @@ function ScanPanel() {
       notifyEventDataChanged(data.registration?.eventId);
       if (selectionGeneration !== selectionGenerationRef.current) return;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      playSuccessTone();
+      const timingStatus = getTicketTimingStatus(
+        modalData?.registration?.slotDate,
+        modalData?.registration?.slotTime,
+      );
+      if (!timingStatus || timingStatus.kind === "within-window") {
+        playSuccessTone();
+      }
       setModalData({
         success: true,
         registration: data.registration,
