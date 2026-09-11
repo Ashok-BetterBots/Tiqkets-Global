@@ -368,6 +368,7 @@ export function payoutProviderMessage(stage: string, failure: {
   requestId: string | null;
   field?: string | null;
   issue?: RazorpayIssue | null;
+  submittedBusinessType?: string | null;
 }): string {
   const reasonCode = failure.errorCode;
   let message: string;
@@ -380,7 +381,9 @@ export function payoutProviderMessage(stage: string, failure: {
           : "Business email: enter a valid email address that is not already linked to another Razorpay account.",
         phone: "Business phone: enter 8–15 digits without the +91 country code. Example: 9876543210.",
         contact_name: "Account contact name: use 4–255 characters and remove unsupported symbols.",
-        business_type: "Business type: select one of the values shown in the Ticket Payments form.",
+        business_type: failure.submittedBusinessType
+          ? `Business type: Razorpay rejected “${failure.submittedBusinessType.replace(/_/g, " ")}”. Select the organizer's actual legal entity type and ensure the PAN and GSTIN belong to that same entity.`
+          : "Business type: Razorpay rejected the selected type. Select the organizer's actual legal entity type and ensure the PAN and GSTIN belong to that same entity.",
         category: "Razorpay business category: select a value from the uploaded Razorpay category list.",
         subcategory: "Razorpay business subcategory: select a value belonging to the chosen category.",
         street1: "Registered address line 1: enter the primary street or building address, up to 100 characters.",
@@ -418,7 +421,17 @@ export function payoutProviderMessage(stage: string, failure: {
 type RouteProviderFailure = RazorpayFailure & {
   stage: string;
   endpoint: string;
+  submittedBusinessType: string | null;
 };
+
+function safeSubmittedBusinessType(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const value = String((payload as Record<string, unknown>).business_type || "");
+  return new Set([
+    "individual", "proprietorship", "partnership", "private_limited", "public_limited",
+    "llp", "trust", "society", "ngo", "other", "not_yet_registered", "educational_institutes",
+  ]).has(value) ? value : null;
+}
 
 async function routeProviderFailure(input: {
   stage: string;
@@ -427,7 +440,12 @@ async function routeProviderFailure(input: {
   response: globalThis.Response;
 }): Promise<RouteProviderFailure> {
   const failure = await razorpayFailure(input.response);
-  const diagnostic: RouteProviderFailure = { ...failure, stage: input.stage, endpoint: input.endpoint };
+  const diagnostic: RouteProviderFailure = {
+    ...failure,
+    stage: input.stage,
+    endpoint: input.endpoint,
+    submittedBusinessType: safeSubmittedBusinessType(input.payload),
+  };
   console.error("[razorpay-route] onboarding request rejected", {
     stage: diagnostic.stage,
     endpoint: diagnostic.endpoint,
@@ -436,6 +454,7 @@ async function routeProviderFailure(input: {
     requestId: diagnostic.requestId,
     field: diagnostic.field,
     issue: diagnostic.issue,
+    submittedBusinessType: diagnostic.submittedBusinessType,
     payload: redactRouteDiagnosticPayload(input.payload),
   });
   return diagnostic;
@@ -1028,6 +1047,7 @@ export function registerRoutePayoutRoutes(app: Express) {
               requestId: diagnostics.requestId,
               field: diagnostics.field,
               issue: diagnostics.issue,
+              submittedBusinessType: diagnostics.submittedBusinessType,
             },
             ...(diagnostics.field ? { fieldErrors: { [diagnostics.field]: outcome.error } } : {}),
           } : {}),
