@@ -132,26 +132,7 @@ function getAppName(): string {
   }
 }
 
-function serveExpoManifest(platform: string, req: Request, res: Response) {
-  const manifestPath = path.resolve(
-    process.cwd(),
-    "static-build",
-    platform,
-    "manifest.json",
-  );
-
-  if (!fs.existsSync(manifestPath)) {
-    return res
-      .status(404)
-      .json({ error: `Manifest not found for platform: ${platform}` });
-  }
-
-  res.setHeader("expo-protocol-version", "1");
-  res.setHeader("expo-sfv-version", "0");
-  res.setHeader("content-type", "application/json");
-
-  const manifestStr = fs.readFileSync(manifestPath, "utf-8");
-
+function rewriteExpoManifest(manifestStr: string, req: Request): string {
   // Dynamically rewrite the manifest's download URLs to match the current
   // deployment domain. This makes the Docker image portable: even if the image
   // was built with a different APP_DOMAIN (or none), Expo Go will fetch bundles
@@ -161,25 +142,14 @@ function serveExpoManifest(platform: string, req: Request, res: Response) {
     const actualBase = `${protocol}://${host}`;
     const manifest = JSON.parse(manifestStr);
 
-    // Extract the domain that was baked in at build time so we can replace it.
-    const builtBase = manifest.launchAsset?.url
-      ? (() => {
-          try {
-            const u = new URL(manifest.launchAsset.url);
-            return `${u.protocol}//${u.host}`;
-          } catch {
-            return null;
-          }
-        })()
-      : null;
-
     const patchUrl = (url: string): string => {
       if (!url) return url;
       try {
         const u = new URL(url);
         const actual = new URL(actualBase);
         u.protocol = actual.protocol;
-        u.host = actual.host;
+        u.hostname = actual.hostname;
+        u.port = actual.port;
         return u.toString();
       } catch {
         return url;
@@ -211,10 +181,53 @@ function serveExpoManifest(platform: string, req: Request, res: Response) {
       manifest.extra.expoGo.debuggerHost = actualHost;
     }
 
-    res.send(JSON.stringify(manifest));
+    return JSON.stringify(manifest);
   } catch {
     // If JSON parse or patching fails for any reason, fall back to the raw file
-    res.send(manifestStr);
+    return manifestStr;
+  }
+}
+
+function serveExpoManifest(platform: string, req: Request, res: Response) {
+  const manifestPath = path.resolve(
+    process.cwd(),
+    "static-build",
+    platform,
+    "manifest.json",
+  );
+
+  if (!fs.existsSync(manifestPath)) {
+    return res
+      .status(404)
+      .json({ error: `Manifest not found for platform: ${platform}` });
+  }
+
+  res.setHeader("expo-protocol-version", "1");
+  res.setHeader("expo-sfv-version", "0");
+  res.setHeader("content-type", "application/json");
+
+  const manifestStr = fs.readFileSync(manifestPath, "utf-8");
+  res.send(rewriteExpoManifest(manifestStr, req));
+}
+
+async function serveDevExpoManifest(req: Request, res: Response) {
+  try {
+    const headers: Record<string, string> = {};
+    for (const name of ["expo-platform", "expo-protocol-version", "accept"]) {
+      const value = req.header(name);
+      if (value) headers[name] = value;
+    }
+    const upstream = await fetch(`http://127.0.0.1:8081${req.originalUrl}`, { headers });
+    const manifestStr = await upstream.text();
+
+    res.status(upstream.status);
+    res.setHeader("expo-protocol-version", upstream.headers.get("expo-protocol-version") || "1");
+    res.setHeader("expo-sfv-version", upstream.headers.get("expo-sfv-version") || "0");
+    res.setHeader("content-type", "application/json");
+    res.send(rewriteExpoManifest(manifestStr, req));
+  } catch (error) {
+    log("Unable to load the development Expo manifest:", error);
+    res.status(503).json({ error: "Expo Metro is not ready. Please retry." });
   }
 }
 
@@ -354,7 +367,7 @@ function configureExpoAndLanding(app: express.Application) {
       // Dev: ask Metro for the up-to-the-minute manifest instead of the
       // (non-existent) static-build manifest.
       if (metroProxy) {
-        return metroProxy(req, res, next);
+        return void serveDevExpoManifest(req, res);
       }
       return serveExpoManifest(platform, req, res);
     }
