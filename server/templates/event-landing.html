@@ -3932,6 +3932,20 @@
     }
 
     async function startPayment(registration, payment, name, phone, email) {
+      var hostedPaymentUrl = payment.paymentLinkUrl || payment.shortUrl;
+      if (hostedPaymentUrl) {
+        try {
+          var parsedHostedUrl = new URL(hostedPaymentUrl);
+          if (parsedHostedUrl.protocol !== "https:") throw new Error("Hosted payment URL must use HTTPS");
+          window.location.assign(parsedHostedUrl.toString());
+          return;
+        } catch (err) {
+          submitting = false;
+          updateSubmitState();
+          toast(t("toast.paymentStartFail"), true);
+          return;
+        }
+      }
       try {
         await loadScript("https://checkout.razorpay.com/v1/checkout.js");
       } catch (err) {

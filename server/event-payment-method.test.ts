@@ -34,6 +34,16 @@ test("event payment selection is read from persisted settings at runtime", async
     RAZORPAY_DIRECT_KEY_SECRET: "secret",
     RAZORPAY_DIRECT_WEBHOOK_SECRET: "webhook-secret",
   }), "razorpay_direct");
+  await setEventPaymentMethod("razorpay_payment_links", settings, {
+    RAZORPAY_DIRECT_KEY_ID: "rzp_direct",
+    RAZORPAY_DIRECT_KEY_SECRET: "secret",
+    RAZORPAY_DIRECT_WEBHOOK_SECRET: "webhook-secret",
+  });
+  assert.equal(await getEventPaymentMethod(settings, {
+    RAZORPAY_DIRECT_KEY_ID: "rzp_direct",
+    RAZORPAY_DIRECT_KEY_SECRET: "secret",
+    RAZORPAY_DIRECT_WEBHOOK_SECRET: "webhook-secret",
+  }), "razorpay_payment_links");
 });
 
 test("Direct cannot be selected unless both credentials exist", async () => {
@@ -57,4 +67,19 @@ test("Direct cannot be selected unless both credentials exist", async () => {
     RAZORPAY_DIRECT_KEY_SECRET: "secret",
     RAZORPAY_DIRECT_WEBHOOK_SECRET: "webhook-secret",
   }), { configured: true, keyIdConfigured: true, secretConfigured: true, webhookSecretConfigured: true });
+});
+
+test("Payment Links reuse Direct credentials and require the webhook secret", async () => {
+  const settings = {
+    async getSystemSetting() { return undefined; },
+    async setSystemSetting() { return {}; },
+  };
+  await assert.rejects(
+    setEventPaymentMethod("razorpay_payment_links", settings, {
+      RAZORPAY_DIRECT_KEY_ID: "id",
+      RAZORPAY_DIRECT_KEY_SECRET: "secret",
+    }),
+    /credentials are not configured/,
+  );
+  assert.equal(normalizeEventPaymentMethod("razorpay_payment_links"), "razorpay_payment_links");
 });

@@ -912,11 +912,15 @@ export const routePayoutAllocations = pgTable("route_payout_allocations", {
 export const eventPaymentCheckouts = pgTable("event_payment_checkouts", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   registrationId: varchar("registration_id", { length: 36 }).notNull().references(() => eventRegistrations.id, { onDelete: "cascade" }),
-  adapter: text("adapter").notNull(), // route | direct
+  adapter: text("adapter").notNull(), // route | direct | payment_links
   // Bound after the provider order is created.  Keeping the intent durable
   // before the external call makes retries recoverable without an orphan
   // registration or duplicate provider order.
   razorpayOrderId: text("razorpay_order_id"),
+  paymentLinkReferenceId: text("payment_link_reference_id"),
+  razorpayPaymentLinkId: text("razorpay_payment_link_id"),
+  razorpayShortUrl: text("razorpay_short_url"),
+  paymentLinkPaymentId: text("payment_link_payment_id"),
   amount: integer("amount").notNull(),
   currency: text("currency").notNull().default("INR"),
   status: text("status").notNull().default("initiated"),
@@ -925,6 +929,8 @@ export const eventPaymentCheckouts = pgTable("event_payment_checkouts", {
 }, (table) => [
   uniqueIndex("event_payment_checkout_registration_unique").on(table.registrationId),
   uniqueIndex("event_payment_checkout_order_unique").on(table.razorpayOrderId),
+  uniqueIndex("event_payment_checkout_link_unique").on(table.razorpayPaymentLinkId),
+  uniqueIndex("event_payment_checkout_reference_unique").on(table.paymentLinkReferenceId),
   index("event_payment_checkout_status_idx").on(table.status),
 ]);
 

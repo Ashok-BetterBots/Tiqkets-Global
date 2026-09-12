@@ -13,7 +13,8 @@ interface PublicSettings {
 }
 
 interface EventPaymentSettings {
-  paymentMethod: "razorpay_route" | "razorpay_direct";
+  paymentMethod: "razorpay_route" | "razorpay_direct" | "razorpay_payment_links";
+  paymentLinksReady?: boolean;
   direct: {
     configured: boolean;
     keyIdConfigured: boolean;
@@ -198,8 +199,9 @@ export default function SystemSettingsScreen() {
             <ThemedText style={[styles.title, { color: theme.text }]} testID="text-event-payment-title">
               Global event payment method
             </ThemedText>
-            <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Choose the Razorpay checkout path used for new event registrations. Select one method at a time.
+             <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
+               Choose the Razorpay checkout path used for new event registrations. Select one method at a time.
+               Payment Links reuse the Direct credentials configured in Replit Secrets.
             </ThemedText>
           </View>
         </View>
@@ -218,22 +220,27 @@ export default function SystemSettingsScreen() {
               {([
                 ["razorpay_route", "Razorpay Route", "Organizer route payouts"],
                 ["razorpay_direct", "Razorpay Direct", "Platform account checkout"],
+                ["razorpay_payment_links", "Razorpay Payment Links", "Hosted payment page using Direct credentials"],
               ] as const).map(([method, label, description]) => {
                 const selected = paymentQuery.data?.paymentMethod === method;
                 const directUnavailable = method === "razorpay_direct" && !paymentQuery.data?.direct.configured;
+                const paymentLinksUnavailable =
+                  method === "razorpay_payment_links" &&
+                  !(paymentQuery.data?.paymentLinksReady ?? paymentQuery.data?.direct.configured);
+                const unavailable = directUnavailable || paymentLinksUnavailable;
                 return (
                   <Pressable
                     key={method}
-                    onPress={() => !directUnavailable && !paymentMutation.isPending && paymentMutation.mutate(method)}
-                    disabled={directUnavailable || paymentMutation.isPending}
+                    onPress={() => !unavailable && !paymentMutation.isPending && paymentMutation.mutate(method)}
+                    disabled={unavailable || paymentMutation.isPending}
                     style={[
                       styles.segment,
                       selected && { backgroundColor: BrandColors.primary + "15", borderColor: BrandColors.primary },
-                      directUnavailable && { opacity: 0.5 },
+                      unavailable && { opacity: 0.5 },
                     ]}
                     testID={`radio-event-payment-${method}`}
                     accessibilityRole="radio"
-                    accessibilityState={{ checked: selected, disabled: directUnavailable }}
+                     accessibilityState={{ checked: selected, disabled: unavailable }}
                   >
                     <View style={[styles.radio, { borderColor: selected ? BrandColors.primary : theme.border }]}>
                       {selected ? <View style={[styles.radioDot, { backgroundColor: BrandColors.primary }]} /> : null}
@@ -253,11 +260,16 @@ export default function SystemSettingsScreen() {
                   {"  ·  "}Direct Key Secret configured: {paymentQuery.data.direct.secretConfigured ? "Yes" : "No"}
                   {"  ·  "}Direct webhook secret configured: {paymentQuery.data.direct.webhookSecretConfigured ? "Yes" : "No"}
                 </ThemedText>
-                {!paymentQuery.data.direct.configured ? (
+                 {!paymentQuery.data.direct.configured ? (
                   <ThemedText style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 6 }}>
                     Razorpay Direct is unavailable until RAZORPAY_DIRECT_KEY_ID, RAZORPAY_DIRECT_KEY_SECRET, and RAZORPAY_DIRECT_WEBHOOK_SECRET are configured in Replit Secrets. No credential values are entered here.
                   </ThemedText>
                 ) : null}
+                 {paymentQuery.data.direct.configured && paymentQuery.data.paymentLinksReady === false ? (
+                   <ThemedText style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 6 }}>
+                     Razorpay Payment Links is unavailable until the API reports the Direct credentials as ready for hosted links.
+                   </ThemedText>
+                 ) : null}
               </View>
             ) : null}
           </>
