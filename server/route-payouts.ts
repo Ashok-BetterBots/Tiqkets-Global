@@ -718,16 +718,26 @@ export async function recoverPaymentLinkPaid(paymentLinkId: string, paymentIdHin
   let paid: EventRegistration | undefined;
   let paymentRowId: string | null = null;
   await db.transaction(async (tx) => {
-    const [paymentRow] = await tx.insert(payments).values({
-      organizationId: ev.organizationId, amount: checkout.amount, currency: checkout.currency,
-      status: "captured", razorpayPaymentId: paymentId, paymentMethod: payment.method || "payment_link",
-      description: `Event registration — ${ev.name}`, paidAt: new Date(),
-    }).onConflictDoNothing({ target: payments.razorpayPaymentId }).returning();
-    if (paymentRow) paymentRowId = paymentRow.id;
-    else {
-      const [existing] = await tx.select().from(payments)
-        .where(eq(payments.razorpayPaymentId, paymentId)).limit(1);
-      paymentRowId = existing?.id || null;
+    // Serialize all callback/webhook recovery attempts for this checkout.
+    // Production may temporarily retain the older partial provider-payment
+    // index, which PostgreSQL cannot use as an ON CONFLICT column target.
+    await tx.execute(sql`SELECT id FROM event_payment_checkouts WHERE id = ${checkout.id} FOR UPDATE`);
+    const [existing] = await tx.select().from(payments)
+      .where(eq(payments.razorpayPaymentId, paymentId)).limit(1);
+    if (existing) {
+      if (existing.organizationId !== ev.organizationId ||
+          existing.amount !== checkout.amount ||
+          existing.currency.toUpperCase() !== checkout.currency.toUpperCase()) {
+        throw new Error("Razorpay payment is already bound to another transaction");
+      }
+      paymentRowId = existing.id;
+    } else {
+      const [paymentRow] = await tx.insert(payments).values({
+        organizationId: ev.organizationId, amount: checkout.amount, currency: checkout.currency,
+        status: "captured", razorpayPaymentId: paymentId, paymentMethod: payment.method || "payment_link",
+        description: `Event registration — ${ev.name}`, paidAt: new Date(),
+      }).returning();
+      paymentRowId = paymentRow.id;
     }
     const [updated] = await tx.update(eventRegistrations).set({
       status: "payment_completed", amountPaid: checkout.amount, paymentId: paymentRowId, updatedAt: new Date(),
