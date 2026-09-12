@@ -3030,9 +3030,19 @@ export function registerEventsRoutes(app: Express) {
       return res.status(404).send("Registration not found");
     }
     // Strip provider-supplied payment fields and signatures from the address
-    // bar before rendering or retrying the callback.
-    if (Object.keys(req.query).some(key => key !== "registrationId")) {
-      return res.redirect(303, `/api/event/payment-link-callback?registrationId=${encodeURIComponent(registrationId)}`);
+    // bar before rendering or retrying the callback. Use the canonical base
+    // URL so callbacks received on a secondary deployment domain move to the
+    // preferred custom domain.
+    const canonicalCallbackUrl = `${getPublicBaseUrl()}/api/event/payment-link-callback?registrationId=${encodeURIComponent(registrationId)}`;
+    let canonicalHost = "";
+    try {
+      canonicalHost = new URL(canonicalCallbackUrl).host;
+    } catch {
+      canonicalHost = "";
+    }
+    if (Object.keys(req.query).some(key => key !== "registrationId") ||
+        (canonicalHost && req.get("host") !== canonicalHost)) {
+      return res.redirect(303, canonicalCallbackUrl);
     }
     let [row] = await db.select({
       status: eventRegistrations.status,
