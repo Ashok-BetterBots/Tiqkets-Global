@@ -62,6 +62,7 @@ import {
 } from "@shared/schema";
 import { createRouteOrder, isRazorpayTestMode, isRouteProfileActive, mapWithConcurrency } from "./route-payouts";
 import { createDirectOrder } from "./razorpay-direct";
+import { createPaymentLink } from "./razorpay-payment-links";
 import { directCredentialStatus, getEventPaymentMethod } from "./event-payment-method";
 import { isValidRazorpayProviderId } from "./razorpay-route-contract";
 import { formatEventSlotRange, formatEventTime } from "@shared/eventSlots";
@@ -119,11 +120,13 @@ export function canConfigureEventRegistrationFee(profile: {
 
 /** Paid-event configuration follows the adapter currently selected by the platform. */
 export function canConfigureEventRegistrationFeeForMethod(
-  method: "razorpay_route" | "razorpay_direct",
+  method: "razorpay_route" | "razorpay_direct" | "razorpay_payment_links",
   profile: { providerProductId?: string | null; productStatus?: string | null } | null | undefined,
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  return method === "razorpay_direct" ? directCredentialStatus(env).configured : canConfigureEventRegistrationFee(profile);
+  return method === "razorpay_direct" || method === "razorpay_payment_links"
+    ? directCredentialStatus(env).configured
+    : canConfigureEventRegistrationFee(profile);
 }
 // Admin (org.events.manage) or Billing (org.events.billing) only — used for
 // the desk/counter manual registration flow.
@@ -2120,6 +2123,9 @@ export function registerEventsRoutes(app: Express) {
       if (fee > 0 && paymentMethod === "razorpay_direct" && !directCredentialStatus().configured) {
         return res.status(503).json({ error: "Paid registration requires configured Direct Razorpay credentials" });
       }
+      if (fee > 0 && paymentMethod === "razorpay_payment_links" && !directCredentialStatus().configured) {
+        return res.status(503).json({ error: "Paid registration requires configured Direct Razorpay credentials" });
+      }
       if (fee > 0 && paymentMethod === "razorpay_route") {
         [payoutProfile] = await db.select().from(organizerPayoutProfiles)
           .where(eq(organizerPayoutProfiles.organizationId, ev.organizationId)).limit(1);
@@ -2182,7 +2188,10 @@ export function registerEventsRoutes(app: Express) {
         }
         if (fee > 0) {
           [checkout] = await tx.insert(eventPaymentCheckouts).values({
-            registrationId: inserted.id, adapter: paymentMethod === "razorpay_direct" ? "direct" : "route",
+            registrationId: inserted.id,
+            adapter: paymentMethod === "razorpay_direct"
+              ? "direct"
+              : paymentMethod === "razorpay_payment_links" ? "payment_links" : "route",
             razorpayOrderId: null, amount: fee, currency: "INR", status: "creating",
           }).onConflictDoNothing({ target: eventPaymentCheckouts.registrationId }).returning();
           if (!checkout) {
@@ -2220,6 +2229,54 @@ export function registerEventsRoutes(app: Express) {
           });
         } catch (e) {
           console.error("[events] Razorpay direct order request failed:", e);
+          return res.status(504).json({ error: "Payment gateway timed out. Please try again in a moment." });
+        }
+      }
+
+      if (paymentMethod === "razorpay_payment_links") {
+        try {
+          if (result.checkout?.razorpayPaymentLinkId && result.checkout.razorpayShortUrl) {
+            return res.json({
+              registration: regShape(reg),
+              payment: {
+                paymentLinkId: result.checkout.razorpayPaymentLinkId,
+                shortUrl: result.checkout.razorpayShortUrl,
+                paymentLinkUrl: result.checkout.razorpayShortUrl,
+                amount: fee,
+                currency: "INR",
+              },
+            });
+          }
+          const link = await createPaymentLink({
+            registrationId: reg.id,
+            eventId: ev.id,
+            amount: fee,
+            customerName: reg.customerName,
+            customerPhone: reg.customerPhone,
+            customerEmail: reg.customerEmail,
+            callbackUrl: `${getPublicBaseUrl().replace(/^http:\/\//i, "https://")}/api/event/payment-link-callback?registrationId=${encodeURIComponent(reg.id)}`,
+          });
+          // The registration checkout intent exists before the provider call.
+          // Bind every provider identifier before exposing the hosted URL.
+          await db.update(eventPaymentCheckouts).set({
+            paymentLinkReferenceId: link.referenceId,
+            razorpayPaymentLinkId: link.id,
+            razorpayShortUrl: link.short_url,
+            status: "initiated",
+            updatedAt: new Date(),
+          }).where(and(eq(eventPaymentCheckouts.registrationId, reg.id), isNull(eventPaymentCheckouts.razorpayPaymentLinkId)));
+          return res.json({
+            registration: regShape(reg),
+            payment: {
+              paymentLinkId: link.id,
+              shortUrl: link.short_url,
+              paymentLinkUrl: link.short_url,
+              amount: fee,
+              currency: "INR",
+            },
+          });
+        } catch (e) {
+          console.error("[events] Razorpay Payment Link request failed:", e);
           return res.status(504).json({ error: "Payment gateway timed out. Please try again in a moment." });
         }
       }
@@ -2959,6 +3016,21 @@ export function registerEventsRoutes(app: Express) {
     }
   });
 
+  // Razorpay redirects here after hosted Payment Link checkout. This is only
+  // a customer-experience redirect; payment state is changed exclusively by
+  // the signed payment_link webhook handled by route-payouts.
+  app.get("/api/event/payment-link-callback", publicRoute("payment link callback"), async (req: Request, res: Response) => {
+    const registrationId = String(req.query.registrationId || "");
+    const [row] = registrationId
+      ? await db.select({ branchId: branches.id }).from(eventRegistrations)
+        .innerJoin(events, eq(events.id, eventRegistrations.eventId))
+        .innerJoin(branches, eq(branches.id, events.branchId))
+        .where(eq(eventRegistrations.id, registrationId)).limit(1)
+      : [];
+    if (!row) return res.status(404).send("Registration not found");
+    res.redirect(`${getPublicBaseUrl()}/event/${encodeURIComponent(row.branchId)}?payment=return`);
+  });
+
   app.post("/api/event/verify-payment", publicRoute("customer payment verification (signature-checked)"), async (req: Request, res: Response) => {
     try {
       const { registrationId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body || {};
@@ -2972,6 +3044,9 @@ export function registerEventsRoutes(app: Express) {
       const [checkout] = await db.select().from(eventPaymentCheckouts)
         .where(eq(eventPaymentCheckouts.registrationId, reg.id)).limit(1);
       if (!checkout) return res.status(400).json({ error: "Payment checkout snapshot not found" });
+      if (checkout.adapter === "payment_links") {
+        return res.status(400).json({ error: "Payment Links are confirmed by Razorpay webhook" });
+      }
       const [allocation] = await db.select().from(routePayoutAllocations)
         .where(eq(routePayoutAllocations.registrationId, reg.id)).limit(1);
       const paymentMethod = checkout.adapter === "direct" ? "razorpay_direct" : "razorpay_route";

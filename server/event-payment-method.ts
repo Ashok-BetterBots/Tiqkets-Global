@@ -2,7 +2,7 @@ import { storage } from "./storage";
 
 export const EVENT_PAYMENT_METHOD_SETTING_KEY = "event_payment_method";
 export const DEFAULT_EVENT_PAYMENT_METHOD = "razorpay_route" as const;
-export const EVENT_PAYMENT_METHODS = ["razorpay_route", "razorpay_direct"] as const;
+export const EVENT_PAYMENT_METHODS = ["razorpay_route", "razorpay_direct", "razorpay_payment_links"] as const;
 
 export type EventPaymentMethod = (typeof EVENT_PAYMENT_METHODS)[number];
 
@@ -21,7 +21,7 @@ export interface SystemSettingWriter extends SystemSettingReader {
 
 /** Normalize persisted or request values, failing safely to the existing Route path. */
 export function normalizeEventPaymentMethod(value: unknown): EventPaymentMethod {
-  return value === "razorpay_direct" || value === "razorpay_route"
+  return value === "razorpay_direct" || value === "razorpay_route" || value === "razorpay_payment_links"
     ? value
     : DEFAULT_EVENT_PAYMENT_METHOD;
 }
@@ -44,7 +44,7 @@ export async function getEventPaymentMethod(
 ): Promise<EventPaymentMethod> {
   const stored = await settings.getSystemSetting<unknown>(EVENT_PAYMENT_METHOD_SETTING_KEY);
   const method = normalizeEventPaymentMethod(stored);
-  return method === "razorpay_direct" && !directCredentialStatus(env).configured
+  return (method === "razorpay_direct" || method === "razorpay_payment_links") && !directCredentialStatus(env).configured
     ? DEFAULT_EVENT_PAYMENT_METHOD
     : method;
 }
@@ -56,7 +56,7 @@ export async function setEventPaymentMethod(
 ): Promise<EventPaymentMethod> {
   const method = normalizeEventPaymentMethod(value);
   if (value !== method) throw new Error("Invalid event payment method");
-  if (method === "razorpay_direct" && !directCredentialStatus(env).configured) {
+  if ((method === "razorpay_direct" || method === "razorpay_payment_links") && !directCredentialStatus(env).configured) {
     throw new Error("Direct Razorpay credentials are not configured: key, secret, and webhook secret are required");
   }
   await settings.setSystemSetting(EVENT_PAYMENT_METHOD_SETTING_KEY, method);

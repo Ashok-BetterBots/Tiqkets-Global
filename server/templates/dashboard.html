@@ -6235,7 +6235,7 @@
           <div x-show="currentPage === 'ticketPayments'" x-transition>
             <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
               <div>
-                <p class="text-sm text-gray-500" x-text="payoutProfile?.paymentMethod === 'razorpay_direct' ? 'Razorpay Direct payments for paid event tickets.' : 'Razorpay Route payouts for paid event tickets. Ticket revenue is routed to your organizer account.'"></p>
+                <p class="text-sm text-gray-500" x-text="payoutUsesPaymentLinks() ? 'Razorpay Payment Links for paid event tickets.' : (payoutProfile?.paymentMethod === 'razorpay_direct' ? 'Razorpay Direct payments for paid event tickets.' : 'Razorpay Route payouts for paid event tickets. Ticket revenue is routed to your organizer account.')"></p>
               </div>
               <button @click="reconcilePayouts()" :disabled="payoutReconciling || payoutLoading" class="btn-secondary text-xs whitespace-nowrap disabled:opacity-60">
                 <i class="fa-solid fa-rotate" :class="{ 'fa-spin': payoutReconciling }"></i>
@@ -6261,16 +6261,16 @@
               <div class="dash-card border-brand-100 bg-gradient-to-r from-brand-50/60 via-white to-purple-50/30">
                 <div class="flex flex-col sm:flex-row sm:items-start gap-4">
                   <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                    :class="(payoutProfile?.paymentMethod === 'razorpay_direct' ? payoutProfile?.directReady : payoutProfile?.onboarding?.currentStage === 'complete') ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'">
-                    <i :class="(payoutProfile?.paymentMethod === 'razorpay_direct' ? payoutProfile?.directReady : payoutProfile?.onboarding?.currentStage === 'complete') ? 'fa-solid fa-circle-check' : 'fa-solid fa-building-columns'"></i>
+                    :class="ticketPaymentsReady() ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'">
+                    <i :class="ticketPaymentsReady() ? 'fa-solid fa-circle-check' : 'fa-solid fa-building-columns'"></i>
                   </div>
                   <div class="flex-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <h2 class="text-base font-extrabold text-gray-900" x-text="payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? 'Razorpay Direct payments active' : 'Razorpay Direct unavailable') : (payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Awaiting Razorpay activation') : 'Payout setup required')"></h2>
-                      <span class="badge" :class="(payoutProfile?.paymentMethod === 'razorpay_direct' ? payoutProfile?.directReady : payoutProfile?.onboarding?.currentStage === 'complete') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
-                        x-text="payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Unavailable') : (payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Under review') : (payoutProfile?.configured ? 'Action needed' : 'Not set up'))"></span>
+                      <h2 class="text-base font-extrabold text-gray-900" x-text="payoutUsesPaymentLinks() ? (ticketPaymentsReady() ? 'Razorpay Payment Links active' : 'Razorpay Payment Links unavailable') : (payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? 'Razorpay Direct payments active' : 'Razorpay Direct unavailable') : (payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Awaiting Razorpay activation') : 'Payout setup required'))"></h2>
+                      <span class="badge" :class="ticketPaymentsReady() ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
+                        x-text="payoutUsesPaymentLinks() ? (ticketPaymentsReady() ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Unavailable') : (payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Unavailable') : (payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Under review') : (payoutProfile?.configured ? 'Action needed' : 'Not set up')))"></span>
                     </div>
-                    <p class="text-sm text-gray-500 mt-1" x-text="payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? 'Paid event registrations are processed directly through the platform Razorpay account.' : 'Razorpay Direct must be configured by the Super Admin before paid registrations can be accepted.') : (payoutProfile?.actionRequired || payoutProfile?.statusReason || 'Submit organizer payout details to enable paid ticket checkout.')"></p>
+                    <p class="text-sm text-gray-500 mt-1" x-text="payoutUsesPaymentLinks() ? (ticketPaymentsReady() ? 'Paid event registrations use hosted Razorpay Payment Links. Payment Links reuse the Direct credentials configured by the Super Admin.' : 'Payment Links reuse the Direct credentials configured by the Super Admin and must be ready before paid registrations can be accepted.') : (payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? 'Paid event registrations are processed directly through the platform Razorpay account.' : 'Razorpay Direct must be configured by the Super Admin before paid registrations can be accepted.') : (payoutProfile?.actionRequired || payoutProfile?.statusReason || 'Submit organizer payout details to enable paid ticket checkout.'))"></p>
                      <div x-show="payoutProfile?.paymentMethod === 'razorpay_route' && payoutProfile?.configured" class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
                       <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Razorpay account ID</span><code class="block font-bold text-gray-700 mt-0.5 break-all" x-text="payoutProfile?.accountId || '—'"></code></div>
                       <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Razorpay stakeholder ID</span><code class="block font-bold text-gray-700 mt-0.5 break-all" x-text="payoutProfile?.stakeholderId || 'Not created yet'"></code></div>
@@ -6528,16 +6528,18 @@
                 </div>
                 <div class="overflow-x-auto" x-show="payoutHistory.items?.length">
                     <table class="w-full min-w-[760px]">
-                    <thead><tr><th class="table-header">Event</th><th class="table-header">Booking</th><th class="table-header">Razorpay order</th><th class="table-header">Payment</th><th x-show="payoutProfile?.paymentMethod === 'razorpay_route'" class="table-header">Transfer</th><th x-show="payoutProfile?.paymentMethod === 'razorpay_route'" class="table-header">Settlement</th><th class="table-header">Status</th><th class="table-header">Amount</th><th class="table-header">Date</th></tr></thead>
+                    <thead><tr><th class="table-header">Event</th><th class="table-header">Booking</th><th x-show="!payoutHistoryHasPaymentLinks()" class="table-header">Razorpay order</th><th x-show="payoutHistoryHasPaymentLinks()" class="table-header">Payment Link ID</th><th x-show="payoutHistoryHasPaymentLinks()" class="table-header">Payment Link reference</th><th class="table-header">Payment</th><th x-show="payoutProfile?.paymentMethod === 'razorpay_route' && !payoutHistoryHasPaymentLinks()" class="table-header">Transfer</th><th x-show="payoutProfile?.paymentMethod === 'razorpay_route' && !payoutHistoryHasPaymentLinks()" class="table-header">Settlement</th><th class="table-header">Status</th><th class="table-header">Amount</th><th class="table-header">Date</th></tr></thead>
                     <tbody>
                       <template x-for="item in payoutHistory.items" :key="item.id">
                         <tr class="hover:bg-brand-50/20">
                           <td class="table-cell font-semibold text-gray-800" x-text="item.eventName"></td>
                           <td class="table-cell text-xs font-mono text-gray-500" x-text="item.bookingId || 'Ticket'"></td>
-                          <td class="table-cell text-xs font-mono text-gray-600" x-text="item.razorpayOrderId || 'Unavailable'"></td>
+                           <td x-show="!payoutHistoryUsesPaymentLinks(item)" class="table-cell text-xs font-mono text-gray-600" x-text="item.razorpayOrderId || 'Unavailable'"></td>
+                           <td x-show="payoutHistoryUsesPaymentLinks(item)" class="table-cell text-xs font-mono text-gray-600" x-text="item.paymentLinkId || 'Unavailable'"></td>
+                           <td x-show="payoutHistoryUsesPaymentLinks(item)" class="table-cell text-xs font-mono text-gray-600" x-text="item.paymentLinkReference || item.paymentLinkReferenceId || 'Unavailable'"></td>
                           <td class="table-cell text-xs font-mono text-gray-600" x-text="item.razorpayPaymentId || 'Unavailable'"></td>
-                           <td x-show="item.adapter === 'route'" class="table-cell text-xs font-mono text-gray-600" x-text="item.razorpayTransferId || item.transferStatus || 'Unavailable'"></td>
-                           <td x-show="item.adapter === 'route'" class="table-cell text-xs text-gray-600" x-text="item.providerSettlementStatus || item.settlementStatus || 'Unavailable'"></td>
+                            <td x-show="item.adapter === 'route' && !payoutHistoryUsesPaymentLinks(item)" class="table-cell text-xs font-mono text-gray-600" x-text="item.razorpayTransferId || item.transferStatus || 'Unavailable'"></td>
+                            <td x-show="item.adapter === 'route' && !payoutHistoryUsesPaymentLinks(item)" class="table-cell text-xs text-gray-600" x-text="item.providerSettlementStatus || item.settlementStatus || 'Unavailable'"></td>
                            <td class="table-cell text-xs" x-text="item.status ?? item.transferStatus ?? 'Unavailable'"></td>
                            <td class="table-cell text-right font-bold text-gray-900" x-text="fmtPaise(item.amount ?? item.netAmount ?? 0)"></td>
                           <td class="table-cell text-xs text-gray-500" x-text="payoutDateTime(item.paidAt || item.createdAt)"></td>
@@ -7525,9 +7527,28 @@
         },
 
         eventRegistrationFeesReady() {
+          if (this.payoutProfile?.paymentMethod === 'razorpay_payment_links') return (this.payoutProfile?.paymentLinksReady ?? this.payoutProfile?.canAcceptPaidTickets) === true;
           if (this.payoutProfile?.paymentMethod === 'razorpay_direct') return this.payoutProfile?.directReady === true;
           const productId = String(this.payoutProfile?.productId || '').trim();
           return /^acc_prd_[A-Za-z0-9]+$/.test(productId);
+        },
+
+        ticketPaymentsReady() {
+          if (this.payoutProfile?.paymentMethod === 'razorpay_payment_links') return (this.payoutProfile?.paymentLinksReady ?? this.payoutProfile?.canAcceptPaidTickets) === true;
+          if (this.payoutProfile?.paymentMethod === 'razorpay_direct') return this.payoutProfile?.directReady === true;
+          return this.payoutProfile?.onboarding?.currentStage === 'complete';
+        },
+
+        payoutUsesPaymentLinks() {
+          return this.payoutProfile?.paymentMethod === 'razorpay_payment_links';
+        },
+
+        payoutHistoryUsesPaymentLinks(item) {
+          return item?.adapter === 'payment_link' || item?.adapter === 'payment_links';
+        },
+
+        payoutHistoryHasPaymentLinks() {
+          return this.payoutUsesPaymentLinks() || (this.payoutHistory.items || []).some(item => item?.adapter === 'payment_link' || item?.adapter === 'payment_links');
         },
 
         async refreshOrgPermissions() {

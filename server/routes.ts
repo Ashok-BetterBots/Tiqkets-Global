@@ -6510,7 +6510,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
     try {
       const paymentMethod = await getEventPaymentMethod();
-      res.json({ paymentMethod, direct: directCredentialStatus() });
+      const direct = directCredentialStatus();
+      res.json({ paymentMethod, direct, paymentLinksReady: direct.configured });
     } catch (err) {
       console.error("get event payment method failed:", err);
       res.status(500).json({ error: "Failed" });
@@ -6521,10 +6522,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
     try {
       const paymentMethod = await setEventPaymentMethod(req.body?.paymentMethod);
-      res.json({ paymentMethod, direct: directCredentialStatus() });
+      const direct = directCredentialStatus();
+      res.json({ paymentMethod, direct, paymentLinksReady: direct.configured });
     } catch (err) {
       if (err instanceof Error && err.message === "Invalid event payment method") {
-        return res.status(400).json({ error: "paymentMethod must be razorpay_route or razorpay_direct" });
+        return res.status(400).json({ error: "paymentMethod must be razorpay_route, razorpay_direct, or razorpay_payment_links" });
       }
       if (err instanceof Error && (err.message === "Direct Razorpay credentials are not configured" || err.message === "Direct Razorpay credentials are not configured: key, secret, and webhook secret are required")) {
         return res.status(409).json({ error: "Direct Razorpay key, secret, and webhook secret are required", direct: directCredentialStatus() });

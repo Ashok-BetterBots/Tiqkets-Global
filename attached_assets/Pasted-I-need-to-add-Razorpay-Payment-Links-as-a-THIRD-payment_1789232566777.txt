@@ -1,0 +1,100 @@
+I need to add Razorpay Payment Links as a THIRD payment method option in my
+app (Tiqkets), alongside the existing "Razorpay Route" and "Razorpay
+Direct" options already configurable from the super admin settings page.
+Please implement this carefully and incrementally — do not modify or
+break the existing Route or Direct payment logic, ticket generation, QR/ID
+logic, or any other unrelated part of the app.
+
+CONTEXT: The super admin page already has a payment-method selector
+(currently Route vs Direct). Add "Razorpay Payment Links" as a third
+selectable option. Whichever method is selected determines how payment is
+collected for that tenant/event; the rest of the app (ticket issuance,
+"Fully paid" status, transaction display) should behave consistently
+regardless of which method is active.
+
+REQUIREMENT 1 — SUPER ADMIN SETTING:
+- Extend the existing payment-method setting from a 2-way toggle to a
+  3-way choice: "Razorpay Route", "Razorpay Direct", "Razorpay Payment
+  Links".
+- Store this using the same mechanism/scope already used for the
+  Route/Direct setting.
+- Payment Links mode can reuse the Key ID/Key Secret already stored for
+  Direct mode — confirm this from the existing code rather than
+  duplicating credential storage.
+
+REQUIREMENT 2 — CREATE PAYMENT LINK ON CHECKOUT (when this mode is
+active):
+- When "Razorpay Payment Links" is active, call Razorpay's Payment Links
+  Create API for the exact amount due.
+- Generate a unique `reference_id` per payment link tied to the specific
+  booking/ticket record (e.g. booking ID + a random/timestamp component
+  for uniqueness), and store this reference_id AND the returned link `id`
+  (e.g. `plink_...`) against the booking record BEFORE redirecting the
+  user, so the booking can be matched back up when the webhook arrives.
+- Redirect the user to the `short_url` returned by the API — this is the
+  hosted Razorpay checkout page, not an embedded/custom UI.
+- Set `callback_url` and `callback_method` on link creation for a smooth
+  return-to-app UX after payment, but do NOT treat the callback redirect
+  as proof of payment — only mark payment complete and issue the ticket
+  based on the webhook (see Requirement 3). The callback is for UX only.
+
+REQUIREMENT 3 — WEBHOOK HANDLING:
+- Implement/extend a webhook endpoint subscribed to these Payment Links
+  events:
+  - `payment_link.paid` → look up the booking via reference_id/link id,
+    mark it fully paid, then trigger our EXISTING post-payment flow
+    exactly as it already runs for Route/Direct (ticket generation,
+    confirmation notification, etc.) — call that existing logic, don't
+    duplicate it.
+  - `payment_link.partially_paid` → if our system already supports
+    partial payments under Route/Direct, mirror that state; if not,
+    just record the partial amount without issuing the ticket.
+  - `payment_link.expired` → mark the booking's payment attempt as
+    expired so it can be retried, matching however expired/failed
+    payments are surfaced under Route/Direct today.
+  - `payment_link.cancelled` → mark the link cancelled, same UX pattern
+    as expired.
+- CRITICAL — verify the webhook signature (HMAC SHA256 using the webhook
+  secret) on every incoming call before trusting the payload, exactly as
+  documented by Razorpay. Reject unverified requests. Store the webhook
+  secret using the same secure pattern already used for other Razorpay
+  credentials.
+- Make the handler idempotent — a duplicate webhook delivery for the same
+  event must not double-issue a ticket or corrupt booking state.
+
+REQUIREMENT 4 — TICKET PAYMENTS PAGE:
+- Ensure the existing Ticket Payments page (already updated to hide
+  "Ticket Payout" and show Razorpay transaction details for Route/Direct)
+  also displays Payment Links transactions correctly when that mode is
+  active — reuse the same transaction-display component, just adapt the
+  data source.
+
+REQUIREMENT 5 — CODE STRUCTURE:
+- Add "Payment Links" as a new implementation of the existing payment
+  method strategy/adapter pattern already used to separate Route and
+  Direct — do not scatter new if/else conditions across the codebase.
+
+IMPLEMENTATION CAUTION:
+- Before writing code, show me exactly which files/functions currently
+  handle: (a) the Route/Direct strategy pattern, (b) any existing webhook
+  handler, and (c) the Ticket Payments page transaction display.
+- Implement and test in this order: (1) super admin 3-way setting, (2)
+  payment link creation + redirect, (3) webhook handling + signature
+  verification + idempotency, (4) Ticket Payments page display.
+- Do not touch Route or Direct code paths except where the shared
+  strategy pattern requires slotting in the new option.
+
+TEST BEFORE CONFIRMING DONE:
+- With "Razorpay Payment Links" selected: confirm a link is created with
+  a unique reference_id, the user is redirected to the hosted page, and
+  `payment_link.paid` correctly matches the booking and runs the full
+  ticket-issuance flow.
+- Confirm an invalid/unsigned webhook is rejected.
+- Confirm a duplicate webhook for the same event doesn't double-issue a
+  ticket.
+- Confirm Route and Direct modes are completely unaffected.
+
+After implementing, confirm: how reference_id is generated and matched
+back to bookings, how webhook signature verification was implemented, how
+idempotency is handled, and confirm Route/Direct paths were only extended,
+not modified.
