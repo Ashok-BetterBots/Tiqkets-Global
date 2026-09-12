@@ -60,7 +60,7 @@ import {
   type PreprintedBackFontFamily,
   type PreprintedBackLayout,
 } from "@shared/schema";
-import { createRouteOrder, isRazorpayTestMode, isRouteProfileActive, mapWithConcurrency } from "./route-payouts";
+import { createRouteOrder, isRazorpayTestMode, isRouteProfileActive, mapWithConcurrency, recoverPaymentLinkPaid } from "./route-payouts";
 import { createDirectOrder } from "./razorpay-direct";
 import { createPaymentLink } from "./razorpay-payment-links";
 import { directCredentialStatus, getEventPaymentMethod } from "./event-payment-method";
@@ -1831,6 +1831,10 @@ export function registerEventsRoutes(app: Express) {
   }));
 
   // Legacy branch-scoped landing-data route (pre-dates per-event linking).
+  // Register this fixed path before /api/event/:branchId so Express does not
+  // interpret "payment-link-callback" as a branch ID.
+  app.get("/api/event/payment-link-callback", publicRoute("payment link callback"), handlePaymentLinkCallback);
+
   app.get("/api/event/:branchId", publicRoute("public event landing data (legacy branch-scoped)"), handleEventLanding(async (req) => {
     return loadEventForBranch(String(req.params.branchId), { publishedOnly: true });
   }));
@@ -3017,19 +3021,66 @@ export function registerEventsRoutes(app: Express) {
   });
 
   // Razorpay redirects here after hosted Payment Link checkout. This is only
-  // a customer-experience redirect; payment state is changed exclusively by
-  // the signed payment_link webhook handled by route-payouts.
-  app.get("/api/event/payment-link-callback", publicRoute("payment link callback"), async (req: Request, res: Response) => {
+  // a customer-experience redirect. It never trusts Razorpay's callback query
+  // parameters as proof of payment: recovery fetches and validates the
+  // persisted Payment Link and captured payment directly from Razorpay.
+  async function handlePaymentLinkCallback(req: Request, res: Response) {
     const registrationId = String(req.query.registrationId || "");
-    const [row] = registrationId
-      ? await db.select({ branchId: branches.id }).from(eventRegistrations)
-        .innerJoin(events, eq(events.id, eventRegistrations.eventId))
-        .innerJoin(branches, eq(branches.id, events.branchId))
-        .where(eq(eventRegistrations.id, registrationId)).limit(1)
-      : [];
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(registrationId)) {
+      return res.status(404).send("Registration not found");
+    }
+    // Strip provider-supplied payment fields and signatures from the address
+    // bar before rendering or retrying the callback.
+    if (Object.keys(req.query).some(key => key !== "registrationId")) {
+      return res.redirect(303, `/api/event/payment-link-callback?registrationId=${encodeURIComponent(registrationId)}`);
+    }
+    let [row] = await db.select({
+      status: eventRegistrations.status,
+      qrToken: eventRegistrations.qrToken,
+      checkoutStatus: eventPaymentCheckouts.status,
+      adapter: eventPaymentCheckouts.adapter,
+      paymentLinkId: eventPaymentCheckouts.razorpayPaymentLinkId,
+    }).from(eventRegistrations)
+      .leftJoin(eventPaymentCheckouts, eq(eventPaymentCheckouts.registrationId, eventRegistrations.id))
+      .where(eq(eventRegistrations.id, registrationId)).limit(1);
     if (!row) return res.status(404).send("Registration not found");
-    res.redirect(`${getPublicBaseUrl()}/event/${encodeURIComponent(row.branchId)}?payment=return`);
-  });
+    if (row.qrToken) {
+      return res.redirect(303, `/event-ticket/${encodeURIComponent(row.qrToken)}`);
+    }
+    if (row.adapter === "payment_links" && row.paymentLinkId && row.status === "registration_started") {
+      await recoverPaymentLinkPaid(row.paymentLinkId).catch(error => {
+        console.error("[events] Payment Link callback recovery failed:", error);
+      });
+      [row] = await db.select({
+        status: eventRegistrations.status,
+        qrToken: eventRegistrations.qrToken,
+        checkoutStatus: eventPaymentCheckouts.status,
+        adapter: eventPaymentCheckouts.adapter,
+        paymentLinkId: eventPaymentCheckouts.razorpayPaymentLinkId,
+      }).from(eventRegistrations)
+        .leftJoin(eventPaymentCheckouts, eq(eventPaymentCheckouts.registrationId, eventRegistrations.id))
+        .where(eq(eventRegistrations.id, registrationId)).limit(1);
+      if (row?.qrToken) {
+        return res.redirect(303, `/event-ticket/${encodeURIComponent(row.qrToken)}`);
+      }
+    }
+    const terminal = row?.checkoutStatus === "expired" || row?.checkoutStatus === "cancelled";
+    res.status(terminal ? 409 : 202)
+      .set({
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
+      })
+      .send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${terminal ? "Payment not completed" : "Preparing your ticket"}</title>
+<style>body{margin:0;background:#f8f6f8;color:#241f23;font-family:system-ui,-apple-system,sans-serif;display:grid;min-height:100vh;place-items:center}.card{width:min(88vw,420px);background:#fff;border:1px solid #eadfe7;border-radius:20px;padding:32px;text-align:center;box-shadow:0 14px 36px rgba(82,26,66,.1)}h1{font-size:24px;margin:0 0 12px}p{color:#675d65;line-height:1.5;margin:0 0 22px}.spinner{width:34px;height:34px;border:4px solid #eadfe7;border-top-color:#8c1867;border-radius:50%;margin:0 auto 22px;animation:spin .9s linear infinite}button{border:0;border-radius:12px;background:#8c1867;color:#fff;padding:12px 20px;font-weight:700}@keyframes spin{to{transform:rotate(360deg)}}</style></head>
+<body><main class="card">${terminal ? "" : '<div class="spinner" aria-hidden="true"></div>'}
+<h1>${terminal ? "Payment not completed" : "Payment received"}</h1>
+<p>${terminal ? "This payment link is no longer active. Please return to the event page and try again." : "We are securely confirming your payment and preparing your ticket. This page will update automatically."}</p>
+<button type="button" onclick="location.reload()">Check again</button></main>
+${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</script>"}</body></html>`);
+  }
 
   app.post("/api/event/verify-payment", publicRoute("customer payment verification (signature-checked)"), async (req: Request, res: Response) => {
     try {

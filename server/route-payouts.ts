@@ -660,7 +660,7 @@ function paymentLinkPaymentEntity(payload: any): any {
   return payload?.payload?.payment?.entity || {};
 }
 
-async function recoverPaymentLinkPaid(paymentLinkId: string, paymentIdHint?: string): Promise<WebhookProcessResult> {
+export async function recoverPaymentLinkPaid(paymentLinkId: string, paymentIdHint?: string): Promise<WebhookProcessResult> {
   const [checkout] = await db.select().from(eventPaymentCheckouts)
     .where(eq(eventPaymentCheckouts.razorpayPaymentLinkId, paymentLinkId)).limit(1);
   if (!checkout || checkout.adapter !== "payment_links") return "ignored";
@@ -688,7 +688,9 @@ async function recoverPaymentLinkPaid(paymentLinkId: string, paymentIdHint?: str
   let paymentId = paymentIdHint ||
     String(link.payment_id || link.payment?.id || link.paid_by || "");
   if (!paymentId && Array.isArray(link.payments)) {
-    paymentId = String(link.payments.find((p: any) => p?.id)?.id || "");
+    const captured = link.payments.find((p: any) => p?.status === "captured") ||
+      link.payments.find((p: any) => p?.payment_id || p?.id);
+    paymentId = String(captured?.payment_id || captured?.id || "");
   }
   if (!paymentId) {
     try {
