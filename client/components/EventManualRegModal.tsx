@@ -156,7 +156,7 @@ export function EventManualRegModal({
   eventName?: string;
   onSuccess?: () => void;
 }) {
-  const { height: screenHeight, width: screenWidth } = useWindowDimensions();
+  const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const surface = "#FFFFFF";
   const bg = "#F7F5FE";
@@ -307,10 +307,6 @@ export function EventManualRegModal({
     () => bookableTimes.find((slot) => slot.time === form.slotTime) || null,
     [bookableTimes, form.slotTime],
   );
-  // The slot card has 16px page padding and 14px internal padding. Accounting
-  // for two 8px gaps leaves room for precisely three date/time chips.
-  const slotChipWidth = Math.floor((screenWidth - 76) / 3);
-
   const minDate = useMemo(() => {
     if (!slotDates.length) return new Date();
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -803,7 +799,7 @@ export function EventManualRegModal({
                             style={[
                               styles.slotChip,
                               styles.slotChipSelected,
-                              { width: slotChipWidth, borderColor: BRAND },
+                              { borderColor: BRAND },
                             ]}
                             accessibilityRole="radio"
                             accessibilityState={{ checked: true, disabled: true }}
@@ -838,7 +834,7 @@ export function EventManualRegModal({
                                 }}
                                 style={[
                                   styles.slotChip,
-                                  { width: slotChipWidth, borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : surface },
+                                  { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : surface },
                                 ]}
                                 accessibilityRole="radio"
                                 accessibilityLabel={`Select ${formatDropdownDate(day.date)}`}
@@ -880,7 +876,7 @@ export function EventManualRegModal({
                                   }}
                                   style={[
                                     styles.slotChip,
-                                    { width: slotChipWidth, borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : surface },
+                                    { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "15" : surface },
                                   ]}
                                   accessibilityRole="radio"
                                   accessibilityLabel={`Select ${formatSlotRange(slot)}`}
@@ -1391,8 +1387,8 @@ const styles = StyleSheet.create({
   slotChipScroll: { gap: Spacing.xs, paddingRight: 2 },
   slotChip: { minHeight: 42, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
   slotChipSelected: { backgroundColor: BRAND + "15" },
-  slotChipText: { flex: 1, fontSize: 12, textAlign: "center" },
-  slotChipTextSelected: { flex: 1, color: BRAND, fontSize: 12, fontWeight: "800", textAlign: "center" },
+  slotChipText: { flexShrink: 0, fontSize: 12, textAlign: "center" },
+  slotChipTextSelected: { flexShrink: 0, color: BRAND, fontSize: 12, fontWeight: "800", textAlign: "center" },
   slotEmptyText: { color: "#766C73", fontSize: 13, paddingVertical: 10 },
   availabilityCaption: { color: "#766C73", fontSize: 11, marginTop: -5, marginLeft: 2 },
   splitFields: { flexDirection: "row", gap: 10 },
