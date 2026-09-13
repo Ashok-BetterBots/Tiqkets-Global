@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -124,6 +125,7 @@ const si = StyleSheet.create({
 
 export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }: Props) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { theme } = useTheme();
 
   const alreadyRedeemed = !!lookup.redemption;
@@ -136,8 +138,10 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
   const [otpCode, setOtpCode] = useState("");
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpVerified, setOtpVerified] = useState(otpAlreadyVerified);
+  const [otpBypassed, setOtpBypassed] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [invoiceRupees, setInvoiceRupees] = useState("");
+  const [invoiceEntryDone, setInvoiceEntryDone] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<{
@@ -167,6 +171,7 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     setOtpVerified(otpAlreadyVerified);
     setResendCooldown(0);
     setInvoiceRupees("");
+    setInvoiceEntryDone(false);
     setError(null);
     setSuccessData(null);
     setShowOverride(false);
@@ -181,9 +186,16 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     setOtpSending(true);
     setError(null);
     try {
-      await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
+      const response = await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
         registrationId: lookup.registration.id,
       });
+      const result = await response.json();
+      if (result.otpRequired === false) {
+        setOtpBypassed(true);
+        setOtpSent(false);
+        setStep("invoice");
+        return;
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setOtpSent(true);
       setResendCooldown(60);
@@ -243,6 +255,27 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     }
   };
 
+  const finishInvoiceEntry = useCallback(() => {
+    Keyboard.dismiss();
+    if (invoiceRupees.trim()) setInvoiceEntryDone(true);
+  }, [invoiceRupees]);
+
+  const handleInvoiceAmountChange = useCallback((rawValue: string) => {
+    let nextValue = rawValue.replace(/[^0-9.]/g, "");
+
+    // Some Android numeric keyboards append to a selected initial value
+    // instead of replacing it. Treat the no-advance default "0" like a
+    // placeholder when the first digit is entered, while preserving decimals
+    // intentionally entered as 0.x.
+    if (invoiceRupees === "0" && /^0\d/.test(nextValue)) {
+      nextValue = nextValue.slice(1);
+    }
+
+    setInvoiceRupees(nextValue);
+    setInvoiceEntryDone(false);
+    setError(null);
+  }, [invoiceRupees]);
+
   const handleResendOtp = useCallback(async () => {
     if (resendCooldown > 0 || otpSending) return;
     setOtpSent(false);
@@ -250,9 +283,16 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     setError(null);
     setOtpSending(true);
     try {
-      await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
+      const response = await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
         registrationId: lookup.registration.id,
       });
+      const result = await response.json();
+      if (result.otpRequired === false) {
+        setOtpBypassed(true);
+        setOtpSent(false);
+        setStep("invoice");
+        return;
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setOtpSent(true);
       setResendCooldown(60);
@@ -269,10 +309,18 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     setOtpVerifying(true);
     setError(null);
     try {
-      await apiRequest("POST", "/api/dashboard/events/billing/verify-otp", {
+      const response = await apiRequest("POST", "/api/dashboard/events/billing/verify-otp", {
         registrationId: lookup.registration.id,
         code: otpCode.trim(),
       });
+      const result = await response.json();
+      if (result.otpRequired === false) {
+        setOtpBypassed(true);
+        setOtpSent(false);
+        setOtpCode("");
+        setStep("invoice");
+        return;
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setOtpVerified(true);
       setOtpCode("");
@@ -330,8 +378,9 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={handleCancel}
       statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={handleCancel}
     >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -346,9 +395,10 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
             <View style={[styles.handle, { backgroundColor: theme.border }]} />
 
             {/* Step indicator */}
-            <StepIndicator step={step} otpRequired={lookup.otpRequired && !otpAlreadyVerified} cashPaidAtCounter={lookup.cashPaidAtCounter} />
+            <StepIndicator step={step} otpRequired={lookup.otpRequired && !otpAlreadyVerified && !otpBypassed} cashPaidAtCounter={lookup.cashPaidAtCounter} />
 
             <ScrollView
+              style={{ maxHeight: windowHeight - insets.top - insets.bottom - 150 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: Spacing.sm }}
@@ -690,19 +740,20 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                     <ThemedText style={[styles.rupeeSymbol, { color: BRAND }]}>₹</ThemedText>
                     <TextInput
                       value={invoiceRupees}
-                      onChangeText={(t) => { setInvoiceRupees(t); setError(null); }}
+                      onChangeText={handleInvoiceAmountChange}
                       placeholder="0"
                       placeholderTextColor={theme.textSecondary}
                       keyboardType="decimal-pad"
                       style={[styles.invoiceInput, { color: theme.text }]}
                       testID="input-invoice-amount"
                       autoFocus
+                      selectTextOnFocus={invoiceRupees === "0"}
                       returnKeyType="done"
-                      onSubmitEditing={() => Keyboard.dismiss()}
+                      onSubmitEditing={finishInvoiceEntry}
                     />
-                    {invoiceRupees ? (
+                    {invoiceRupees && !invoiceEntryDone ? (
                       <Pressable
-                        onPress={() => Keyboard.dismiss()}
+                        onPress={finishInvoiceEntry}
                         style={[styles.invoiceDoneBtn, { backgroundColor: BRAND }]}
                         testID="button-invoice-done"
                       >

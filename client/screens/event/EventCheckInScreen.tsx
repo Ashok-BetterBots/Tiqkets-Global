@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
+  useWindowDimensions,
   StyleSheet,
   ScrollView,
   TextInput,
@@ -13,14 +14,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { playSuccessTone, playErrorTone } from "@/utils/alertSounds";
+import { playSuccessTone, playErrorTone, playTimingWarningTone } from "@/utils/alertSounds";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { apiRequest, ApiError, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RecentActivityList } from "@/components/event/RecentActivityList";
-import { TicketScanResultModal, ScanResponseData } from "@/components/event/TicketScanResultModal";
+import {
+  TicketScanResultModal,
+  ScanResponseData,
+} from "@/components/event/TicketScanResultModal";
+import { getTicketTimingStatus } from "@/components/event/ticketTiming";
 import { notifyEventDataChanged } from "@/lib/event-live-refresh";
 import { SelectedEventBanner } from "@/components/event/SelectedEventBanner";
 import { useEventSelection } from "@/contexts/EventSelectionContext";
@@ -50,6 +55,7 @@ export default function EventCheckInScreen() {
 }
 
 function ScanPanel() {
+  const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
@@ -112,6 +118,8 @@ function ScanPanel() {
           error: data.error || "Ticket not found",
           registration: data.registration,
           eventName: data.eventName,
+          formLabels: data.formLabels,
+          journey: data.journey,
         });
         setModalMode("result");
         setModalVisible(true);
@@ -127,6 +135,15 @@ function ScanPanel() {
 
         // Valid ticket found — show preview with Confirm / Skip
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        const timingStatus = getTicketTimingStatus(
+          data.registration?.slotDate,
+          data.registration?.slotTime,
+        );
+        if (timingStatus && timingStatus.kind !== "within-window") {
+          playTimingWarningTone();
+        } else {
+          playSuccessTone();
+        }
         setPendingValue(resolvedId);
         setModalData({
           registration: data.registration,
@@ -196,6 +213,7 @@ function ScanPanel() {
         registration: body?.registration ?? modalData?.registration,
         eventName: body?.eventName ?? modalData?.eventName,
         eventPaused: body?.eventPaused ?? false,
+        journey: body?.journey,
       });
       setModalMode("result");
     }
@@ -272,7 +290,7 @@ function ScanPanel() {
               </ThemedText>
             ) : cameraOpen && permission.granted ? (
               <View style={{ marginBottom: Spacing.md }}>
-                <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
+                <View style={[styles.cameraBox, { borderColor: BRAND + "55", maxHeight: Math.max(180, windowHeight * 0.3) }]}>
                   <CameraView
                     style={StyleSheet.absoluteFill}
                     facing="back"
@@ -423,7 +441,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  cameraBox: { height: 260, borderRadius: BorderRadius.xl, overflow: "hidden", borderWidth: 2, backgroundColor: "#000" },
+  cameraBox: { width: "100%", aspectRatio: 1.45, borderRadius: BorderRadius.xl, overflow: "hidden", borderWidth: 2, backgroundColor: "#000" },
   corner: { position: "absolute", width: 36, height: 36 },
   TL: { top: 14, left: 14, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
   TR: { top: 14, right: 14, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },

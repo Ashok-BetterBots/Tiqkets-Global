@@ -1,18 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Platform, Alert } from "react-native";
-import * as Notifications from "expo-notifications";
 import * as Haptics from "expo-haptics";
 import { QueueEntry } from "@/types/queue";
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+import { getNotificationsModule } from "@/lib/notificationsCompat";
 
 export function useQueueNotifications(activeQueue: QueueEntry | null) {
   const lastNotifiedPosition = useRef<number | null>(null);
@@ -87,6 +77,9 @@ async function sendNotification(title: string, body: string) {
   }
 
   try {
+    const Notifications = getNotificationsModule();
+    if (!Notifications) return;
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 

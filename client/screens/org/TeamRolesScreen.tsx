@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -6,11 +6,12 @@ import {
   Pressable,
   TextInput,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   Alert,
   ActivityIndicator,
   useColorScheme,
 } from "react-native";
-import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -253,6 +254,7 @@ function CreateRoleModal({
   const [description, setDescription] = useState("");
   const [cloneFromRoleId, setCloneFromRoleId] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  const formScrollRef = useRef<ScrollView>(null);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handleSubmit = async () => {
@@ -283,7 +285,15 @@ function CreateRoleModal({
           <ThemedText type="h4">New role</ThemedText>
           <View style={{ width: 22 }} />
         </View>
-        <KeyboardAwareScrollViewCompat contentContainerStyle={{ padding: Spacing.lg }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+        <ScrollView
+          ref={formScrollRef}
+          contentContainerStyle={{ padding: Spacing.lg, paddingBottom: insets.bottom + Spacing.xl }}
+          keyboardShouldPersistTaps="handled"
+        >
           <ThemedText style={styles.fieldLabel}>Name</ThemedText>
           <TextInput
             value={name}
@@ -292,6 +302,7 @@ function CreateRoleModal({
             placeholderTextColor={colors.textSecondary}
             style={[styles.field, { borderColor: colors.border, color: colors.text, backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE" }]}
             testID="input-new-role-name"
+            onFocus={() => formScrollRef.current?.scrollTo({ y: 0, animated: true })}
           />
           <ThemedText style={styles.fieldLabel}>Description (optional)</ThemedText>
           <TextInput
@@ -302,6 +313,7 @@ function CreateRoleModal({
             multiline
             style={[styles.field, styles.fieldMultiline, { borderColor: colors.border, color: colors.text, backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE" }]}
             testID="input-new-role-desc"
+            onFocus={() => formScrollRef.current?.scrollTo({ y: 96, animated: true })}
           />
           <ThemedText style={styles.fieldLabel}>Start with permissions from</ThemedText>
           <View style={{ gap: Spacing.xs }}>
@@ -338,7 +350,8 @@ function CreateRoleModal({
               </Pressable>
             ))}
           </View>
-        </KeyboardAwareScrollViewCompat>
+        </ScrollView>
+        </KeyboardAvoidingView>
         <View style={[styles.modalFooter, { borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm }]}>
           <Button title="Cancel" onPress={onClose} variant="secondary" style={{ flex: 1 }} />
           <Button title={busy ? "Creating…" : "Create role"} onPress={handleSubmit} disabled={busy} style={{ flex: 1 }} testID="button-submit-create-role" />
@@ -502,6 +515,7 @@ function PermissionsModal({
           </View>
           <View style={{ width: 22 }} />
         </View>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={{ padding: Spacing.md }}>
           <View style={[styles.searchBox, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, marginBottom: 0 }]}>
             <Feather name="search" size={16} color={colors.textSecondary} />
@@ -514,13 +528,14 @@ function PermissionsModal({
             />
           </View>
         </View>
-        <ScrollView contentContainerStyle={{ padding: Spacing.md, paddingBottom: insets.bottom + 100 }}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: Spacing.md, paddingBottom: insets.bottom + 100 }}>
           {permsQuery.isLoading ? (
             <ActivityIndicator color={BrandColors.primary} />
           ) : (
             PERMISSION_CATALOG.map((g) => renderGroup(g))
           )}
         </ScrollView>
+        </KeyboardAvoidingView>
         {editable && (
           <View style={[styles.modalFooter, { borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm }]}>
             <Button title="Cancel" onPress={onClose} variant="secondary" style={{ flex: 1 }} />

@@ -437,6 +437,63 @@
       flex-shrink: 0;
     }
     .modal-sheet .section:first-of-type { margin-top: 4px; }
+    .special-warning-sheet {
+      max-width: 440px;
+      padding: 24px;
+      overflow: visible;
+      text-align: center;
+    }
+    .special-warning-icon {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 14px;
+      border-radius: 14px;
+      color: #9a6700;
+      background: #fff4ce;
+    }
+    .special-warning-title {
+      margin-bottom: 9px;
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 800;
+    }
+    .special-warning-copy {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .special-warning-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .special-warning-actions button {
+      min-height: 46px;
+      padding: 10px 12px;
+      border-radius: 11px;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .special-warning-edit {
+      border: 1.5px solid var(--brand-primary);
+      color: var(--brand-primary);
+      background: var(--surface);
+    }
+    .special-warning-continue {
+      border: 1.5px solid var(--brand-primary);
+      color: #fff;
+      background: var(--brand-primary);
+    }
+    @media (max-width: 420px) {
+      .special-warning-sheet { padding: 21px 17px; }
+      .special-warning-actions { grid-template-columns: 1fr; }
+    }
 
     /* FAQ accordion */
     .faq-item {
@@ -682,6 +739,67 @@
 
     .step-panel { display: block; }
     .step-panel.hidden { display: none !important; }
+
+    .schedule-gift-card {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin: 0 0 18px;
+      padding: 14px 15px;
+      border: 1.5px solid #f3bd3e;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #fff8d9 0%, #fff2b8 55%, #fff8dc 100%);
+      box-shadow: 0 8px 22px rgba(199, 139, 0, 0.13);
+    }
+    .schedule-gift-card::after {
+      content: "";
+      position: absolute;
+      top: -45%;
+      left: -35%;
+      width: 34%;
+      height: 190%;
+      transform: rotate(18deg);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent);
+      animation: scheduleGiftShine 3.8s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .schedule-gift-icon {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      flex: 0 0 42px;
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(154, 102, 0, .14);
+      font-size: 22px;
+    }
+    .schedule-gift-copy { position: relative; z-index: 1; min-width: 0; }
+    .schedule-gift-title {
+      margin-bottom: 3px;
+      color: #7a3e00;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+    .schedule-gift-message {
+      color: #754c13;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.55;
+    }
+    @keyframes scheduleGiftShine {
+      0%, 55% { left: -35%; opacity: 0; }
+      65% { opacity: 1; }
+      85%, 100% { left: 115%; opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .schedule-gift-card::after { animation: none; }
+    }
 
     /* ---------- OTP verification sub-step ---------- */
     @keyframes ev-spin { to { transform: rotate(360deg); } }
@@ -1054,8 +1172,254 @@
     .field-float input.field-invalid, .field-float textarea.field-invalid, .field-float select.field-invalid {
       border-color: var(--error);
     }
-    .field-float input.field-valid, .field-float textarea.field-valid {
+    .field-float input.field-valid, .field-float textarea.field-valid, .field-float select.field-valid {
       border-color: #c7e8d7;
+    }
+    .product-category-picker { position: relative; }
+    .product-category-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .product-category-trigger {
+      width: 100%;
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 42px 11px 13px;
+      border: 1.5px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      background: var(--surface);
+      font: inherit;
+      font-size: 15px;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color 180ms ease, box-shadow 180ms ease;
+    }
+    .product-category-trigger:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 4px rgba(var(--brand-rgb), 0.1);
+    }
+    .product-category-trigger.field-valid { border-color: #c7e8d7; }
+    .product-category-selected-icon,
+    .product-category-icon {
+      display: grid;
+      place-items: center;
+      flex: 0 0 32px;
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      color: var(--brand-primary);
+      background: var(--brand-tint);
+    }
+    .product-category-selected-icon:empty { display: none; }
+    .product-category-selected-icon svg,
+    .product-category-icon svg { width: 19px; height: 19px; }
+    .product-category-trigger-label { flex: 1; min-width: 0; }
+    .product-category-chevron {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+      transition: transform 160ms ease;
+    }
+    .product-category-trigger[aria-expanded="true"] + .product-category-chevron {
+      transform: translateY(-50%) rotate(180deg);
+    }
+    .product-category-menu {
+      position: absolute;
+      z-index: 40;
+      left: 0;
+      right: 0;
+      top: calc(100% + 7px);
+      display: grid;
+      gap: 5px;
+      padding: 7px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: 0 16px 34px rgba(20, 24, 40, .16);
+    }
+    .product-category-menu.hidden { display: none; }
+    .product-category-option {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      width: 100%;
+      padding: 9px 10px;
+      border: 0;
+      border-radius: 9px;
+      color: var(--text);
+      background: transparent;
+      font: inherit;
+      font-size: 14px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .product-category-chips .product-category-option {
+      width: auto;
+      min-height: 44px;
+      padding: 7px 12px;
+      border: 1.5px solid var(--line-strong);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .product-category-chips .product-category-icon {
+      flex-basis: 26px;
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+    }
+    .product-category-chips .product-category-icon svg { width: 16px; height: 16px; }
+    .product-category-chips .product-category-option[aria-selected="true"] {
+      border-color: var(--brand-primary);
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+      box-shadow: 0 0 0 2px rgba(var(--brand-rgb), .08);
+    }
+    .special-category-question {
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1.5px solid #e5e7eb;
+      background: #fafafa;
+    }
+    .special-category-question-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #1a1a2e;
+      line-height: 1.4;
+    }
+    .special-category-question-copy {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 3px;
+      line-height: 1.45;
+    }
+    .special-category-toggle {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .special-category-toggle button {
+      min-height: 44px;
+      border: 1.5px solid var(--line-strong);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .special-category-toggle button[aria-pressed="true"] {
+      border-color: var(--brand-primary);
+      background: var(--brand-primary);
+      color: #fff;
+    }
+    .special-category-options-wrap { margin-top: 14px; }
+    .special-category-inline-error {
+      margin-top: 10px;
+      color: var(--error);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+    .product-category-option:hover,
+    .product-category-option[aria-selected="true"] {
+      color: var(--brand-primary);
+      background: var(--brand-tint);
+      font-weight: 700;
+    }
+    html[dir="rtl"] .product-category-trigger,
+    html[dir="rtl"] .product-category-option { text-align: right; }
+    html[dir="rtl"] .product-category-trigger { padding-right: 13px; padding-left: 42px; }
+    html[dir="rtl"] .product-category-chevron { right: auto; left: 14px; }
+    @media (max-width: 520px) {
+      .product-category-menu { position: static; margin-top: 7px; }
+    }
+    .special-category-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+      margin-top: 9px;
+    }
+    .special-category-option {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 58px;
+      padding: 9px 10px;
+      border: 1.5px solid var(--line-strong);
+      border-radius: 11px;
+      color: var(--text);
+      background: var(--surface);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.25;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+    }
+    .special-category-option:hover {
+      border-color: var(--brand-primary);
+      background: var(--brand-tint);
+    }
+    .special-category-option[aria-pressed="true"] {
+      border-color: var(--brand-primary);
+      color: var(--brand-primary);
+      background: var(--brand-tint);
+      box-shadow: inset 0 0 0 1px var(--brand-primary);
+    }
+    .special-category-icon {
+      display: grid;
+      place-items: center;
+      flex: 0 0 32px;
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      color: var(--brand-primary);
+      background: var(--brand-tint);
+    }
+    .special-category-icon img {
+      display: block;
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+    }
+    .special-category-lock-note {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      margin-top: 9px;
+      color: var(--brand-primary);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .special-category-lock-note.show { display: flex; }
+    .special-category-lock-note svg { flex: 0 0 auto; }
+    #dateSelect:disabled {
+      cursor: not-allowed !important;
+      color: var(--text);
+      border-color: var(--brand-primary) !important;
+      background: var(--brand-tint) !important;
+      opacity: 1;
+    }
+    html[dir="rtl"] .special-category-option { text-align: right; }
+    @media (max-width: 390px) {
+      .special-category-grid { grid-template-columns: 1fr; }
     }
     .field-error-msg {
       font-size: 12px;
@@ -1205,14 +1569,15 @@
     .summary-label { color: var(--text-secondary); font-weight: 500; }
     .summary-value { font-weight: 800; color: var(--text); }
     .summary-value.accent { color: var(--brand-primary); font-size: 17px; }
+    .summary-fee-wrap { max-width: 62%; text-align: right; }
     .advance-note {
-      font-size: 12px;
+      font-size: 11px;
+      line-height: 1.45;
       color: var(--brand-primary);
       font-weight: 600;
       margin-top: 4px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      text-align: right;
+      overflow-wrap: anywhere;
     }
 
     .btn {
@@ -1389,6 +1754,206 @@
         transition-duration: 0.001ms !important;
       }
     }
+    /* ============================================================
+       Premium registration refresh
+       Presentation-only overrides. Runtime brand variables remain
+       the source of truth for organization color customization.
+       ============================================================ */
+    :root {
+      --bg: #f5f3f6;
+      --surface: #ffffff;
+      --line: #e7e3e8;
+      --line-strong: #d8d1d9;
+      --text: #291f27;
+      --text-secondary: #746b74;
+      --text-muted: #9a919a;
+      --light-gray: #f2eff3;
+      --brand-tint: color-mix(in srgb, var(--brand-primary) 8%, #fff);
+      --brand-tint-strong: color-mix(in srgb, var(--brand-primary) 18%, #fff);
+      --radius-sm: 12px;
+      --radius-md: 16px;
+      --radius-lg: 20px;
+      --radius-xl: 24px;
+      --shadow-sm: 0 2px 8px rgba(47, 31, 43, .04);
+      --shadow-md: 0 10px 28px rgba(47, 31, 43, .06);
+      --shadow-lg: 0 24px 60px rgba(47, 31, 43, .12), 0 4px 12px rgba(47, 31, 43, .04);
+    }
+
+    body {
+      background:
+        radial-gradient(700px 360px at 50% -140px, color-mix(in srgb, var(--brand-primary) 10%, transparent), transparent 72%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+    :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--brand-primary) 25%, transparent);
+      outline-offset: 3px;
+    }
+    ::selection { background: color-mix(in srgb, var(--brand-primary) 20%, transparent); color: var(--text); }
+
+    .container { max-width: 560px; padding-bottom: 48px; }
+
+    .hero {
+      min-height: 248px;
+      border-radius: 0 0 30px 30px;
+      box-shadow: 0 12px 30px rgba(47, 31, 43, .12);
+    }
+    .hero-overlay {
+      background: linear-gradient(180deg, rgba(35, 15, 29, .04), rgba(35, 15, 29, .68));
+    }
+    .hero-content { min-height: 248px; padding: 30px 24px 28px; }
+    .hero-logo {
+      width: 68px; height: 68px; border-radius: 18px; margin-bottom: 16px;
+      box-shadow: 0 8px 18px rgba(28, 12, 23, .2);
+    }
+    .hero-title { font-size: clamp(21px, 5vw, 27px); font-weight: 800; letter-spacing: -.035em; }
+    .hero-meta { margin-top: 12px; gap: 7px; font-size: 13px; }
+
+    .section { padding: 0 16px; margin-top: 16px; }
+    .card { padding: 24px 20px; border-color: var(--line); box-shadow: var(--shadow-md); }
+    .details-link-row { padding: 0 16px; margin-top: 16px; }
+    .details-link-btn {
+      border-color: var(--line); box-shadow: var(--shadow-sm); border-radius: 16px;
+      transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+    }
+    .details-link-btn:hover { border-color: var(--brand-primary); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+
+    .reg-card {
+      margin: -26px 12px 0;
+      position: relative;
+      z-index: 2;
+      border-radius: 24px;
+      padding: 32px 20px 28px;
+      border: 1px solid rgba(255,255,255,.85);
+      box-shadow: var(--shadow-lg);
+    }
+    .reg-title { font-size: 24px; font-weight: 800; letter-spacing: -.035em; }
+    .reg-subtitle { margin-bottom: 26px; color: var(--text-secondary); }
+
+    .progress-stepper { margin-bottom: 30px; padding: 0; }
+    .progress-step { width: 76px; gap: 7px; }
+    .progress-step-dot {
+      width: 38px; height: 38px; border-width: 1px; background: #f3f0f3;
+      border-color: var(--line-strong); font-size: 13px;
+    }
+    .progress-step.active .progress-step-dot,
+    .progress-step.done .progress-step-dot {
+      background: var(--brand-primary); border-color: var(--brand-primary);
+    }
+    .progress-step.done .progress-step-dot { color: #fff; }
+    .progress-step-label { font-size: 9.5px; letter-spacing: .08em; }
+    .progress-line { margin: 0 -8px 20px; background: var(--line); }
+    .progress-line::after { background: var(--brand-primary); }
+
+    .step-header {
+      display: block; text-align: center; margin-bottom: 26px;
+    }
+    .step-icon-badge { display: none; }
+    .step-pill {
+      margin-bottom: 12px; padding: 5px 10px; font-size: 10px;
+      background: var(--brand-tint); color: var(--brand-primary);
+    }
+    .step-title { font-size: 24px; font-weight: 800; letter-spacing: -.035em; }
+    .step-subtitle { font-size: 13.5px; margin-top: 6px; color: var(--text-secondary); }
+
+    .field-label {
+      color: #514850; font-size: 11px; letter-spacing: .08em; margin-bottom: 8px;
+    }
+    .field-float input, .field-float textarea, .field-float select,
+    .product-category-trigger {
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      background: #fff;
+      transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+    .field-float input:focus, .field-float textarea:focus, .field-float select:focus,
+    .product-category-trigger:focus {
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary) 12%, transparent);
+      outline: none;
+    }
+    .field-float input.field-invalid, .field-float textarea.field-invalid, .field-float select.field-invalid {
+      border-color: var(--error);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--error) 10%, transparent);
+    }
+    .special-category-grid { gap: 10px; }
+    .special-category-option {
+      border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: none;
+      transition: border-color .2s ease, background .2s ease, transform .18s ease;
+    }
+    .special-category-option:hover { border-color: var(--brand-primary); transform: translateY(-1px); }
+    .special-category-option[aria-pressed="true"] {
+      border-color: var(--brand-primary); background: var(--brand-tint); color: var(--brand-primary);
+    }
+    .special-category-icon { background: transparent; }
+
+    .stepper { gap: 14px; }
+    .stepper button {
+      width: 34px; height: 34px; border: 1px solid var(--line-strong);
+      background: #fff; color: var(--text); box-shadow: none; transition: border-color .2s ease, color .2s ease, transform .15s ease;
+    }
+    .stepper button:not(:disabled):hover { color: var(--brand-primary); border-color: var(--brand-primary); }
+    .stepper .stepper-value { min-width: 28px; font-size: 17px; }
+
+    .schedule-gift-card {
+      border: 1px solid var(--brand-tint-strong);
+      border-radius: 12px; background: var(--brand-tint); box-shadow: none;
+    }
+    .schedule-gift-card::after { display: none; }
+    .schedule-gift-icon { font-size: 0; background: color-mix(in srgb, var(--brand-primary) 11%, #fff); box-shadow: none; }
+    .schedule-gift-icon svg { color: var(--brand-primary); }
+    .schedule-gift-title { color: var(--brand-primary); }
+    .schedule-gift-message { color: var(--text-secondary); }
+
+    .date-chip, .slot, .chip {
+      border-color: var(--line-strong); box-shadow: none; transition: border-color .2s ease, background .2s ease, transform .18s ease;
+    }
+    .date-chip.selected, .slot.selected, .chip.selected {
+      background: var(--brand-primary); border-color: var(--brand-primary); color: #fff;
+    }
+    .slot.selected .slot-time { color: #fff; }
+
+    .otp-input { border: 1px solid var(--line-strong); border-radius: 12px; }
+    .otp-input:focus { border-color: var(--brand-primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary) 12%, transparent); }
+    .otp-sent-badge, .otp-spinner-row { background: var(--brand-tint); border-color: var(--brand-tint-strong); color: var(--brand-primary); }
+
+    .review-card, .summary {
+      background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm);
+    }
+    .review-card { padding: 6px 16px; }
+    .review-row { padding: 16px 0; }
+    .review-row:not(:last-child) { border-bottom: 1px solid var(--line); }
+    .review-row-icon { background: var(--brand-tint); border-color: transparent; }
+    .summary { position: relative; overflow: hidden; padding: 4px 18px; }
+    .summary::before { height: 3px; background: var(--brand-primary); }
+    .summary-row:not(:last-child) { border-bottom: 1px solid var(--line); }
+
+    .btn { border-radius: 12px; min-height: 54px; }
+    .btn-primary {
+      background: var(--brand-button); box-shadow: 0 10px 22px color-mix(in srgb, var(--brand-button) 24%, transparent);
+    }
+    .btn-primary:hover { background: var(--brand-button-dark); filter: none; transform: translateY(-1px); }
+    .btn-primary:disabled { background: #e8e5e9; color: #aaa3aa; box-shadow: none; transform: none; }
+    .btn-secondary { background: transparent; color: var(--brand-primary); }
+    .btn-outline { background: transparent; border-color: var(--line-strong); color: var(--text-secondary); }
+    .step-actions, .sticky-cta {
+      margin-left: -20px; margin-right: -20px;
+      background: linear-gradient(180deg, rgba(255,255,255,0), #fff 30%);
+    }
+
+    .success-icon { background: var(--brand-primary); box-shadow: 0 12px 24px color-mix(in srgb, var(--brand-primary) 24%, transparent); }
+    .success-heading { font-size: 25px; letter-spacing: -.035em; }
+    .booking-id { color: var(--brand-primary); }
+
+    @media (min-width: 560px) {
+      .reg-card { margin-left: 0; margin-right: 0; padding-left: 36px; padding-right: 36px; }
+      .step-actions, .sticky-cta { margin-left: -36px; margin-right: -36px; padding-left: 36px; padding-right: 36px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
   </style>
 </head>
 <body>
@@ -1466,6 +2031,20 @@
               <div class="section-title" data-i18n="details.venueMap">Venue Map</div>
               <img id="venueMapImg" class="venue-map-img" alt="Venue map" />
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="specialCategoryWarningModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="specialCategoryWarningTitle" aria-describedby="specialCategoryWarningCopy">
+        <div class="modal-sheet special-warning-sheet">
+          <div class="special-warning-icon" aria-hidden="true">
+            <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>
+          </div>
+          <div id="specialCategoryWarningTitle" class="special-warning-title" data-i18n="reg.specialWarningTitle">Before you continue</div>
+          <div id="specialCategoryWarningCopy" class="special-warning-copy" data-i18n="reg.specialWarningCopy">No special category members (Infants, Senior Citizens, Pregnant Women, or Differently Abled) will be permitted entry under this registration. If you believe any of these members may be attending, please go back and update your selection.</div>
+          <div class="special-warning-actions">
+            <button type="button" id="specialWarningEditBtn" class="special-warning-edit" data-i18n="reg.specialWarningEdit">Go Back</button>
+            <button type="button" id="specialWarningContinueBtn" class="special-warning-continue" data-i18n="reg.specialWarningContinue">Confirm &amp; Proceed</button>
           </div>
         </div>
       </div>
@@ -1551,6 +2130,29 @@
                 <div class="field-error-msg" id="phoneError" data-i18n="reg.phoneError">Enter a valid 10-digit mobile number</div>
               </div>
 
+              <div class="form-group">
+                <label class="field-label" id="productCategoryLabel" style="margin-bottom:8px;"><span data-i18n="reg.productCategory">What product category are you looking for?</span> <span class="required">*</span></label>
+                <input type="hidden" id="productCategory" value="">
+                <div class="product-category-chips" role="group" aria-labelledby="productCategoryLabel">
+                    <button type="button" class="product-category-option" role="option" aria-selected="false" data-category="electronics" data-label-key="reg.productCategoryElectronics">
+                      <span class="product-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="2.5" width="14" height="19" rx="2.5"></rect><path d="M9 5h6M10 18.5h4"></path></svg></span>
+                      <span data-i18n="reg.productCategoryElectronics">Electronics</span>
+                    </button>
+                    <button type="button" class="product-category-option" role="option" aria-selected="false" data-category="furniture" data-label-key="reg.productCategoryFurniture">
+                      <span class="product-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 11V8.5a2.5 2.5 0 0 1 5 0V11M14 11V8.5a2.5 2.5 0 0 1 5 0V11"></path><path d="M3 11h18v7H3zM5 18v3M19 18v3"></path></svg></span>
+                      <span data-i18n="reg.productCategoryFurniture">Furniture</span>
+                    </button>
+                    <button type="button" class="product-category-option" role="option" aria-selected="false" data-category="home_appliances" data-label-key="reg.productCategoryHomeAppliances">
+                      <span class="product-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10.5 12 4l8 6.5V21H4z"></path><path d="M9 21v-7h6v7M8 9h8"></path></svg></span>
+                      <span data-i18n="reg.productCategoryHomeAppliances">Home Appliances</span>
+                    </button>
+                    <button type="button" class="product-category-option" role="option" aria-selected="false" data-category="vessels" data-label-key="reg.productCategoryVessels">
+                      <span class="product-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 10h14v3a7 7 0 0 1-14 0zM3 10h18M9 6h6M12 6V3"></path></svg></span>
+                      <span data-i18n="reg.productCategoryVessels">Vessels</span>
+                    </button>
+                </div>
+              </div>
+
               <div class="form-group field-float">
                 <input type="email" id="email" placeholder=" " autocomplete="email" />
                 <label for="email"><span data-i18n="reg.email">Email</span> <span class="field-hint" data-i18n="reg.optional">Optional</span></label>
@@ -1624,16 +2226,40 @@
               </div>
 
               <div id="slotBlock">
-                <!-- Infant / senior citizens: show only the last available date -->
-                <div style="margin-bottom:16px;">
-                  <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafafa;">
-                    <input type="checkbox" id="specialNeedsCheck" onchange="handleSpecialNeedsChange(this.checked)"
-                           style="width:18px;height:18px;margin-top:2px;flex-shrink:0;accent-color:#8c1867;cursor:pointer;">
-                    <div>
-                      <div style="font-size:13px;font-weight:700;color:#1a1a2e;line-height:1.4;" data-i18n="reg.specialNeeds">Visiting with infants / senior citizens / pregnant women?</div>
-                      <div style="font-size:11px;color:#6b7280;margin-top:3px;" data-i18n="reg.specialNeedsHint">The last available event slot will be reserved for you</div>
+                <!-- Selecting any special category reserves and locks the final event date. -->
+                <div class="special-category-question">
+                  <div id="specialCategoryTitle" class="special-category-question-title" data-i18n="reg.specialQuestion">Visiting with any of the below members?</div>
+                  <div class="special-category-question-copy" data-i18n="reg.specialMembers">Infants, Senior Citizens, Pregnant Women or Differently Abled</div>
+                  <div class="special-category-toggle" role="group" aria-labelledby="specialCategoryTitle">
+                    <button type="button" id="specialCategoryNoBtn" aria-pressed="true" data-i18n="reg.no">No</button>
+                    <button type="button" id="specialCategoryYesBtn" aria-pressed="false" data-i18n="reg.yes">Yes</button>
+                  </div>
+                  <div id="specialCategoryOptionsWrap" class="special-category-options-wrap hidden">
+                    <div class="special-category-question-copy" data-i18n="reg.specialNeedsHint">Select all that apply. The final event date will be reserved for you.</div>
+                    <div class="special-category-grid" role="group" aria-labelledby="specialCategoryTitle">
+                    <button type="button" class="special-category-option" data-special-category="senior_citizen" aria-pressed="false">
+                      <span class="special-category-icon" aria-hidden="true"><img src="/assets/special-categories/person_1788525899674.png" alt=""></span>
+                      <span data-i18n="reg.specialSenior">Senior Citizen</span>
+                    </button>
+                    <button type="button" class="special-category-option" data-special-category="pregnant_women" aria-pressed="false">
+                      <span class="special-category-icon" aria-hidden="true"><img src="/assets/special-categories/pregnant_1788525899674.png" alt=""></span>
+                      <span data-i18n="reg.specialPregnant">Pregnant Women</span>
+                    </button>
+                    <button type="button" class="special-category-option" data-special-category="infants" aria-pressed="false">
+                      <span class="special-category-icon" aria-hidden="true"><img src="/assets/special-categories/human_1788525899674.png" alt=""></span>
+                      <span data-i18n="reg.specialInfants">Infants</span>
+                    </button>
+                    <button type="button" class="special-category-option" data-special-category="specially_abled" aria-pressed="false">
+                      <span class="special-category-icon" aria-hidden="true"><img src="/assets/special-categories/disabled_1788525899674.png" alt=""></span>
+                      <span data-i18n="reg.specialDisabled">Specially abled</span>
+                    </button>
                     </div>
-                  </label>
+                    <div id="specialCategoryInlineError" class="special-category-inline-error hidden" role="alert" data-i18n="reg.specialSelectionRequired">Please select at least one Special Category option.</div>
+                    <div id="specialCategoryLockNote" class="special-category-lock-note" aria-live="polite">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+                      <span data-i18n="reg.specialDateLocked">Final event date selected and locked</span>
+                    </div>
+                  </div>
                 </div>
 
                 <label class="field-label"><span data-i18n="reg.selectDate">Select a date</span> <span class="required">*</span></label>
@@ -1642,8 +2268,18 @@
                 <select id="dateSelect" onchange="handleDateSelectChange(this.value)"
                         style="width:100%;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;color:#1a1a2e;background:#fff;margin-bottom:16px;cursor:pointer;outline:none;"></select>
 
-                <label class="field-label"><span data-i18n="reg.selectTime">Select a time slot</span> <span class="required">*</span></label>
-                <div id="slotGroups"></div>
+                 <label class="field-label"><span data-i18n="reg.selectTime">Select a time slot</span> <span class="required">*</span></label>
+                 <select id="timeSelect" onchange="handleTimeSelectChange(this.value)"
+                         style="width:100%;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;color:#1a1a2e;background:#fff;margin-bottom:16px;cursor:pointer;outline:none;"></select>
+                <div class="schedule-gift-card" role="note" aria-live="polite">
+                  <div class="schedule-gift-icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>
+                  </div>
+                  <div class="schedule-gift-copy">
+                    <div class="schedule-gift-title" data-i18n="reg.giftTitle">A surprise gift awaits!</div>
+                    <div class="schedule-gift-message" data-i18n="reg.giftMessage">Enter and exit the shop within 3 hours to receive a surprise gift.</div>
+                  </div>
+                </div>
                 <div id="noSlotsMsg" class="desc-text hidden" style="margin-bottom:16px;" data-i18n="reg.noSlots">No slots available for this date.</div>
               </div>
             </div>
@@ -1709,7 +2345,9 @@
                 </div>
                 <div class="summary-row total">
                   <span class="summary-label" data-i18n="summary.fee">Registration fee</span>
-                  <span class="summary-value accent" id="feeValue" data-i18n="summary.free">Free</span>
+                  <div class="summary-fee-wrap">
+                    <span class="summary-value accent" id="feeValue" data-i18n="summary.free">Free</span>
+                  </div>
                 </div>
               </div>
               <div id="advanceNote" class="advance-note hidden"></div>
@@ -1836,6 +2474,8 @@
         "reg.subtitleLocation": "Pick a location, then tell us a bit about yourself",
         "reg.scheduleTitle": "Choose date & time",
         "reg.scheduleSubtitle": "Pick a date, then a slot that suits you",
+        "reg.giftTitle": "A surprise gift awaits!",
+        "reg.giftMessage": "Enter and exit the shop within 3 hours to receive a surprise gift.",
         "reg.reviewTitle": "Review & confirm",
         "reg.reviewSubtitle": "Check your details before you confirm",
         "reg.reviewSlot": "Date & time",
@@ -1859,6 +2499,12 @@
         "reg.fullNameError": "Please enter your full name",
         "reg.phone": "WhatsApp number",
         "reg.phoneError": "Enter a valid 10-digit mobile number",
+        "reg.productCategory": "What product category are you looking for?",
+        "reg.productCategoryPlaceholder": "Select a product category",
+        "reg.productCategoryElectronics": "Electronics",
+        "reg.productCategoryFurniture": "Furniture",
+        "reg.productCategoryHomeAppliances": "Home Appliances",
+        "reg.productCategoryVessels": "Vessels",
         "reg.email": "Email",
         "reg.optional": "Optional",
         "reg.family": "Family members joining you",
@@ -1873,7 +2519,6 @@
         "summary.fee": "Registration fee",
         "summary.free": "Free",
         "summary.total": "Total",
-        "summary.advanceNote": "Advance {{fee}} \u2014 fully redeemable at billing",
         "success.heading": "You're registered!",
         "success.bookingId": "Booking ID",
         "success.date": "Date",
@@ -1888,6 +2533,7 @@
         "toast.genericError": "Something went wrong. Please try again.",
         "toast.name": "Please enter your full name",
         "toast.phone": "Please enter a valid 10-digit mobile number",
+        "toast.productCategory": "Please select a product category",
         "toast.location": "Please choose a location",
         "toast.slot": "Please pick a date and time slot",
         "toast.fieldRequired": "\"{{field}}\" is required",
@@ -1908,8 +2554,22 @@
         "otp.resendCooldown": "Resend in {{s}}s",
         "otp.wrongCode": "Incorrect code. Please try again.",
         "otp.sendError": "Could not send code to this number. Please check your WhatsApp number.",
-        "reg.specialNeeds": "Visiting with infants / senior citizens / pregnant women?",
-        "reg.specialNeedsHint": "The last available event slot will be reserved for you",
+        "reg.specialNeeds": "Special category",
+        "reg.specialQuestion": "Visiting with any of the below members?",
+        "reg.specialMembers": "Infants, Senior Citizens, Pregnant Women or Differently Abled",
+        "reg.yes": "Yes",
+        "reg.no": "No",
+        "reg.specialNeedsHint": "Select all that apply. The final event date will be reserved for you.",
+        "reg.specialSelectionRequired": "Please select at least one Special Category option.",
+        "reg.specialSenior": "Senior Citizen",
+        "reg.specialPregnant": "Pregnant Women",
+        "reg.specialInfants": "Infants",
+        "reg.specialDisabled": "Specially abled",
+        "reg.specialDateLocked": "Final event date selected and locked",
+        "reg.specialWarningTitle": "Before you continue",
+        "reg.specialWarningCopy": "No special category members (Infants, Senior Citizens, Pregnant Women, or Differently Abled) will be permitted entry under this registration. If you believe any of these members may be attending, please go back and update your selection.",
+        "reg.specialWarningEdit": "Go Back",
+        "reg.specialWarningContinue": "Confirm & Proceed",
         "otp.retry": "Try again"
       },
       ta: {
@@ -1928,6 +2588,8 @@
         "reg.subtitleLocation": "இடத்தை தேர்ந்தெடுத்து, உங்களைப் பற்றி சிறிது கூறுங்கள்",
         "reg.scheduleTitle": "தேதி மற்றும் நேரத்தை தேர்ந்தெடுக்கவும்",
         "reg.scheduleSubtitle": "ஒரு தேதியை தேர்ந்தெடுத்து, பின்னர் ஏற்ற நேர இடைவெளியை தேர்வுசெய்யவும்",
+        "reg.giftTitle": "உங்களுக்காக ஒரு ஆச்சரியப் பரிசு காத்திருக்கிறது!",
+        "reg.giftMessage": "கடைக்குள் நுழைந்த 3 மணி நேரத்திற்குள் வெளியேறினால், உங்களுக்கு ஒரு ஆச்சரியப் பரிசு வழங்கப்படும்.",
         "reg.reviewTitle": "மதிப்பாய்வு செய்து உறுதிப்படுத்தவும்",
         "reg.reviewSubtitle": "உறுதிப்படுத்தும் முன் உங்கள் விவரங்களை சரிபார்க்கவும்",
         "reg.reviewSlot": "தேதி & நேரம்",
@@ -1951,6 +2613,12 @@
         "reg.fullNameError": "உங்கள் முழு பெயரை உள்ளிடவும்",
         "reg.phone": "வாட்ஸ்அப் எண்",
         "reg.phoneError": "சரியான 10 இலக்க மொபைல் எண்ணை உள்ளிடவும்",
+        "reg.productCategory": "நீங்கள் எந்த தயாரிப்பு வகையைத் தேடுகிறீர்கள்?",
+        "reg.productCategoryPlaceholder": "தயாரிப்பு வகையைத் தேர்ந்தெடுக்கவும்",
+        "reg.productCategoryElectronics": "மின்னணுப் பொருட்கள்",
+        "reg.productCategoryFurniture": "மரச்சாமான்கள்",
+        "reg.productCategoryHomeAppliances": "வீட்டு உபயோகப் பொருட்கள்",
+        "reg.productCategoryVessels": "பாத்திரங்கள்",
         "reg.email": "மின்னஞ்சல்",
         "reg.optional": "விருப்பத்தேர்வு",
         "reg.family": "உங்களுடன் சேரும் குடும்ப உறுப்பினர்கள்",
@@ -1965,7 +2633,6 @@
         "summary.fee": "பதிவு கட்டணம்",
         "summary.free": "இலவசம்",
         "summary.total": "மொத்தம்",
-        "summary.advanceNote": "முன்பணம் {{fee}} \u2014 பில்லிங்கில் முழுவதுமாக பெறலாம்",
         "success.heading": "நீங்கள் பதிவு செய்யப்பட்டீர்கள்!",
         "success.bookingId": "முன்பதிவு எண்",
         "success.date": "தேதி",
@@ -1980,6 +2647,7 @@
         "toast.genericError": "ஏதோ தவறு நடந்துவிட்டது. மீண்டும் முயற்சிக்கவும்.",
         "toast.name": "உங்கள் முழு பெயரை உள்ளிடவும்",
         "toast.phone": "சரியான 10 இலக்க மொபைல் எண்ணை உள்ளிடவும்",
+        "toast.productCategory": "தயாரிப்பு வகையைத் தேர்ந்தெடுக்கவும்",
         "toast.location": "தயவுசெய்து ஒரு இடத்தை தேர்ந்தெடுக்கவும்",
         "toast.slot": "தேதி மற்றும் நேர இடைவெளியை தேர்ந்தெடுக்கவும்",
         "toast.fieldRequired": "\"{{field}}\" அவசியம்",
@@ -2000,8 +2668,22 @@
         "otp.resendCooldown": "{{s}} வினாடிகளில் மீண்டும் அனுப்பவும்",
         "otp.wrongCode": "தவறான குறியீடு. மீண்டும் முயற்சிக்கவும்.",
         "otp.sendError": "இந்த எண்ணிற்கு குறியீடு அனுப்ப முடியவில்லை. உங்கள் WhatsApp எண்ணை சரிபார்க்கவும்.",
-        "reg.specialNeeds": "குழந்தைகள் / முதியோர் / கர்ப்பிணிப் பெண்களுடன் வருகிறீர்களா?",
-        "reg.specialNeedsHint": "கடைசியாக கிடைக்கும் நிகழ்வு இடம் உங்களுக்காக ஒதுக்கப்படும்",
+        "reg.specialNeeds": "சிறப்புப் பிரிவு",
+        "reg.specialQuestion": "கீழே உள்ள உறுப்பினர்களில் யாரேனும் உங்களுடன் வருகிறார்களா?",
+        "reg.specialMembers": "கைக்குழந்தைகள், மூத்த குடிமக்கள், கர்ப்பிணிப் பெண்கள் அல்லது மாற்றுத்திறனாளிகள்",
+        "reg.yes": "ஆம்",
+        "reg.no": "இல்லை",
+        "reg.specialNeedsHint": "பொருந்தும் அனைத்தையும் தேர்ந்தெடுக்கவும். நிகழ்வின் இறுதி தேதி உங்களுக்காக ஒதுக்கப்படும்.",
+        "reg.specialSelectionRequired": "குறைந்தது ஒரு சிறப்புப் பிரிவு விருப்பத்தைத் தேர்ந்தெடுக்கவும்.",
+        "reg.specialSenior": "மூத்த குடிமக்கள்",
+        "reg.specialPregnant": "கர்ப்பிணிப் பெண்கள்",
+        "reg.specialInfants": "கைக்குழந்தைகள்",
+        "reg.specialDisabled": "மாற்றுத்திறனாளிகள்",
+        "reg.specialDateLocked": "நிகழ்வின் இறுதி தேதி தேர்ந்தெடுக்கப்பட்டு பூட்டப்பட்டது",
+        "reg.specialWarningTitle": "தொடர்வதற்கு முன்",
+        "reg.specialWarningCopy": "இந்தப் பதிவின் கீழ் கைக்குழந்தைகள், மூத்த குடிமக்கள், கர்ப்பிணிப் பெண்கள் அல்லது மாற்றுத்திறனாளிகள் நுழைய அனுமதிக்கப்பட மாட்டார்கள். இவர்களில் யாரேனும் வரக்கூடும் என நினைத்தால், திரும்பிச் சென்று உங்கள் தேர்வைப் புதுப்பிக்கவும்.",
+        "reg.specialWarningEdit": "திரும்பிச் செல்லவும்",
+        "reg.specialWarningContinue": "உறுதிசெய்து தொடரவும்",
         "otp.retry": "மீண்டும் முயற்சிக்கவும்"
       }
     };
@@ -2065,6 +2747,7 @@
       document.querySelectorAll("[data-i18n]").forEach(function (el) {
         el.textContent = t(el.getAttribute("data-i18n"));
       });
+      syncProductCategorySelection();
       renderLangSwitch();
       refreshCustomFieldPlaceholders();
       if (data) {
@@ -2082,7 +2765,10 @@
     }
 
     function fetchLanguageHint(phone) {
-      if (languageExplicitlyChosen || !branchId) return;
+      // A customer-selected or restored non-default language is authoritative
+      // for this registration. A historical phone hint must never switch a
+      // Tamil flow back to English when Continue blurs the phone input.
+      if (languageExplicitlyChosen || currentLang !== "en" || !branchId) return;
       fetch(apiEventBase + "/language-hint?phone=" + encodeURIComponent(phone))
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (out) {
@@ -2113,7 +2799,10 @@
     var data = null;
     var razorpayKeyId = null;
     var selectedDate = null;
-    var isSpecialNeeds = false; // true = visiting with infants/senior citizens → last date only
+    var selectedProductCategories = [];
+    var selectedSpecialCategories = [];
+    var specialCategoryAnswer = "no";
+    var isSpecialNeeds = false; // any special category selected → final date only
     var selectedTime = null;
     var familyCount = 0;
     var submitting = false;
@@ -2125,6 +2814,7 @@
     var selectedLocationId = null;
     var currentSlots = [];
     var currentFee = 0;
+    var currentRegistrationFeeCustomText = "";
     var currentFields = [];
     var fieldEls = {};
 
@@ -2400,6 +3090,9 @@
         selectedLocationId = null;
         currentSlots = data.slots || [];
         currentFee = data.event.registrationFee || 0;
+        currentRegistrationFeeCustomText = typeof data.event.registrationFeeCustomText === "string" && data.event.registrationFeeCustomText.trim()
+          ? data.event.registrationFeeCustomText.trim()
+          : (typeof data.event.refundMessage === "string" ? data.event.refundMessage.trim() : "");
         currentFields = [];
         renderCustomFields();
         renderDateChips();
@@ -2436,6 +3129,9 @@
       var loc = locations.find(function (l) { return l.id === id; });
       currentSlots = (loc && Array.isArray(loc.slots)) ? loc.slots : [];
       currentFee = (loc && loc.registrationFee) || 0;
+      currentRegistrationFeeCustomText = loc && typeof loc.registrationFeeCustomText === "string" && loc.registrationFeeCustomText.trim()
+        ? loc.registrationFeeCustomText.trim()
+        : (loc && typeof loc.refundMessage === "string" ? loc.refundMessage.trim() : "");
       currentFields = (loc && Array.isArray(loc.inputFields)) ? loc.inputFields : [];
       selectedDate = null;
       selectedTime = null;
@@ -2571,11 +3267,12 @@
     function renderDateChips() {
       var sel = $("dateSelect");
       if (!sel) return;
+      sel.disabled = isSpecialNeeds;
       var prevDate = selectedDate;
       sel.innerHTML = '<option value="">— Select a date —</option>';
       selectedDate = null;
       selectedTime = null;
-      $("slotGroups").innerHTML = "";
+       $("timeSelect").innerHTML = '<option value="">— Select a time slot —</option>';
       $("noSlotsMsg").classList.add("hidden");
       var bcp47 = currentLangMeta().bcp47;
       // Only dates with at least one bookable (not past, not fully booked) slot
@@ -2584,7 +3281,7 @@
       });
       var visibleDays;
       if (isSpecialNeeds) {
-        // Infants / senior citizens: LAST available date only
+        // Any special category: LAST available date only
         visibleDays = allAvailDays.length > 0 ? [allAvailDays[allAvailDays.length - 1]] : [];
       } else {
         // Regular visitors: all dates EXCEPT the last available date
@@ -2619,14 +3316,27 @@
     function handleDateSelectChange(value) {
       selectedDate = value || null;
       selectedTime = null;
-      $("slotGroups").innerHTML = "";
+       $("timeSelect").innerHTML = '<option value="">— Select a time slot —</option>';
       $("noSlotsMsg").classList.add("hidden");
       if (selectedDate) renderSlots();
       updateSubmitState();
     }
 
-    function handleSpecialNeedsChange(checked) {
-      isSpecialNeeds = !!checked;
+     function handleTimeSelectChange(value) {
+       selectedTime = value || null;
+       updateSubmitState();
+     }
+
+    function toggleSpecialCategory(category) {
+      var index = selectedSpecialCategories.indexOf(category);
+      if (index >= 0) selectedSpecialCategories.splice(index, 1);
+      else selectedSpecialCategories.push(category);
+      isSpecialNeeds = selectedSpecialCategories.length > 0;
+      $("specialCategoryInlineError").classList.add("hidden");
+      document.querySelectorAll(".special-category-option").forEach(function (option) {
+        option.setAttribute("aria-pressed", selectedSpecialCategories.indexOf(option.getAttribute("data-special-category")) >= 0 ? "true" : "false");
+      });
+      $("specialCategoryLockNote").classList.toggle("show", isSpecialNeeds);
       renderDateChips();
     }
 
@@ -2644,8 +3354,8 @@
     }
 
     function renderSlots() {
-      var wrap = $("slotGroups");
-      wrap.innerHTML = "";
+       var select = $("timeSelect");
+       select.innerHTML = '<option value="">— Select a time slot —</option>';
       var day = (currentSlots || []).find(function (d) { return d.date === selectedDate; });
       var times = day ? day.times : [];
       if (!times.length) {
@@ -2660,49 +3370,12 @@
         return;
       }
       $("noSlotsMsg").classList.add("hidden");
-
-      var buckets = { morning: [], afternoon: [], evening: [] };
-      visibleTimes.forEach(function (slot) { buckets[slotPeriod(slot.time)].push(slot); });
-
-      var allSlotEls = [];
-      ["morning", "afternoon", "evening"].forEach(function (period) {
-        var slots = buckets[period];
-        if (!slots.length) return;
-        var group = document.createElement("div");
-        group.className = "slot-group";
-        var title = document.createElement("div");
-        title.className = "slot-group-title";
-        title.innerHTML = SLOT_PERIOD_ICONS[period] + '<span>' + t("reg.period." + period) + '</span>';
-        group.appendChild(title);
-        var grid = document.createElement("div");
-        grid.className = "slot-grid";
-        slots.forEach(function (slot) {
-          var el = document.createElement("div");
-          el.className = "slot";
-          var timeEl = document.createElement("div");
-          timeEl.className = "slot-time";
-          timeEl.textContent = slot.label;
-          el.appendChild(timeEl);
-          // Only surface a scarcity badge once the slot is getting tight
-          // (< 15 left) so plentiful slots stay visually uncluttered.
-          if (slot.available < 15) {
-            var left = document.createElement("div");
-            left.className = "slot-left" + (slot.available <= 5 ? " low" : "");
-            left.textContent = slot.available + " " + t("reg.left");
-            el.appendChild(left);
-          }
-          el.addEventListener("click", function () {
-            selectedTime = slot.time;
-            allSlotEls.forEach(function (c) { c.classList.remove("selected"); });
-            el.classList.add("selected");
-          updateSubmitState();
-          });
-          allSlotEls.push(el);
-          grid.appendChild(el);
-        });
-        group.appendChild(grid);
-        wrap.appendChild(group);
-      });
+       visibleTimes.forEach(function (slot) {
+         var option = document.createElement("option");
+         option.value = slot.time;
+         option.textContent = (slot.rangeLabel || slot.label) + " (" + slot.available + " " + t("reg.left") + ")";
+         select.appendChild(option);
+       });
     }
 
     function maxFamilyCount() {
@@ -2719,13 +3392,9 @@
       $("famPlus").disabled = familyCount >= maxFamilyCount();
       var feeText = fee > 0 ? formatFee(fee) : t("summary.free");
       $("feeValue").textContent = feeText;
-      if (fee > 0) {
-        var note = $("advanceNote");
-        note.textContent = t("summary.advanceNote", { fee: formatFee(fee) });
-        note.classList.remove("hidden");
-      } else {
-        $("advanceNote").classList.add("hidden");
-      }
+      var note = $("advanceNote");
+      note.textContent = currentRegistrationFeeCustomText;
+      note.classList.toggle("hidden", fee <= 0 || !currentRegistrationFeeCustomText);
     }
 
     function bindDetailsModal() {
@@ -2837,11 +3506,32 @@
         $("phoneError").classList.toggle("show", invalid);
         if (validPhone(phone)) fetchLanguageHint(phone);
       });
+      document.querySelectorAll(".product-category-option").forEach(function (option) {
+        option.addEventListener("click", function () { toggleProductCategory(option.getAttribute("data-category")); });
+      });
+      $("specialCategoryNoBtn").addEventListener("click", function () { setSpecialCategoryAnswer("no"); });
+      $("specialCategoryYesBtn").addEventListener("click", function () { setSpecialCategoryAnswer("yes"); });
+      document.querySelectorAll(".special-category-option").forEach(function (option) {
+        option.addEventListener("click", function () { toggleSpecialCategory(option.getAttribute("data-special-category")); });
+      });
       $("backBtn").addEventListener("click", function () {
         if (inOtpStep) { hideOtpPanel(); return; }
         if (currentStep > 1) goToStep(currentStep - 1);
       });
       $("nextBtn").addEventListener("click", onNextClick);
+      $("specialWarningEditBtn").addEventListener("click", closeSpecialCategoryWarning);
+      $("specialWarningContinueBtn").addEventListener("click", function () {
+        closeSpecialCategoryWarning();
+        goToStep(3);
+      });
+      $("specialCategoryWarningModal").addEventListener("click", function (event) {
+        if (event.target === this) closeSpecialCategoryWarning();
+      });
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !$("specialCategoryWarningModal").classList.contains("hidden")) {
+          closeSpecialCategoryWarning();
+        }
+      });
 
       // OTP sub-step listeners
       $("otpInput").addEventListener("input", function () {
@@ -2877,6 +3567,40 @@
       return /^[6-9][0-9]{9}$/.test(p);
     }
 
+    function syncProductCategorySelection() {
+      document.querySelectorAll(".product-category-option").forEach(function (option) {
+        var selected = selectedProductCategories.indexOf(option.getAttribute("data-category")) >= 0;
+        option.setAttribute("aria-selected", selected ? "true" : "false");
+      });
+      $("productCategory").value = selectedProductCategories[0] || "";
+    }
+
+    function toggleProductCategory(value) {
+      var index = selectedProductCategories.indexOf(value);
+      if (index >= 0) selectedProductCategories.splice(index, 1);
+      else selectedProductCategories.push(value);
+      syncProductCategorySelection();
+      updateSubmitState();
+    }
+
+    function setSpecialCategoryAnswer(answer) {
+      specialCategoryAnswer = answer === "yes" ? "yes" : "no";
+      $("specialCategoryNoBtn").setAttribute("aria-pressed", specialCategoryAnswer === "no" ? "true" : "false");
+      $("specialCategoryYesBtn").setAttribute("aria-pressed", specialCategoryAnswer === "yes" ? "true" : "false");
+      $("specialCategoryOptionsWrap").classList.toggle("hidden", specialCategoryAnswer !== "yes");
+      $("specialCategoryInlineError").classList.add("hidden");
+      if (specialCategoryAnswer === "no" && selectedSpecialCategories.length > 0) {
+        selectedSpecialCategories.splice(0, selectedSpecialCategories.length);
+        isSpecialNeeds = false;
+        document.querySelectorAll(".special-category-option").forEach(function (option) {
+          option.setAttribute("aria-pressed", "false");
+        });
+        $("specialCategoryLockNote").classList.remove("show");
+        renderDateChips();
+      }
+      updateSubmitState();
+    }
+
     function setStepState(n, state) {
       var el = $("step" + n);
       if (!el) return;
@@ -2888,11 +3612,23 @@
       var name = $("fullName").value.trim();
       var phone = $("phone").value.trim();
       var locOk = locations.length === 0 || !!selectedLocationId;
-      return locOk && name.length >= 2 && validPhone(phone) && customFieldsValid();
+      return locOk && name.length >= 2 && validPhone(phone) && selectedProductCategories.length > 0 && customFieldsValid();
     }
 
     function scheduleStepValid() {
       return !!(selectedDate && selectedTime);
+    }
+
+    function openSpecialCategoryWarning() {
+      $("specialCategoryWarningModal").classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+      window.setTimeout(function () { $("specialWarningEditBtn").focus(); }, 0);
+    }
+
+    function closeSpecialCategoryWarning() {
+      $("specialCategoryWarningModal").classList.add("hidden");
+      document.body.style.overflow = "";
+      $("nextBtn").focus();
     }
 
     // ── OTP verification sub-step functions ─────────────────────────────────
@@ -2938,11 +3674,11 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone: phone })
         });
+        var responseData = null;
+        try { responseData = await res.json(); } catch (e2) {}
         if (!res.ok) {
-          var errData = null;
-          try { errData = await res.json(); } catch (e2) {}
           $("otpSendingState").classList.add("hidden");
-          $("otpSendFailMsg").textContent = (errData && errData.error) || t("otp.sendError");
+          $("otpSendFailMsg").textContent = (responseData && responseData.error) || t("otp.sendError");
           $("otpSendFailState").classList.remove("hidden");
           return;
         }
@@ -3043,7 +3779,7 @@
       var timeLabel = selectedTime || "--";
       if (day && selectedTime) {
         var slot = day.times.find(function (s) { return s.time === selectedTime; });
-        if (slot) timeLabel = slot.label;
+        if (slot) timeLabel = slot.rangeLabel || slot.label;
       }
       $("reviewSlot").textContent = selectedTime ? (dateLabel + " \u2022 " + timeLabel) : "--";
       $("reviewGuests").textContent = String(1 + familyCount);
@@ -3070,6 +3806,15 @@
         return;
       } else if (currentStep === 2) {
         if (!scheduleStepValid()) { toast(t("toast.slot"), true); return; }
+        if (specialCategoryAnswer === "yes" && selectedSpecialCategories.length === 0) {
+          $("specialCategoryInlineError").classList.remove("hidden");
+          $("specialCategoryOptionsWrap").scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
+        if (specialCategoryAnswer === "no") {
+          openSpecialCategoryWarning();
+          return;
+        }
         goToStep(3);
       } else {
         submitRegistration();
@@ -3124,8 +3869,10 @@
       var name = $("fullName").value.trim();
       var phone = $("phone").value.trim();
       var email = $("email").value.trim();
+      var productCategory = selectedProductCategories[0] || "";
       if (name.length < 2) { toast(t("toast.name"), true); return; }
       if (!validPhone(phone)) { toast(t("toast.phone"), true); return; }
+      if (selectedProductCategories.length === 0) { toast(t("toast.productCategory"), true); return; }
       if (locations.length > 0 && !selectedLocationId) { toast(t("toast.location"), true); return; }
       if (!selectedDate || !selectedTime) { toast(t("toast.slot"), true); return; }
       var missing = firstMissingField();
@@ -3143,6 +3890,8 @@
             customerName: name,
             customerPhone: phone,
             customerEmail: email || null,
+            productCategory: productCategory,
+            productCategories: selectedProductCategories.slice(),
             preferredLanguage: currentLang,
             familyMembersCount: familyCount,
             priorityAccess: isSpecialNeeds,
@@ -3183,6 +3932,20 @@
     }
 
     async function startPayment(registration, payment, name, phone, email) {
+      var hostedPaymentUrl = payment.paymentLinkUrl || payment.shortUrl;
+      if (hostedPaymentUrl) {
+        try {
+          var parsedHostedUrl = new URL(hostedPaymentUrl);
+          if (parsedHostedUrl.protocol !== "https:") throw new Error("Hosted payment URL must use HTTPS");
+          window.location.assign(parsedHostedUrl.toString());
+          return;
+        } catch (err) {
+          submitting = false;
+          updateSubmitState();
+          toast(t("toast.paymentStartFail"), true);
+          return;
+        }
+      }
       try {
         await loadScript("https://checkout.razorpay.com/v1/checkout.js");
       } catch (err) {
@@ -3260,8 +4023,12 @@
         redirectToTicket(out.registration);
       } catch (err) {
         hideLoading();
+        if (attempt < 3) {
+          setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, 1200);
+          return;
+        }
         submitting = false;
-          updateSubmitState();
+        updateSubmitState();
         toast(t("toast.verifyFailed"), true);
       }
     }
@@ -3286,7 +4053,7 @@
       var timeLabel = reg.slotTime;
       if (day) {
         var slot = day.times.find(function (t) { return t.time === reg.slotTime; });
-        if (slot) timeLabel = slot.label;
+        if (slot) timeLabel = slot.rangeLabel || slot.label;
       }
       $("successBookingId").textContent = reg.bookingId || "--";
       $("successDate").textContent = dateLabel;

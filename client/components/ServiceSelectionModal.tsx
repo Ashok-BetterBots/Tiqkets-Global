@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from "react-native-reanimated";
@@ -20,6 +21,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { Spacing, BorderRadius, BrandColors, Colors } from "@/constants/theme";
 import { Organization, Service, FormField } from "@/types/queue";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface ServiceSelectionModalProps {
   visible: boolean;
@@ -57,6 +59,8 @@ export function ServiceSelectionModal({
   onJoinQueue,
 }: ServiceSelectionModalProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { user } = useAuth();
   const [step, setStep] = useState<ModalStep>("services");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -607,6 +611,8 @@ export function ServiceSelectionModal({
       visible={visible}
       transparent
       animationType="none"
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
@@ -617,14 +623,14 @@ export function ServiceSelectionModal({
         <Animated.View
           entering={FadeIn.duration(150)}
           exiting={FadeOut.duration(150)}
-          style={styles.overlay}
+          style={[styles.overlay, { paddingBottom: 20 + insets.bottom }]}
         >
           <Pressable style={styles.backdrop} onPress={step === "services" ? onClose : undefined} />
 
           <Animated.View
             entering={SlideInDown.duration(250)}
             exiting={SlideOutDown.duration(200)}
-            style={[styles.modal, { backgroundColor: theme.backgroundDefault }]}
+            style={[styles.modal, { backgroundColor: theme.backgroundDefault, maxHeight: windowHeight - 32 }]}
           >
             <View style={styles.modalTopBar}>
               <View style={styles.handle}>
@@ -655,7 +661,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     paddingHorizontal: 10,
-    paddingBottom: 20,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

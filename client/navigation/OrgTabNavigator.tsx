@@ -10,6 +10,7 @@ type TabIcon =
   | { family: "mci"; name: MciIconName };
 import { BlurView } from "expo-blur";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import OrgDashboardScreen from "@/screens/org/OrgDashboardScreen";
 import OrgQueueScreen from "@/screens/org/OrgQueueScreen";
 import OrgServicesScreen from "@/screens/org/OrgServicesScreen";
@@ -119,6 +120,7 @@ function NoAccessScreen() {
 
 export default function OrgTabNavigator() {
   const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const { hasPermission, hasAnyPermission, organization } = useOrganization();
   // Event accounts get the event-only app shell: Event console, Locations
   // and Settings — no queue / availability / dine-in tabs. Organisation
@@ -253,7 +255,8 @@ export default function OrgTabNavigator() {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: theme.borderSubtle,
           elevation: 0,
-          height: Platform.OS === "ios" ? 84 : 64,
+           height: 64 + insets.bottom,
+           paddingBottom: insets.bottom,
         },
         tabBarBackground: () =>
           Platform.OS === "ios" ? (

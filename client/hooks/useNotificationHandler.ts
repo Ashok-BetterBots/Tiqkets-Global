@@ -1,13 +1,18 @@
 import { useEffect, useRef } from 'react';
-import * as Notifications from 'expo-notifications';
 import { useNavigation, CommonActions } from '@react-navigation/native';
+import { getNotificationsModule } from '@/lib/notificationsCompat';
+
+type NotificationSubscription = { remove: () => void };
 
 export function useNotificationHandler() {
   const navigation = useNavigation();
-  const responseListener = useRef<Notifications.EventSubscription | null>(null);
-  const receivedListener = useRef<Notifications.EventSubscription | null>(null);
+  const responseListener = useRef<NotificationSubscription | null>(null);
+  const receivedListener = useRef<NotificationSubscription | null>(null);
 
   useEffect(() => {
+    const Notifications = getNotificationsModule();
+    if (!Notifications) return;
+
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
       

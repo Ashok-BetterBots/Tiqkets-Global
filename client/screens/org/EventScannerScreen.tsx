@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, StyleSheet, Pressable, Platform, Linking } from "react-native";
+import { View, StyleSheet, Pressable, Platform, Linking, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -55,6 +55,7 @@ export default function EventScannerScreen() {
 
 function EventScannerNative() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
   const { theme } = useTheme();
@@ -186,7 +187,7 @@ function EventScannerNative() {
         </View>
 
         <View style={styles.scanArea}>
-          <View style={styles.scanFrame}>
+          <View style={[styles.scanFrame, { width: Math.min(width - Spacing["2xl"] * 2, 280), aspectRatio: 1 }]}>
             <View style={[styles.corner, styles.topLeft, { borderColor: theme.primary }]} />
             <View style={[styles.corner, styles.topRight, { borderColor: theme.primary }]} />
             <View style={[styles.corner, styles.bottomLeft, { borderColor: theme.primary }]} />
@@ -306,7 +307,7 @@ const styles = StyleSheet.create({
   },
   headerBadgeText: { fontWeight: "600" },
   scanArea: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scanFrame: { width: 280, height: 280, position: "relative" },
+  scanFrame: { maxWidth: 280, width: "100%", aspectRatio: 1, position: "relative" },
   corner: { position: "absolute", width: 50, height: 50 },
   topLeft: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: BorderRadius.md },
   topRight: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: BorderRadius.md },

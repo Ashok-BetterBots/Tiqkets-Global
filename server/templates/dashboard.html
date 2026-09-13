@@ -116,6 +116,14 @@
     /* ---------- Modal ---------- */
     .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.45); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 50; }
     .modal-content { background: var(--surface); border-radius: var(--radius-lg); box-shadow: 0 24px 48px rgba(15,23,42,0.18); max-width: 32rem; width: 100%; margin: 0 16px; max-height: 90vh; overflow-y: auto; border: 1px solid var(--ink-100); }
+    .manual-special-warning { max-width: 27.5rem; padding: 24px; text-align: center; }
+    .manual-special-warning .warning-icon { width: 46px; height: 46px; margin: 0 auto 12px; display: grid; place-items: center; border-radius: 14px; color: #9a6700; background: #fff4ce; }
+    .manual-special-warning .warning-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+    .manual-special-warning .warning-actions button { min-height: 44px; border-radius: 10px; padding: 9px 12px; font-size: 12px; font-weight: 800; cursor: pointer; }
+    @media (max-width: 420px) {
+      .manual-special-warning { padding: 20px 16px; }
+      .manual-special-warning .warning-actions { grid-template-columns: 1fr; }
+    }
 
     /* ---------- Toast ---------- */
     .toast { position: fixed; top: 20px; right: 20px; z-index: 100; padding: 12px 18px; border-radius: var(--radius-md); box-shadow: 0 16px 32px rgba(15,23,42,0.18); color: #fff; font-weight: 600; font-size: 14px; }
@@ -2141,6 +2149,20 @@
                               <p>Status: <span class="font-bold" x-text="eventsScanResult.reg.status.replace(/_/g,' ')"></span></p>
                             </div>
                           </template>
+                          <template x-if="eventsScanResult.ok && eventsScanResult.alert">
+                            <div class="mt-3 rounded-xl border border-brand/20 bg-white/80 p-3 flex items-center gap-3" data-testid="web-checkout-duration-alert">
+                              <img :src="eventsScanResult.alert.iconUrl" class="w-14 h-14 rounded-xl object-cover border border-brand/10" alt="Checkout message icon">
+                              <div class="min-w-0 flex-1">
+                                <p class="text-sm font-extrabold text-brand" x-text="eventsScanResult.alert.title"></p>
+                                <p class="text-xs text-gray-700 mt-1 whitespace-pre-wrap" x-text="eventsScanResult.alert.message"></p>
+                                <p class="text-[10px] text-gray-400 font-semibold mt-1.5">
+                                  <span x-text="eventsScanResult.alert.elapsedMinutes + ' min since check-in'"></span>
+                                  <span> · </span>
+                                  <span x-text="'limit ' + eventsScanResult.alert.maxDurationMinutes + ' min'"></span>
+                                </p>
+                              </div>
+                            </div>
+                          </template>
                           <template x-if="eventsScanResult.paused">
                             <p class="mt-2 text-[11px] font-bold text-amber-600"><i class="fa-solid fa-circle-pause mr-1"></i>Event is paused — existing tickets remain valid, new registrations are blocked.</p>
                           </template>
@@ -2181,12 +2203,12 @@
                             <p class="mt-1">Invoice <span x-text="fmtPaise(eventsBillData.redemption.invoiceAmount)"></span> · Advance used <span x-text="fmtPaise(eventsBillData.redemption.advanceRedeemed)"></span> · Final due <span class="font-bold" x-text="fmtPaise(eventsBillData.redemption.finalAmountDue)"></span></p>
                           </div>
                         </template>
-                        <template x-if="eventsBillData.cashPaidAtCounter && !eventsBillData.redemption">
+                        <template x-if="(eventsBillData.cashPaidAtCounter || eventsBillData.billingOtpEnabled === false) && !eventsBillData.redemption">
                           <div class="mt-3 rounded-xl bg-emerald-50 border border-emerald-200 p-3 flex items-start gap-2">
                             <i class="fa-solid fa-hand-holding-dollar text-emerald-600 mt-0.5 shrink-0"></i>
                             <div>
-                              <p class="text-xs font-bold text-emerald-700">Paid at Counter</p>
-                              <p class="text-[11px] text-emerald-600 mt-0.5">Cash collected at registration — OTP verification not required. Proceed directly to invoice.</p>
+                              <p class="text-xs font-bold text-emerald-700" x-text="eventsBillData.cashPaidAtCounter ? 'Paid at Counter' : 'Billing OTP Disabled'"></p>
+                              <p class="text-[11px] text-emerald-600 mt-0.5" x-text="eventsBillData.cashPaidAtCounter ? 'Cash collected at registration — OTP verification not required. Proceed directly to invoice.' : 'OTP verification is disabled for this event. Proceed directly to invoice.'"></p>
                             </div>
                           </div>
                         </template>
@@ -2376,11 +2398,38 @@
                       <input type="number" min="1" x-model="eventForm.maxGuestsPerRegistration" class="input-field mt-1">
                       <p class="text-[10px] text-gray-400 mt-1">Includes the registrant themselves</p>
                     </div>
+                     <div>
+                       <label class="text-[11px] font-bold text-gray-400 uppercase">Pre-printed ticket prefix</label>
+                       <div class="flex items-center mt-1">
+                         <input x-model="eventForm.preprintedTicketPrefix" maxlength="8"
+                                @input="eventForm.preprintedTicketPrefix = String($event.target.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)"
+                                class="input-field font-mono uppercase rounded-r-none" placeholder="EVT">
+                         <span class="h-[42px] px-3 flex items-center rounded-r-lg border border-l-0 border-gray-200 bg-gray-50 text-gray-400 font-mono">-</span>
+                       </div>
+                       <p class="text-[10px] text-gray-400 mt-1">2–8 letters or numbers. Used for new pre-printed tickets only.</p>
+                     </div>
                     <div>
                       <label class="text-[11px] font-bold text-gray-400 uppercase">Registration fee (₹, 0 = free)</label>
-                      <input type="number" min="0" step="0.01" x-model="eventForm.registrationFeeRupees" class="input-field mt-1">
-                      <p class="text-[10px] text-gray-400 mt-1">Collected as a redeemable advance via Razorpay</p>
+                      <input type="number" min="0" step="0.01" x-model="eventForm.registrationFeeRupees" :disabled="!eventRegistrationFeesReady()" class="input-field mt-1 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed">
+                      <p x-show="eventRegistrationFeesReady()" class="text-[10px] text-gray-400 mt-1">Collected as a redeemable advance via Razorpay</p>
+                      <p x-show="!eventRegistrationFeesReady()" class="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">Create Payout setup before adding fee details. A valid Razorpay Product ID is required.</p>
                     </div>
+                    <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Registration fee custom text</label>
+                      <textarea maxlength="1000" rows="2" x-model="eventForm.registrationFeeCustomText" class="input-field mt-1" placeholder="Text shown below the fee on the customer review page"></textarea>
+                    </div>
+                     <div>
+                       <label class="text-[11px] font-bold text-gray-400 uppercase">Refundable</label>
+                       <select x-model="eventForm.refundable" class="input-field mt-1">
+                         <option :value="false">No</option>
+                         <option :value="true">Yes</option>
+                       </select>
+                       <p class="text-[10px] text-gray-400 mt-1">Customer guidance only; payment behavior is unchanged.</p>
+                     </div>
+                     <div class="md:col-span-2">
+                       <label class="text-[11px] font-bold text-gray-400 uppercase">Refund message shown to customers</label>
+                       <textarea maxlength="1000" rows="2" x-model="eventForm.refundMessage" class="input-field mt-1" placeholder="e.g. Refunds are available up to 24 hours before your visit."></textarea>
+                     </div>
                     <div>
                       <label class="text-[11px] font-bold text-gray-400 uppercase">Parking spaces (0 = no parking)</label>
                       <input type="number" min="0" x-model="eventForm.parkingTotalSpaces" class="input-field mt-1">
@@ -2401,6 +2450,55 @@
                       </span>
                       <input type="checkbox" x-model="eventForm.parkingEnabled" class="w-5 h-5 accent-brand">
                     </label>
+                    <p class="text-[11px] font-bold text-gray-400 uppercase mt-4 mb-2">OTP verification</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                        <span>
+                          <span class="block text-sm font-bold text-gray-700">Registration OTP</span>
+                          <span class="block text-xs text-gray-400 mt-0.5">Verify the customer's WhatsApp number before registration.</span>
+                        </span>
+                        <input type="checkbox" x-model="eventForm.registrationOtpEnabled" class="w-5 h-5 accent-brand">
+                      </label>
+                      <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                        <span>
+                          <span class="block text-sm font-bold text-gray-700">Billing OTP</span>
+                          <span class="block text-xs text-gray-400 mt-0.5">When off, billing proceeds directly like a store registration.</span>
+                        </span>
+                        <input type="checkbox" x-model="eventForm.billingOtpEnabled" class="w-5 h-5 accent-brand">
+                      </label>
+                    </div>
+                    <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 mt-2">
+                      <span>
+                        <span class="block text-sm font-bold text-gray-700">Show checkout message for short visits</span>
+                        <span class="block text-xs text-gray-400 mt-0.5">Display a custom staff alert when checkout is within the configured duration.</span>
+                      </span>
+                      <input type="checkbox" x-model="eventForm.checkoutAlertEnabled" class="w-5 h-5 accent-brand">
+                    </label>
+                    <div x-show="eventForm.checkoutAlertEnabled" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 rounded-xl border border-brand/15 bg-brand/5 p-4">
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Maximum duration (minutes)</label>
+                        <input type="number" min="1" max="10080" x-model="eventForm.checkoutAlertMaxDurationMinutes" class="input-field mt-1">
+                      </div>
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Image icon</label>
+                        <div class="flex items-center gap-3 mt-1">
+                          <img x-show="eventForm.checkoutAlertIconUrl" :src="eventForm.checkoutAlertIconUrl" class="w-12 h-12 object-cover rounded-xl border border-gray-200">
+                          <label class="text-xs text-brand font-bold cursor-pointer">
+                            <span x-text="eventForm.checkoutAlertIconUrl ? 'Replace icon' : 'Upload icon'"></span>
+                            <input type="file" accept="image/*" class="hidden" @change="uploadEventImage('checkoutAlertIconUrl', $event)">
+                          </label>
+                          <button x-show="eventForm.checkoutAlertIconUrl" type="button" @click="eventForm.checkoutAlertIconUrl = ''" class="text-xs text-red-500 font-bold">Remove</button>
+                        </div>
+                      </div>
+                      <div class="md:col-span-2">
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Checkout title</label>
+                        <input maxlength="120" x-model="eventForm.checkoutAlertTitle" class="input-field mt-1" placeholder="Thank you for visiting">
+                      </div>
+                      <div class="md:col-span-2">
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Checkout message</label>
+                        <textarea maxlength="1000" rows="3" x-model="eventForm.checkoutAlertMessage" class="input-field mt-1" placeholder="Message shown to checkout staff"></textarea>
+                      </div>
+                    </div>
                     <p class="text-[11px] font-bold text-gray-400 uppercase mt-4 mb-2">WhatsApp messages</p>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <template x-for="item in [
@@ -2626,7 +2724,7 @@
 
                 <!-- Action bar -->
                 <div class="flex flex-wrap items-center gap-2">
-                  <button @click="ptkCreatePanelOpen = !ptkCreatePanelOpen; ptkValidatePanelOpen = false"
+                  <button @click="togglePreprintedCreatePanel()"
                           :class="ptkCreatePanelOpen ? 'bg-brand text-white border-brand' : 'btn-primary'"
                           class="btn-primary text-xs">
                     <i class="fa-solid fa-plus mr-1"></i>Create &amp; print batch
@@ -2644,7 +2742,7 @@
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <p class="text-sm font-bold text-gray-800">Duplex ticket artwork</p>
-                      <p class="text-xs text-gray-500 mt-1">Saved for this event and reused by every pre-printed batch. Each front sheet is followed by its matching back sheet for duplex printing.</p>
+                      <p class="text-xs text-gray-500 mt-1">Saved for this event and reused by every pre-printed batch. Front and back artwork use the 20.3 cm × 8.2 cm ticket size. Each front sheet is followed by its matching back sheet for duplex printing.</p>
                     </div>
                     <span x-show="ptkArtworkSaving || ptkArtworkUploadingSide" class="text-xs text-brand font-bold whitespace-nowrap"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Saving…</span>
                   </div>
@@ -2662,7 +2760,7 @@
                                   :disabled="ptkArtworkSaving || ptkArtworkUploadingSide !== ''"
                                   class="text-[11px] font-bold text-red-400 hover:text-red-600">Remove</button>
                         </div>
-                        <div class="relative rounded-lg border border-gray-100 bg-gray-50 overflow-hidden flex items-center justify-center" style="aspect-ratio:2550/825;">
+                        <div class="relative rounded-lg border border-gray-100 bg-gray-50 overflow-hidden flex items-center justify-center" style="aspect-ratio:203/82;">
                           <img x-show="preprintedTicketEvent && preprintedTicketEvent[side.key]"
                                :src="preprintedTicketEvent && preprintedTicketEvent[side.key]"
                                class="w-full h-full object-fill" :alt="side.label">
@@ -2706,7 +2804,7 @@
                         <p class="text-[9px] text-slate-400 mt-3 leading-relaxed">Drag fields on the artwork. Select one to edit.</p>
                       </aside>
                       <div class="rounded-lg border border-slate-300 bg-slate-900/5 p-2">
-                        <div data-ptk-canvas class="relative w-full overflow-hidden rounded border border-slate-300 bg-white select-none" style="aspect-ratio:2550/825;container-type:inline-size;" @pointerdown.self="ptkSelectedId = null" @keydown="ptkEditorKeydown($event)" tabindex="0" role="listbox" aria-label="Back-page ticket objects">
+                        <div data-ptk-canvas class="relative w-full overflow-hidden rounded border border-slate-300 bg-white select-none" style="aspect-ratio:203/82;container-type:inline-size;" @pointerdown.self="ptkSelectedId = null" @keydown="ptkEditorKeydown($event)" tabindex="0" role="listbox" aria-label="Back-page ticket objects">
                           <img :src="preprintedTicketEvent ? preprintedTicketEvent.preprintedBackImageUrl : ''" class="absolute inset-0 w-full h-full object-fill pointer-events-none" alt="Back artwork">
                           <template x-for="element in ptkBackLayout.elements" :key="element.id">
                             <div class="absolute flex items-center px-1 overflow-visible cursor-move"
@@ -2758,7 +2856,7 @@
                 </div>
 
                 <!-- Inline create batch panel -->
-                <div x-show="ptkCreatePanelOpen" x-transition class="rounded-xl border border-brand/20 bg-brand/5 p-4 space-y-3">
+                <div x-ref="ptkCreatePanel" x-show="ptkCreatePanelOpen" x-transition class="rounded-xl border border-brand/20 bg-brand/5 p-4 space-y-3 scroll-mt-4">
                   <p class="text-sm font-bold text-gray-800">Create a new ticket batch</p>
                   <p class="text-xs text-gray-500">Each batch gets a unique code. Tickets are numbered 000001 → N. Large batches (50k+) may take up to a minute to generate.</p>
                   <div class="flex items-center gap-3 flex-wrap">
@@ -2781,7 +2879,7 @@
                 <div x-show="ptkValidatePanelOpen" x-transition class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
                   <p class="text-sm font-bold text-gray-700">Look up a booking ID or QR value</p>
                   <div class="flex gap-2">
-                    <input x-model="ptkValidateCode" placeholder="PTK-… or paste QR URL"
+                    <input x-model="ptkValidateCode" placeholder="Booking ID or paste QR URL"
                            class="input-field text-sm flex-1 font-mono"
                            @keydown.enter.prevent="validatePtkTicket()" autocomplete="off">
                     <button @click="validatePtkTicket()" :disabled="ptkValidateBusy || !ptkValidateCode.trim()"
@@ -2968,14 +3066,25 @@
           </div>
 
           <!-- Manual (offline) registration modal — admin/billing desk flow -->
-          <div x-show="manualRegModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="closeManualRegModal()">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto" @click.stop>
-              <div class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+          <div x-show="manualRegSpecialWarningOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-y-auto" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="closeManualSpecialWarning()">
+            <div class="bg-white rounded-2xl shadow-2xl w-full manual-special-warning my-auto" role="dialog" aria-modal="true" @click.stop>
+              <div class="warning-icon"><i class="fa-solid fa-triangle-exclamation text-lg"></i></div>
+              <h3 class="text-lg font-extrabold text-gray-900 mb-2">Before you continue</h3>
+              <p class="text-sm leading-6 text-gray-500">For safety reasons, senior citizens, pregnant women, specially abled visitors, and visitors with infants are not permitted on regular event days. If anyone in the group belongs to one of these categories, go back and select Yes so the appropriate special-access date can be assigned.</p>
+              <div class="warning-actions">
+                <button type="button" class="border-[1.5px] border-brand text-brand bg-white" @click="closeManualSpecialWarning(true)">Go back and change</button>
+                <button type="button" class="border-[1.5px] border-brand text-white bg-brand" @click="continueManualWithoutSpecialCategory()">Confirm No &amp; continue</button>
+              </div>
+            </div>
+          </div>
+          <div x-show="manualRegModalOpen" x-cloak class="fixed inset-0 z-50 flex items-end justify-center overflow-hidden" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="closeManualRegModal()">
+            <div class="bg-white rounded-t-3xl shadow-2xl w-full max-w-2xl h-[75vh] flex flex-col overflow-hidden" @click.stop>
+              <div class="bg-white border-b border-gray-100 px-6 pt-4 pb-3 flex items-center justify-between rounded-t-3xl z-10">
                 <div>
                   <h3 class="font-extrabold text-gray-900">Add customer registration</h3>
                   <p class="text-xs text-gray-400 mt-0.5" x-text="selectedEvent ? selectedEvent.name : ''"></p>
                 </div>
-                <button @click="closeManualRegModal()" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                <button @click="closeManualRegModal()" class="px-3 py-2 rounded-lg hover:bg-gray-50 text-brand text-xs font-extrabold">Cancel</button>
               </div>
 
               <!-- Success screen -->
@@ -2997,7 +3106,7 @@
                     <button @click="printEventTicket(manualRegSuccess.qrToken, 'thermal')" class="btn-secondary text-xs"><i class="fa-solid fa-receipt mr-1"></i>Print (thermal)</button>
                   </div>
                   <div class="flex gap-2">
-                    <button @click="manualRegSuccess = null" class="btn-secondary text-xs flex-1">Add another</button>
+                    <button @click="openManualRegModal()" class="btn-secondary text-xs flex-1">Add another</button>
                     <button @click="closeManualRegModal()" class="btn-primary text-xs flex-1">Done</button>
                   </div>
                 </div>
@@ -3005,64 +3114,175 @@
 
               <!-- Form -->
               <template x-if="!manualRegSuccess">
-                <div class="px-6 py-5">
+                <div class="flex-1 min-h-0 flex flex-col">
+                  <div x-show="!manualRegLoadingLocations" class="px-6 py-3 border-b border-gray-100">
+                    <div class="flex items-start">
+                      <template x-for="(item, index) in [{label:'Visit details', step:1}, {label:'Customer', step:2}, {label:'Issue Ticket', step:3}]" :key="item.step">
+                        <div class="contents">
+                          <div x-show="index > 0" class="flex-1 h-0.5 mt-3" :class="manualRegStep >= item.step ? 'bg-brand' : 'bg-gray-200'"></div>
+                          <div class="w-24 flex flex-col items-center gap-1.5">
+                            <div class="w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-extrabold"
+                                 :class="manualRegStep >= item.step ? 'bg-brand border-brand text-white' : 'bg-gray-50 border-gray-200 text-gray-400'">
+                              <i x-show="manualRegStep > item.step" class="fa-solid fa-check"></i>
+                              <span x-show="manualRegStep <= item.step" x-text="item.step"></span>
+                            </div>
+                            <span class="text-[10px] text-center font-bold" :class="manualRegStep === item.step ? 'text-gray-800' : 'text-gray-400'" x-text="item.label"></span>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <div x-ref="manualRegScroll" class="flex-1 min-h-0 overflow-y-auto px-6 py-5">
                   <template x-if="manualRegLoadingLocations">
                     <p class="text-center text-gray-400 text-sm py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading slots...</p>
                   </template>
                   <template x-if="!manualRegLoadingLocations">
                     <div class="space-y-4">
+                      <div x-show="manualRegStep === 1" class="space-y-4">
                       <div x-show="manualRegLocations.length > 1">
                         <label class="text-[11px] font-bold text-gray-400 uppercase">Location</label>
-                        <select x-model="manualRegForm.locationId" @change="manualRegForm.slotDate=''; manualRegForm.slotTime=''; manualRegForm.amountCollected = manualRegAmountDue" class="input-field mt-1 text-sm">
+                        <select x-model="manualRegForm.locationId" @change="manualRegLocationChanged()" class="input-field mt-1 text-sm">
                           <option value="">Select location</option>
                           <template x-for="l in manualRegLocations" :key="l.id">
                             <option :value="l.id" x-text="l.name"></option>
                           </template>
                         </select>
                       </div>
-                      <!-- Infant/senior checkbox — auto-selects last available date -->
                       <div>
-                        <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors">
-                          <input type="checkbox" x-model="manualRegSpecialNeeds"
-                                 @change="manualRegForm.slotDate = manualRegSpecialNeeds ? manualRegLastDate : ''; manualRegForm.slotTime = ''"
-                                 class="w-4 h-4 mt-0.5 rounded flex-shrink-0" style="accent-color:#8c1867">
-                          <div>
-                            <p class="text-sm font-bold text-gray-800">Visiting with infants / senior citizens / pregnant women?</p>
-                            <p class="text-[11px] text-gray-400 mt-0.5">Last available event slot will be auto-selected</p>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Product category <span class="text-red-500">*</span></label>
+                        <div class="grid grid-cols-2 gap-2 mt-1" role="group" aria-label="Product category">
+                          <template x-for="category in manualRegProductCategoryOptions" :key="category.value">
+                            <button type="button"
+                                    @click="toggleManualProductCategory(category.value)"
+                                    :aria-pressed="manualRegForm.productCategories.includes(category.value)"
+                                    :class="manualRegForm.productCategories.includes(category.value) ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"
+                                    class="flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs font-bold transition-colors">
+                              <i :class="category.icon" class="w-4 text-center text-sm"></i>
+                              <span x-text="category.label"></span>
+                            </button>
+                          </template>
+                        </div>
+                      </div>
+                      <div>
+                        <p class="text-sm font-extrabold text-gray-800">Visiting with any of the below members?</p>
+                        <p class="text-xs leading-4 text-gray-400 mt-0.5">Infants, Senior Citizens, Pregnant Women or Differently Abled</p>
+                        <div class="grid grid-cols-2 gap-2 mt-2" role="radiogroup" aria-label="Visiting with special-access members">
+                          <button type="button"
+                                  @click="setManualSpecialMembers(false)"
+                                  :aria-checked="!manualRegHasSpecialMembers"
+                                  :class="!manualRegHasSpecialMembers ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"
+                                  class="flex items-center justify-center gap-2 rounded-xl border-[1.5px] px-3 py-3 text-sm font-extrabold transition-colors"
+                                  role="radio">
+                            <span class="w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center" :class="!manualRegHasSpecialMembers ? 'border-brand' : 'border-gray-300'">
+                              <span x-show="!manualRegHasSpecialMembers" class="w-2 h-2 rounded-full bg-brand"></span>
+                            </span>
+                            No
+                          </button>
+                          <button type="button"
+                                  @click="setManualSpecialMembers(true)"
+                                  :aria-checked="manualRegHasSpecialMembers"
+                                  :class="manualRegHasSpecialMembers ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"
+                                  class="flex items-center justify-center gap-2 rounded-xl border-[1.5px] px-3 py-3 text-sm font-extrabold transition-colors"
+                                  role="radio">
+                            <span class="w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center" :class="manualRegHasSpecialMembers ? 'border-brand' : 'border-gray-300'">
+                              <span x-show="manualRegHasSpecialMembers" class="w-2 h-2 rounded-full bg-brand"></span>
+                            </span>
+                            Yes
+                          </button>
+                        </div>
+                        <div x-show="manualRegHasSpecialMembers" x-transition class="p-3 rounded-xl border border-gray-200 bg-gray-50 mt-3">
+                          <p class="text-sm font-bold text-gray-800">Select all that apply</p>
+                          <p class="text-[11px] text-gray-400 mt-0.5">The last available event date will be reserved for special access.</p>
+                          <div class="grid grid-cols-2 gap-2 mt-3">
+                            <template x-for="category in manualRegSpecialCategoryOptions" :key="category.value">
+                              <button type="button"
+                                      @click="toggleManualSpecialCategory(category.value)"
+                                      :aria-pressed="manualRegSpecialCategories.includes(category.value)"
+                                      :class="manualRegSpecialCategories.includes(category.value) ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"
+                                      class="rounded-lg border px-2 py-2 text-xs font-bold text-left transition-colors"
+                                      >
+                                <i :class="category.icon" class="mr-1.5 text-sm"></i><span x-text="category.label"></span>
+                              </button>
+                            </template>
                           </div>
-                        </label>
+                        </div>
+                      </div>
+                      <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-start gap-2">
+                        <i class="fa-solid fa-gift text-amber-600 mt-0.5"></i>
+                        <div>
+                          <p class="text-xs font-extrabold text-amber-800">A surprise gift awaits!</p>
+                          <p class="text-[11px] leading-4 text-amber-700 mt-0.5">Enter and exit the shop within 3 hours to receive a surprise gift.</p>
+                        </div>
                       </div>
                       <div class="grid grid-cols-2 gap-3">
-                        <div>
+                        <div class="relative">
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot date</label>
                           <!-- Locked to last date when special needs is checked -->
-                          <div x-show="manualRegSpecialNeeds" class="input-field mt-1 text-sm flex items-center gap-2 bg-gray-50 opacity-80 cursor-not-allowed">
+                          <div x-show="manualRegHasSpecialNeeds" class="input-field mt-1 text-sm flex items-center gap-2 bg-gray-50 opacity-80 cursor-not-allowed">
                             <i class="fa-solid fa-lock text-xs" style="color:#8c1867"></i>
                             <span x-text="manualRegLastDate ? manualRegFormatDate({date: manualRegLastDate}) : 'No dates available'" class="flex-1 text-sm"></span>
                             <span class="text-xs text-gray-400">Last day</span>
                           </div>
-                          <!-- Dropdown of all dates except last for regular visitors -->
-                          <select x-show="!manualRegSpecialNeeds" x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''" class="input-field mt-1 text-sm">
-                            <option value="">Select a date</option>
-                            <template x-for="d in manualRegRegularDates" :key="d.date">
-                              <option :value="d.date" x-text="manualRegFormatDate(d)"></option>
-                            </template>
-                          </select>
+                          <!-- Upward-opening dropdown of all dates except last for regular visitors -->
+                          <div x-show="!manualRegHasSpecialNeeds" class="relative mt-1">
+                            <div x-show="manualRegDateDropdownOpen"
+                                 @click.outside="manualRegDateDropdownOpen = false"
+                                 class="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-52 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+                              <template x-if="manualRegRegularDates.length === 0">
+                                <p class="px-3 py-2.5 text-xs text-gray-400">No dates available</p>
+                              </template>
+                              <template x-for="d in manualRegRegularDates" :key="d.date">
+                                <button type="button"
+                                        @click="manualRegForm.slotDate=d.date; manualRegForm.slotTime=''; manualRegDateDropdownOpen=false; manualRegTimeDropdownOpen=false; scrollManualRegAfterSlotSelection(96)"
+                                        class="flex w-full items-center justify-between border-b border-gray-100 px-3 py-2.5 text-left text-xs font-semibold last:border-0"
+                                        :class="manualRegForm.slotDate === d.date ? 'bg-brand/5 text-brand' : 'text-gray-700 hover:bg-gray-50'">
+                                  <span x-text="manualRegFormatDate(d)"></span>
+                                  <i x-show="manualRegForm.slotDate === d.date" class="fa-solid fa-check text-[10px]"></i>
+                                </button>
+                              </template>
+                            </div>
+                            <button type="button"
+                                    @click="manualRegDateDropdownOpen = !manualRegDateDropdownOpen; manualRegTimeDropdownOpen = false"
+                                    class="input-field text-sm flex w-full items-center justify-between gap-2 text-left">
+                              <span x-text="manualRegForm.slotDate ? manualRegFormatDate({date: manualRegForm.slotDate}) : 'Select a date'"
+                                    :class="manualRegForm.slotDate ? 'text-gray-700' : 'text-gray-400'"></span>
+                              <i class="fa-solid fa-chevron-up text-[10px] text-gray-400"></i>
+                            </button>
+                          </div>
                           <p class="text-[10px] text-amber-500 font-semibold mt-1"
-                             x-show="!manualRegSpecialNeeds && manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate)">
+                             x-show="!manualRegHasSpecialNeeds && manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate)">
                             This date is fully booked or has passed — pick another.
                           </p>
                         </div>
-                        <div>
+                        <div class="relative">
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot time</label>
-                          <select x-model="manualRegForm.slotTime" class="input-field mt-1 text-sm" :disabled="!manualRegForm.slotDate || manualRegSlotTimes.length === 0">
-                            <option value="" x-text="manualRegSlotTimes.length === 0 ? 'No times available' : 'Select time'"></option>
-                            <template x-for="t in manualRegSlotTimes" :key="t.time">
-                              <option :value="t.time" x-text="t.label + ' · ' + t.available + ' left'"></option>
-                            </template>
-                          </select>
+                          <div class="relative mt-1">
+                            <div x-show="manualRegTimeDropdownOpen"
+                                 @click.outside="manualRegTimeDropdownOpen = false"
+                                 class="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-52 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+                              <template x-for="t in manualRegSlotTimes" :key="t.time">
+                                <button type="button"
+                                        @click="manualRegForm.slotTime=t.time; manualRegTimeDropdownOpen=false; scrollManualRegAfterSlotSelection(72)"
+                                        class="flex w-full items-center justify-between border-b border-gray-100 px-3 py-2.5 text-left text-xs font-semibold last:border-0"
+                                        :class="manualRegForm.slotTime === t.time ? 'bg-brand/5 text-brand' : 'text-gray-700 hover:bg-gray-50'">
+                                  <span x-text="t.label + ' · ' + t.available + ' left'"></span>
+                                  <i x-show="manualRegForm.slotTime === t.time" class="fa-solid fa-check text-[10px]"></i>
+                                </button>
+                              </template>
+                            </div>
+                            <button type="button"
+                                    @click="if (manualRegForm.slotDate && manualRegSlotTimes.length > 0) { manualRegTimeDropdownOpen = !manualRegTimeDropdownOpen; manualRegDateDropdownOpen = false }"
+                                    :disabled="!manualRegForm.slotDate || manualRegSlotTimes.length === 0"
+                                    class="input-field text-sm flex w-full items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60">
+                              <span x-text="manualRegForm.slotTime ? ((manualRegSlotTimes.find(t => t.time === manualRegForm.slotTime) || {}).label || manualRegForm.slotTime) : (manualRegSlotTimes.length === 0 ? 'No times available' : 'Select time')"
+                                    :class="manualRegForm.slotTime ? 'text-gray-700' : 'text-gray-400'"></span>
+                              <i class="fa-solid fa-chevron-up text-[10px] text-gray-400"></i>
+                            </button>
+                          </div>
                         </div>
                       </div>
+                      </div>
+                      <div x-show="manualRegStep === 2" class="space-y-4">
                       <div>
                         <label class="text-[11px] font-bold text-gray-400 uppercase">Customer name</label>
                         <input x-model="manualRegForm.customerName" placeholder="Full name" class="input-field mt-1 text-sm" autocomplete="off">
@@ -3120,7 +3340,9 @@
                           </template>
                         </div>
                       </template>
+                      </div>
 
+                      <div x-show="manualRegStep === 3" class="space-y-4">
                       <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
                         <p class="text-sm font-extrabold text-gray-800">Ticket method</p>
                         <div class="grid grid-cols-2 gap-2">
@@ -3132,11 +3354,11 @@
                           <div class="relative mt-1">
                             <input x-model="manualRegForm.preprintedTicketCode"
                                    @change="manualRegForm.preprintedTicketCode = await resolvePreprintedCode($event.target.value, selectedEvent && selectedEvent.id)"
-                                   placeholder="PTK-… or scan QR"
+                                   :placeholder="((selectedEvent && selectedEvent.preprintedTicketPrefix) || 'EVT') + '-… or scan QR'"
                                    class="input-field text-sm font-mono w-full" style="text-transform:uppercase" autocomplete="off">
                             <span x-show="manualRegPtkResolving" class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><i class="fa-solid fa-spinner fa-spin text-gray-400 text-xs"></i></span>
                           </div>
-                          <p class="text-[10px] text-gray-400 mt-1">Scan the QR on the physical ticket or type the PTK-… ID. Each ticket can only be assigned once.</p>
+                          <p class="text-[10px] text-gray-400 mt-1">Scan the QR on the physical ticket or type its booking ID. Each ticket can only be assigned once.</p>
                         </div>
                       </div>
 
@@ -3167,12 +3389,21 @@
                         <p class="text-xs font-bold" :class="manualRegBalanceDue > 0 ? 'text-amber-700' : 'text-green-700'" x-show="manualRegAmountDue > 0 && manualRegForm.paymentMode === 'offline_paid'" x-text="manualRegBalanceDue > 0 ? ('Balance remaining: ₹' + manualRegBalanceDue) : 'Fully paid'"></p>
                         <input x-show="manualRegForm.paymentMode !== 'offline_paid'" x-model="manualRegForm.paymentReason" placeholder="Reason for complimentary/unpaid registration" class="input-field text-sm">
                       </div>
-
-                      <button @click="submitManualReg()" class="btn-primary text-sm w-full" :disabled="!manualRegCanSubmit || manualRegSaving">
-                        <i class="fa-solid mr-1.5" :class="manualRegSaving ? 'fa-spinner fa-spin' : 'fa-circle-check'"></i>Register
-                      </button>
+                      </div>
                     </div>
                   </template>
+                  </div>
+                  <div x-show="!manualRegLoadingLocations" class="border-t border-gray-100 bg-white px-6 py-4 flex gap-2">
+                    <button type="button" @click="closeManualRegModal()" class="btn-secondary text-sm">Cancel</button>
+                    <button x-show="manualRegStep > 1" type="button" @click="manualRegStep--" class="btn-secondary text-sm flex-1">Back</button>
+                    <button x-show="manualRegStep < 3" type="button" @click="nextManualRegStep()" class="btn-primary text-sm flex-1"
+                            :disabled="(manualRegStep === 1 && !manualRegCanContinueStep1) || (manualRegStep === 2 && !manualRegCanContinueStep2)">
+                      Next
+                    </button>
+                    <button x-show="manualRegStep === 3" type="button" @click="submitManualReg()" class="btn-primary text-sm flex-1" :disabled="!manualRegCanSubmit || manualRegSaving">
+                      <i class="fa-solid mr-1.5" :class="manualRegSaving ? 'fa-spinner fa-spin' : 'fa-circle-check'"></i>Register
+                    </button>
+                  </div>
                 </div>
               </template>
             </div>
@@ -3350,6 +3581,7 @@
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label class="block text-sm font-semibold text-gray-700 mb-2">Registration Fee (₹)</label><input type="number" min="0" step="0.01" x-model="locationForm.registrationFeeRupees" class="input-field" placeholder="0 = free"></div>
+                  <div><label class="block text-sm font-semibold text-gray-700 mb-2">Registration fee custom text</label><textarea maxlength="1000" rows="2" x-model="locationForm.registrationFeeCustomText" class="input-field" placeholder="Text shown below the fee"></textarea></div>
                   <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Linked Event</label>
                     <select x-model="locationForm.eventId" class="input-field">
@@ -3359,6 +3591,19 @@
                       </template>
                     </select>
                     <p class="text-xs text-gray-400 mt-1">Guests opening this event's link see only its linked locations.</p>
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Refundable</label>
+                    <select x-model="locationForm.refundable" class="input-field">
+                      <option :value="false">No</option>
+                      <option :value="true">Yes</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Refund message shown to customers</label>
+                    <textarea maxlength="1000" rows="2" x-model="locationForm.refundMessage" class="input-field" placeholder="Optional customer guidance"></textarea>
                   </div>
                 </div>
 
@@ -4454,13 +4699,6 @@
                       <span class="text-sm font-bold" :class="settingsForm.queueMode === 'selective' ? 'text-brand' : 'text-gray-700'">Selective</span>
                     </div>
                     <p class="text-[11px] text-gray-400 leading-relaxed">Pick and call any customer from the queue, regardless of order.</p>
-                  </button>
-                  <button @click="settingsForm.queueMode = 'checkin'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'checkin' ? 'border-brand bg-brand-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
-                    <div class="flex items-center gap-2.5 mb-2">
-                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'checkin' ? 'bg-brand-100 text-brand' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-qrcode text-sm"></i></div>
-                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'checkin' ? 'text-brand' : 'text-gray-700'">Check-in</span>
-                    </div>
-                    <p class="text-[11px] text-gray-400 leading-relaxed">Scan ticket or enter number to mark customer as arrived.</p>
                   </button>
                   <button @click="settingsForm.queueMode = 'dine_in'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'dine_in' || settingsForm.queueMode === 'dinein' ? 'border-brand bg-brand-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
                     <div class="flex items-center gap-2.5 mb-2">
@@ -5997,7 +6235,7 @@
           <div x-show="currentPage === 'ticketPayments'" x-transition>
             <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
               <div>
-                <p class="text-sm text-gray-500">Razorpay Route payouts for paid event tickets. Ticket revenue is routed to your organizer account.</p>
+                <p class="text-sm text-gray-500" x-text="payoutUsesPaymentLinks() ? 'Razorpay Payment Links for paid event tickets.' : (payoutProfile?.paymentMethod === 'razorpay_direct' ? 'Razorpay Direct payments for paid event tickets.' : 'Razorpay Route payouts for paid event tickets. Ticket revenue is routed to your organizer account.')"></p>
               </div>
               <button @click="reconcilePayouts()" :disabled="payoutReconciling || payoutLoading" class="btn-secondary text-xs whitespace-nowrap disabled:opacity-60">
                 <i class="fa-solid fa-rotate" :class="{ 'fa-spin': payoutReconciling }"></i>
@@ -6023,17 +6261,17 @@
               <div class="dash-card border-brand-100 bg-gradient-to-r from-brand-50/60 via-white to-purple-50/30">
                 <div class="flex flex-col sm:flex-row sm:items-start gap-4">
                   <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                    :class="payoutProfile?.onboarding?.currentStage === 'complete' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'">
-                    <i :class="payoutProfile?.onboarding?.currentStage === 'complete' ? 'fa-solid fa-circle-check' : 'fa-solid fa-building-columns'"></i>
+                    :class="ticketPaymentsReady() ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'">
+                    <i :class="ticketPaymentsReady() ? 'fa-solid fa-circle-check' : 'fa-solid fa-building-columns'"></i>
                   </div>
                   <div class="flex-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <h2 class="text-base font-extrabold text-gray-900" x-text="payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Awaiting Razorpay activation') : 'Payout setup required'"></h2>
-                      <span class="badge" :class="payoutProfile?.onboarding?.currentStage === 'complete' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
-                        x-text="payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Under review') : (payoutProfile?.configured ? 'Action needed' : 'Not set up')"></span>
+                      <h2 class="text-base font-extrabold text-gray-900" x-text="payoutUsesPaymentLinks() ? (ticketPaymentsReady() ? 'Razorpay Payment Links active' : 'Razorpay Payment Links unavailable') : (payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? 'Razorpay Direct payments active' : 'Razorpay Direct unavailable') : (payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Awaiting Razorpay activation') : 'Payout setup required'))"></h2>
+                      <span class="badge" :class="ticketPaymentsReady() ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
+                        x-text="payoutUsesPaymentLinks() ? (ticketPaymentsReady() ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Unavailable') : (payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Unavailable') : (payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Under review') : (payoutProfile?.configured ? 'Action needed' : 'Not set up')))"></span>
                     </div>
-                    <p class="text-sm text-gray-500 mt-1" x-text="payoutProfile?.actionRequired || payoutProfile?.statusReason || 'Submit organizer payout details to enable paid ticket checkout.'"></p>
-                     <div x-show="payoutProfile?.configured" class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                    <p class="text-sm text-gray-500 mt-1" x-text="payoutUsesPaymentLinks() ? (ticketPaymentsReady() ? 'Paid event registrations use hosted Razorpay Payment Links. Payment Links reuse the Direct credentials configured by the Super Admin.' : 'Payment Links reuse the Direct credentials configured by the Super Admin and must be ready before paid registrations can be accepted.') : (payoutProfile?.paymentMethod === 'razorpay_direct' ? (payoutProfile?.directReady ? 'Paid event registrations are processed directly through the platform Razorpay account.' : 'Razorpay Direct must be configured by the Super Admin before paid registrations can be accepted.') : (payoutProfile?.actionRequired || payoutProfile?.statusReason || 'Submit organizer payout details to enable paid ticket checkout.'))"></p>
+                     <div x-show="payoutProfile?.paymentMethod === 'razorpay_route' && payoutProfile?.configured" class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
                       <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Razorpay account ID</span><code class="block font-bold text-gray-700 mt-0.5 break-all" x-text="payoutProfile?.accountId || '—'"></code></div>
                       <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Razorpay stakeholder ID</span><code class="block font-bold text-gray-700 mt-0.5 break-all" x-text="payoutProfile?.stakeholderId || 'Not created yet'"></code></div>
                        <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Razorpay Product ID</span><code class="block font-bold text-gray-700 mt-0.5 break-all" x-text="payoutProfile?.productId || 'Not requested yet'"></code></div>
@@ -6046,7 +6284,7 @@
                 </div>
               </div>
 
-              <form x-show="!payoutProfile?.configured" @submit.prevent="submitPayoutSetup()" class="dash-card">
+              <form x-show="payoutProfile?.paymentMethod === 'razorpay_route' && !payoutProfile?.configured" @submit.prevent="submitPayoutSetup()" class="dash-card">
                 <div class="flex items-start gap-3 mb-6">
                   <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-shield-halved"></i></div>
                   <div>
@@ -6135,7 +6373,10 @@
                     </div>
                     <div>
                       <label class="block text-xs font-bold text-gray-700 mb-1.5">State <span class="text-red-500">*</span></label>
-                      <input x-model.trim="payoutForm.profile.addresses.registered.state" required class="input-field" autocomplete="address-level1">
+                     <select x-model="payoutForm.profile.addresses.registered.state" required class="input-field" autocomplete="address-level1">
+                       <option value="">Select state</option>
+                       <option>ANDHRA PRADESH</option><option>ARUNACHAL PRADESH</option><option>ASSAM</option><option>BIHAR</option><option>CHHATTISGARH</option><option>GOA</option><option>GUJARAT</option><option>HARYANA</option><option>HIMACHAL PRADESH</option><option>JHARKHAND</option><option>KARNATAKA</option><option>KERALA</option><option>MADHYA PRADESH</option><option>MAHARASHTRA</option><option>MANIPUR</option><option>MEGHALAYA</option><option>MIZORAM</option><option>NAGALAND</option><option>ODISHA</option><option>PUNJAB</option><option>RAJASTHAN</option><option>SIKKIM</option><option>TAMIL NADU</option><option>TELANGANA</option><option>TRIPURA</option><option>UTTAR PRADESH</option><option>UTTARAKHAND</option><option>WEST BENGAL</option><option>ANDAMAN AND NICOBAR ISLANDS</option><option>CHANDIGARH</option><option>DADRA AND NAGAR HAVELI AND DAMAN AND DIU</option><option>DELHI</option><option>JAMMU AND KASHMIR</option><option>LADAKH</option><option>LAKSHADWEEP</option><option>PUDUCHERRY</option>
+                     </select>
                     </div>
                     <div>
                       <label class="block text-xs font-bold text-gray-700 mb-1.5">Postal code <span class="text-red-500">*</span></label>
@@ -6199,7 +6440,7 @@
                 </div>
               </form>
 
-              <div x-show="payoutProfile?.configured" class="dash-card">
+              <div x-show="payoutProfile?.paymentMethod === 'razorpay_route' && payoutProfile?.configured" class="dash-card">
                 <div class="flex items-center justify-between gap-3 mb-4">
                   <div><h2 class="font-extrabold text-gray-900">Update payout details</h2><p class="text-xs text-gray-500 mt-1">Updates are sent to Razorpay using the saved provider IDs. Sensitive values are never loaded from the profile.</p></div>
                   <i class="fa-solid fa-pen-to-square text-gray-400"></i>
@@ -6213,7 +6454,7 @@
                 </div>
               </div>
 
-              <form x-show="payoutUpdateMode" @submit.prevent="submitPayoutSetup()" class="dash-card">
+              <form x-show="payoutProfile?.paymentMethod === 'razorpay_route' && payoutUpdateMode" @submit.prevent="submitPayoutSetup()" class="dash-card">
                 <div class="flex items-start justify-between gap-3 mb-5">
                   <div><h2 class="font-extrabold text-gray-900">Edit <span x-text="payoutUpdateMode === 'update_account' ? 'account details' : (payoutUpdateMode === 'update_stakeholder' ? 'stakeholder details' : 'settlement details')"></span></h2><p class="text-xs text-gray-500 mt-1">Enter the values again for this update. Razorpay remains the source of truth.</p></div>
                   <button type="button" class="text-xs font-bold text-gray-500" @click="payoutUpdateMode = null">Cancel</button>
@@ -6224,7 +6465,7 @@
                   <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-700 mb-1.5">Registered address line 1 <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.street1" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
                   <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-700 mb-1.5">Registered address line 2 <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.street2" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">City <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.city" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">State <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.state" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">State <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.state" placeholder="Full state name, e.g. Tamil Nadu" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Postal code <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.postal_code" class="input-field" :required="payoutUpdateMode === 'update_account'" pattern="[0-9]{6}"></div>
                 </div>
                 <div x-show="payoutUpdateMode === 'update_stakeholder'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -6242,7 +6483,7 @@
                 <button type="submit" :disabled="payoutSaving" class="btn-primary mt-5 disabled:opacity-60"><i class="fa-solid fa-floppy-disk"></i><span x-text="payoutSaving ? 'Updating…' : 'Update details'"></span></button>
               </form>
 
-              <form x-show="payoutProfile?.configured && payoutProfile?.onboarding?.currentStage !== 'complete'" @submit.prevent="submitPayoutSetup()" class="dash-card">
+              <form x-show="payoutProfile?.paymentMethod === 'razorpay_route' && payoutProfile?.configured && payoutProfile?.onboarding?.currentStage !== 'complete'" @submit.prevent="submitPayoutSetup()" class="dash-card">
                 <div class="flex items-start gap-3 mb-6">
                   <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-list-check"></i></div>
                   <div>
@@ -6277,15 +6518,6 @@
                 </div>
               </form>
 
-              <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <template x-for="metric in payoutMetrics()" :key="metric.label">
-                  <div class="dash-card py-4">
-                    <p class="text-[10px] uppercase tracking-wide font-bold text-gray-400" x-text="metric.label"></p>
-                    <p class="text-xl font-extrabold text-gray-900 mt-1" x-text="fmtPaise(metric.amount)"></p>
-                  </div>
-                </template>
-              </div>
-
               <div class="dash-card-flat">
                 <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
                   <div>
@@ -6295,21 +6527,22 @@
                   <i x-show="payoutHistoryLoading" class="fa-solid fa-spinner fa-spin text-brand"></i>
                 </div>
                 <div class="overflow-x-auto" x-show="payoutHistory.items?.length">
-                    <table class="w-full min-w-[1480px]">
-                    <thead><tr><th class="table-header">Event</th><th class="table-header">Booking</th><th class="table-header">Transfer ID</th><th class="table-header">Source ID</th><th class="table-header">Recipient ID</th><th class="table-header">Amount</th><th class="table-header">Created At</th><th class="table-header">Transfer Status</th><th class="table-header">Settlement Status</th><th class="table-header">Order transferred</th></tr></thead>
+                    <table class="w-full min-w-[760px]">
+                    <thead><tr><th class="table-header">Event</th><th class="table-header">Booking</th><th x-show="!payoutHistoryHasPaymentLinks()" class="table-header">Razorpay order</th><th x-show="payoutHistoryHasPaymentLinks()" class="table-header">Payment Link ID</th><th x-show="payoutHistoryHasPaymentLinks()" class="table-header">Payment Link reference</th><th class="table-header">Payment</th><th x-show="payoutProfile?.paymentMethod === 'razorpay_route' && !payoutHistoryHasPaymentLinks()" class="table-header">Transfer</th><th x-show="payoutProfile?.paymentMethod === 'razorpay_route' && !payoutHistoryHasPaymentLinks()" class="table-header">Settlement</th><th class="table-header">Status</th><th class="table-header">Amount</th><th class="table-header">Date</th></tr></thead>
                     <tbody>
                       <template x-for="item in payoutHistory.items" :key="item.id">
                         <tr class="hover:bg-brand-50/20">
                           <td class="table-cell font-semibold text-gray-800" x-text="item.eventName"></td>
                           <td class="table-cell text-xs font-mono text-gray-500" x-text="item.bookingId || 'Ticket'"></td>
-                          <td class="table-cell text-xs"><code x-show="item.transferId" class="font-mono text-gray-600" x-text="item.transferId"></code><span x-show="!item.transferId" class="text-gray-400" x-text="item.orderTransferred === false ? 'Not transferred yet' : 'Unavailable'"></span></td>
-                          <td class="table-cell text-xs font-mono text-gray-600" x-text="item.sourceId || 'Unavailable'"></td>
-                          <td class="table-cell text-xs font-mono text-gray-600" x-text="item.recipientId || 'Unavailable'"></td>
-                          <td class="table-cell text-right font-bold text-gray-900" x-text="item.amount == null ? 'Unavailable' : fmtPaise(item.amount)"></td>
-                          <td class="table-cell text-xs text-gray-500" x-text="item.providerCreatedAt ? payoutDateTime(item.providerCreatedAt) : 'Unavailable'"></td>
-                          <td class="table-cell text-xs"><span class="badge badge-neutral" x-text="payoutProviderStatus(item, 'transfer')"></span></td>
-                          <td class="table-cell text-xs"><span class="badge badge-neutral" x-text="payoutProviderStatus(item, 'settlement')"></span></td>
-                          <td class="table-cell text-xs"><span class="badge" :class="item.orderTransferred === true ? 'badge-success' : 'badge-neutral'" x-text="payoutTransferConfirmation(item)"></span></td>
+                           <td x-show="!payoutHistoryUsesPaymentLinks(item)" class="table-cell text-xs font-mono text-gray-600" x-text="item.razorpayOrderId || 'Unavailable'"></td>
+                           <td x-show="payoutHistoryUsesPaymentLinks(item)" class="table-cell text-xs font-mono text-gray-600" x-text="item.paymentLinkId || 'Unavailable'"></td>
+                           <td x-show="payoutHistoryUsesPaymentLinks(item)" class="table-cell text-xs font-mono text-gray-600" x-text="item.paymentLinkReference || item.paymentLinkReferenceId || 'Unavailable'"></td>
+                          <td class="table-cell text-xs font-mono text-gray-600" x-text="item.razorpayPaymentId || 'Unavailable'"></td>
+                            <td x-show="item.adapter === 'route' && !payoutHistoryUsesPaymentLinks(item)" class="table-cell text-xs font-mono text-gray-600" x-text="item.razorpayTransferId || item.transferStatus || 'Unavailable'"></td>
+                            <td x-show="item.adapter === 'route' && !payoutHistoryUsesPaymentLinks(item)" class="table-cell text-xs text-gray-600" x-text="item.providerSettlementStatus || item.settlementStatus || 'Unavailable'"></td>
+                           <td class="table-cell text-xs" x-text="item.status ?? item.transferStatus ?? 'Unavailable'"></td>
+                           <td class="table-cell text-right font-bold text-gray-900" x-text="fmtPaise(item.amount ?? item.netAmount ?? 0)"></td>
+                          <td class="table-cell text-xs text-gray-500" x-text="payoutDateTime(item.paidAt || item.createdAt)"></td>
                         </tr>
                       </template>
                     </tbody>
@@ -6322,8 +6555,7 @@
                 </div>
                 <div x-show="!payoutHistoryLoading && !(payoutHistory.items || []).length" class="text-center py-12">
                   <div class="w-12 h-12 mx-auto rounded-xl bg-gray-50 text-gray-300 flex items-center justify-center mb-3"><i class="fa-solid fa-receipt text-lg"></i></div>
-                  <p class="text-sm font-semibold text-gray-500">No paid Route allocations yet</p>
-                  <p class="text-xs text-gray-400 mt-1">Paid ticket activity will appear here after a Route payment is captured.</p>
+                  <p class="text-sm font-semibold text-gray-500">No paid registrations yet</p>
                 </div>
               </div>
             </div>
@@ -6556,12 +6788,11 @@
           <div><label class="block text-sm font-semibold text-gray-700 mb-2">Description</label><textarea x-model="serviceForm.description" class="input-field" rows="2" placeholder="Brief description of this service"></textarea></div>
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">Queue Mode</label>
-            <select :value="serviceForm.serviceSettings?.queueMode || ''" @change="setServiceQueueMode($event.target.value)" class="input-field">
+            <select :value="serviceForm.serviceSettings?.queueMode || ''" @change="setServiceQueueMode($event)" class="input-field">
               <option value="">Default (inherit from branch)</option>
               <option value="fifo">First Come First Serve</option>
               <option value="dinein">Dine In</option>
               <option value="takeaway">Take Away</option>
-              <option value="checkin">Check In</option>
               <option value="selective">Selective</option>
               <option value="multistage">Multi Stage</option>
             </select>
@@ -6849,7 +7080,7 @@
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">Password <span x-show="!userForm.id">*</span></label>
             <div class="relative">
-              <input :type="showUserPassword ? 'text' : 'password'" x-model="userForm.password" class="input-field pr-10" :placeholder="userForm.id ? 'Leave blank to keep current' : 'Min 6 characters'" autocomplete="new-password" name="staff-password-field" data-lpignore="true">
+              <input :type="showUserPassword ? 'text' : 'password'" x-model="userForm.password" class="input-field pr-10" :placeholder="userForm.id ? 'Leave blank to keep current' : 'Min 6 characters'" :required="!userForm.id" minlength="6" autocomplete="new-password" name="staff-password-field" data-lpignore="true">
               <button type="button" @click="showUserPassword = !showUserPassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <i :class="showUserPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" class="text-xs"></i>
               </button>
@@ -7295,6 +7526,31 @@
           return false;
         },
 
+        eventRegistrationFeesReady() {
+          if (this.payoutProfile?.paymentMethod === 'razorpay_payment_links') return (this.payoutProfile?.paymentLinksReady ?? this.payoutProfile?.canAcceptPaidTickets) === true;
+          if (this.payoutProfile?.paymentMethod === 'razorpay_direct') return this.payoutProfile?.directReady === true;
+          const productId = String(this.payoutProfile?.productId || '').trim();
+          return /^acc_prd_[A-Za-z0-9]+$/.test(productId);
+        },
+
+        ticketPaymentsReady() {
+          if (this.payoutProfile?.paymentMethod === 'razorpay_payment_links') return (this.payoutProfile?.paymentLinksReady ?? this.payoutProfile?.canAcceptPaidTickets) === true;
+          if (this.payoutProfile?.paymentMethod === 'razorpay_direct') return this.payoutProfile?.directReady === true;
+          return this.payoutProfile?.onboarding?.currentStage === 'complete';
+        },
+
+        payoutUsesPaymentLinks() {
+          return this.payoutProfile?.paymentMethod === 'razorpay_payment_links';
+        },
+
+        payoutHistoryUsesPaymentLinks(item) {
+          return item?.adapter === 'payment_link' || item?.adapter === 'payment_links';
+        },
+
+        payoutHistoryHasPaymentLinks() {
+          return this.payoutUsesPaymentLinks() || (this.payoutHistory.items || []).some(item => item?.adapter === 'payment_link' || item?.adapter === 'payment_links');
+        },
+
         async refreshOrgPermissions() {
           try {
             const res = await fetch('/api/org/me/permissions', { credentials: 'include' });
@@ -7332,7 +7588,7 @@
         eventLocationGuests: {},
         // ===== Event Locations (3-level IA) state =====
         locationModalOpen: false,
-        locationForm: { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', inputFields: [], slotCapacityOverrides: {} },
+        locationForm: { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', registrationFeeCustomText: '', refundable: false, refundMessage: '', inputFields: [], slotCapacityOverrides: {} },
         locationApplyAll: false,
         locationSaving: false,
         showLocationFieldForm: false,
@@ -7352,6 +7608,16 @@
           galleryUrls: [],
           messageTemplates: {},
           parkingEnabled: true,
+          registrationOtpEnabled: true,
+          billingOtpEnabled: true,
+          checkoutAlertEnabled: false,
+          checkoutAlertMaxDurationMinutes: 60,
+          checkoutAlertTitle: '',
+          checkoutAlertMessage: '',
+          checkoutAlertIconUrl: '',
+          refundable: false,
+          refundMessage: '',
+          preprintedTicketPrefix: 'EVT',
           whatsappTriggers: { reminder_day: true, reminder_hour: true, checked_in: true, billing: true, thank_you_feedback: true },
         },
         eventFaqDraft: { question: '', answer: '' },
@@ -7378,6 +7644,8 @@
         eventsSupportBusy: false,
         // ===== Manual (offline) registration — desk/counter payment flow =====
         manualRegModalOpen: false,
+        manualRegDateDropdownOpen: false,
+        manualRegTimeDropdownOpen: false,
         preprintedTicketModalOpen: false,
         preprintedTicketEvent: null,
         preprintedTicketBatches: [],
@@ -7400,15 +7668,31 @@
         ptkClipboard: null,
         ptkDragState: null,
         ptkElementSequence: 0,
-        ptkCanvasAspectRatio: 2550 / 825,
-        ptkMaxQrWidth: 100 / (2550 / 825),
+        ptkCanvasAspectRatio: 203 / 82,
+        ptkMaxQrWidth: 100 / (203 / 82),
         manualRegLocations: [],
         manualRegLoadingLocations: false,
         manualRegSaving: false,
+        manualRegSpecialWarningOpen: false,
+        manualRegConfirmedFingerprint: '',
+        manualRegStep: 1,
         manualRegPtkResolving: false,
-        manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
+        manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, productCategories: [], formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
         manualRegSuccess: null,
-        manualRegSpecialNeeds: false,
+        manualRegProductCategoryOptions: [
+          { label: 'Electronics', value: 'electronics', icon: 'fa-solid fa-mobile-screen-button' },
+          { label: 'Furniture', value: 'furniture', icon: 'fa-solid fa-couch' },
+          { label: 'Home Appliances', value: 'home_appliances', icon: 'fa-solid fa-house' },
+          { label: 'Vessels', value: 'vessels', icon: 'fa-solid fa-bowl-food' },
+        ],
+        manualRegSpecialCategories: [],
+        manualRegHasSpecialMembers: false,
+        manualRegSpecialCategoryOptions: [
+          { label: 'Senior Citizen', value: 'senior_citizen', icon: 'fa-solid fa-person-cane' },
+          { label: 'Pregnant Women', value: 'pregnant_women', icon: 'fa-solid fa-person-pregnant' },
+          { label: 'Infants', value: 'infants', icon: 'fa-solid fa-baby' },
+          { label: 'Specially Abled', value: 'specially_abled', icon: 'fa-solid fa-wheelchair' },
+        ],
         manualRegLang: 'en',
         ptkValidatePanelOpen: false,
         ptkValidateCode: '',
@@ -8151,6 +8435,14 @@
           const arr = Array.isArray(fields) ? [...fields] : [];
           if (arr.some(f => f.id === 'orderId')) return arr;
           return [this.buildTakeawayDefaultField('orderId'), ...arr];
+        },
+        queueModePresetFields(mode) {
+          const normalized = String(mode || 'fifo').toLowerCase().replace(/[_-]/g, '');
+          if (normalized === 'dinein') {
+            return ['partySize', 'gender', 'splitGroup', 'shareTable'].map(id => this.buildDineInDefaultField(id));
+          }
+          if (normalized === 'takeaway') return [this.buildTakeawayDefaultField('orderId')];
+          return [];
         },
         showUserModal: false,
         userForm: {},
@@ -10255,21 +10547,19 @@
         },
         // Update the per-service queue mode override and re-seed mode-specific
         // default fields (Order ID for takeaway, Guests/Gender/etc for dine-in).
-        setServiceQueueMode(value) {
+        setServiceQueueMode(event) {
+          const value = event.target.value;
+          const previous = this.serviceForm.serviceSettings?.queueMode || '';
+          if (value === previous) return;
+          if (!confirm('Changing the queue mode will delete all custom fields and reset the form to the default or preset fields for the new mode. Continue?')) {
+            event.target.value = previous;
+            return;
+          }
           if (!this.serviceForm.serviceSettings) this.serviceForm.serviceSettings = {};
           // Replace the whole object so Alpine detects the change reactively.
           this.serviceForm.serviceSettings = { ...this.serviceForm.serviceSettings, queueMode: value || undefined };
           // Re-seed / clean default fields for the newly selected mode.
-          const cleaned = (this.serviceForm.inputFields || []).filter(
-            f => !this.isDineInDefaultFieldId(f.id) && !this.isTakeawayDefaultFieldId(f.id)
-          );
-          if (this.serviceFormIsDineIn) {
-            this.serviceForm.inputFields = this.seedDineInFields(cleaned);
-          } else if (this.serviceFormIsTakeaway) {
-            this.serviceForm.inputFields = this.seedTakeawayFields(cleaned);
-          } else {
-            this.serviceForm.inputFields = cleaned;
-          }
+          this.serviceForm.inputFields = this.queueModePresetFields(value);
         },
         getBranchNameForService(svc) {
           const b = this.branches.find(br => br.id === svc.branchId);
@@ -10500,6 +10790,10 @@
               this.showToast('Please select a role', 'error');
               return;
             }
+            if (!this.userForm.id && (!this.userForm.password || this.userForm.password.length < 6)) {
+              this.showToast('Password must be at least 6 characters', 'error');
+              return;
+            }
             const role = this.userForm.role;
             // Event accounts assign operational staff to one or more events
             // (the old single-event <select> was `required`; mirror that here).
@@ -10692,6 +10986,10 @@
         },
         async saveSettings() {
           try {
+            if (this.settingsForm.queueMode !== this.settingsFormOriginal.queueMode
+              && !confirm('Changing the queue mode will delete all custom fields and reset every affected service to the default or preset fields for the new mode. Continue?')) {
+              return;
+            }
             if (this.selectedServiceId) {
               const serviceSettings = {};
               const b = this.selectedBranch;
@@ -12701,12 +12999,15 @@
               slotDurationMinutes: cfg.slotDurationMinutes,
               maxCapacityPerSlot: cfg.maxCapacityPerSlot,
               registrationFeeRupees: String((cfg.registrationFee || 0) / 100),
+              registrationFeeCustomText: typeof cfg.registrationFeeCustomText === 'string' ? cfg.registrationFeeCustomText : '',
+              refundable: cfg.refundable === true,
+              refundMessage: typeof cfg.refundMessage === 'string' ? cfg.refundMessage : '',
               inputFields: loc.inputFields ? JSON.parse(JSON.stringify(loc.inputFields)) : [],
               slotCapacityOverrides: cfg.slotCapacityOverrides || {},
               eventId: (loc.serviceSettings && loc.serviceSettings.event && loc.serviceSettings.event.eventId) || '',
             };
           } else {
-            this.locationForm = { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', inputFields: [], slotCapacityOverrides: {}, eventId: this.eventsSelectedId || (this.eventsList[0] && this.eventsList[0].id) || '' };
+            this.locationForm = { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', registrationFeeCustomText: '', refundable: false, refundMessage: '', inputFields: [], slotCapacityOverrides: {}, eventId: this.eventsSelectedId || (this.eventsList[0] && this.eventsList[0].id) || '' };
           }
           this.locationModalOpen = true;
         },
@@ -12773,6 +13074,9 @@
               slotDurationMinutes: Math.max(5, parseInt(this.locationForm.slotDurationMinutes, 10) || 30),
               maxCapacityPerSlot: Math.max(0, parseInt(this.locationForm.maxCapacityPerSlot, 10) || 0),
               registrationFee,
+              registrationFeeCustomText: String(this.locationForm.registrationFeeCustomText || '').trim(),
+              refundable: this.locationForm.refundable === true,
+              refundMessage: String(this.locationForm.refundMessage || '').trim(),
               slotCapacityOverrides: this.locationForm.slotCapacityOverrides || {},
               eventId: this.locationForm.eventId || '',
             };
@@ -13057,9 +13361,17 @@
         eventsRefresh() {
           return this.withSpin('eventsRefreshing', async () => { await this.loadEventsList(); });
         },
-        openEventModal(ev) {
+        async openEventModal(ev) {
           this.eventShowTemplates = false;
           this.eventFaqDraft = { question: '', answer: '' };
+          if (!ev && this.org?.id) {
+            try {
+              const profileData = await api(`/api/dashboard/payouts/${this.org.id}/profile`);
+              this.payoutProfile = this.payoutProfileFromResponse(profileData);
+            } catch (_) {
+              this.payoutProfile = null;
+            }
+          }
           if (ev) {
             this.eventForm = {
               id: ev.id,
@@ -13074,9 +13386,20 @@
               slotDurationMinutes: ev.slotDurationMinutes || 30,
               maxCapacityPerSlot: ev.maxCapacityPerSlot || 50,
               maxGuestsPerRegistration: ev.maxGuestsPerRegistration || 10,
+              preprintedTicketPrefix: ev.preprintedTicketPrefix || 'EVT',
               registrationFeeRupees: ((ev.registrationFee || 0) / 100) || 0,
+              registrationFeeCustomText: typeof ev.registrationFeeCustomText === 'string' ? ev.registrationFeeCustomText : '',
+              refundable: ev.refundable === true,
+              refundMessage: typeof ev.refundMessage === 'string' ? ev.refundMessage : '',
               parkingTotalSpaces: ev.parkingTotalSpaces || 0,
               parkingEnabled: ev.parkingEnabled !== false,
+              registrationOtpEnabled: ev.otpSettings?.registration !== false,
+              billingOtpEnabled: ev.otpSettings?.billing !== false,
+              checkoutAlertEnabled: ev.checkoutAlert?.enabled === true,
+              checkoutAlertMaxDurationMinutes: ev.checkoutAlert?.maxDurationMinutes || 60,
+              checkoutAlertTitle: ev.checkoutAlert?.title || '',
+              checkoutAlertMessage: ev.checkoutAlert?.message || '',
+              checkoutAlertIconUrl: ev.checkoutAlert?.iconUrl || '',
               whatsappTriggers: {
                 reminder_day: true,
                 reminder_hour: true,
@@ -13101,13 +13424,19 @@
             this.eventForm = {
               name: '', description: '', venue: '', googleMapsLink: '',
               startDate: '', endDate: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00',
-              slotDurationMinutes: 30, maxCapacityPerSlot: 50, maxGuestsPerRegistration: 10, registrationFeeRupees: 0,
+              slotDurationMinutes: 30, maxCapacityPerSlot: 50, maxGuestsPerRegistration: 10, registrationFeeRupees: 0, registrationFeeCustomText: '',
+              refundable: false, refundMessage: '',
+              preprintedTicketPrefix: 'EVT',
               parkingTotalSpaces: 0, parkingEnabled: true,
+              registrationOtpEnabled: true, billingOtpEnabled: true,
+              checkoutAlertEnabled: false, checkoutAlertMaxDurationMinutes: 60,
+              checkoutAlertTitle: '', checkoutAlertMessage: '', checkoutAlertIconUrl: '',
               whatsappTriggers: { reminder_day: true, reminder_hour: true, checked_in: true, billing: true, thank_you_feedback: true },
               supportContact: '', termsAndConditions: '',
               bannerUrl: '', logoUrl: '', venueMapUrl: '', galleryUrls: [], faqs: [], messageTemplates: {},
               brandPrimaryColor: '', brandButtonColor: '', brandFontFamily: '',
             };
+            if (!this.eventRegistrationFeesReady()) this.eventForm.registrationFeeRupees = 0;
           }
           this.eventModalOpen = true;
         },
@@ -13139,6 +13468,15 @@
           const f = this.eventForm;
           if (!f.name || !f.startDate || !f.endDate) { this.showToast('Name, start date and end date are required', 'error'); return; }
           if (new Date(f.endDate) < new Date(f.startDate)) { this.showToast('End date must be after start date', 'error'); return; }
+          const preprintedTicketPrefix = String(f.preprintedTicketPrefix || '').trim().toUpperCase();
+          if (!/^[A-Z0-9]{2,8}$/.test(preprintedTicketPrefix)) { this.showToast('Ticket prefix must be 2–8 letters or numbers', 'error'); return; }
+          const checkoutDuration = parseInt(f.checkoutAlertMaxDurationMinutes, 10);
+          if (f.checkoutAlertEnabled && (!checkoutDuration || checkoutDuration < 1 || checkoutDuration > 10080)) {
+            this.showToast('Checkout alert duration must be between 1 and 10,080 minutes', 'error'); return;
+          }
+          if (f.checkoutAlertEnabled && (!(f.checkoutAlertTitle || '').trim() || !(f.checkoutAlertMessage || '').trim() || !f.checkoutAlertIconUrl)) {
+            this.showToast('Add a checkout title, message and image icon', 'error'); return;
+          }
           this.eventSaving = true;
           try {
             const templates = {};
@@ -13157,10 +13495,27 @@
               slotDurationMinutes: parseInt(f.slotDurationMinutes, 10) || 30,
               maxCapacityPerSlot: parseInt(f.maxCapacityPerSlot, 10) || 50,
               maxGuestsPerRegistration: parseInt(f.maxGuestsPerRegistration, 10) || 10,
-              registrationFee: Math.max(0, Math.round(parseFloat(f.registrationFeeRupees || '0') * 100) || 0),
+              preprintedTicketPrefix,
+              registrationFee: !this.eventRegistrationFeesReady()
+                ? 0
+                : Math.max(0, Math.round(parseFloat(f.registrationFeeRupees || '0') * 100) || 0),
+              registrationFeeCustomText: String(f.registrationFeeCustomText || '').trim(),
+              refundable: f.refundable === true,
+              refundMessage: String(f.refundMessage || '').trim(),
               parkingTotalSpaces: parseInt(f.parkingTotalSpaces, 10) || 0,
               parkingEnabled: f.parkingEnabled !== false,
+              otpSettings: {
+                registration: f.registrationOtpEnabled !== false,
+                billing: f.billingOtpEnabled !== false,
+              },
               whatsappTriggers: { ...(f.whatsappTriggers || {}) },
+              checkoutAlert: {
+                enabled: f.checkoutAlertEnabled === true,
+                maxDurationMinutes: checkoutDuration || 60,
+                title: (f.checkoutAlertTitle || '').trim(),
+                message: (f.checkoutAlertMessage || '').trim(),
+                iconUrl: f.checkoutAlertIconUrl || '',
+              },
               supportContact: f.supportContact,
               termsAndConditions: f.termsAndConditions,
               bannerUrl: f.bannerUrl,
@@ -13279,7 +13634,13 @@
           try {
             const data = await api('/api/dashboard/events/scan', { method: 'POST', body: JSON.stringify({ value, action: this.eventsScanAction }) });
             const labels = { checkin: 'Checked in', exit: 'Exit recorded' };
-            this.eventsScanResult = { ok: true, title: `${labels[this.eventsScanAction]} — ${data.guests} guest${data.guests > 1 ? 's' : ''}`, reg: data.registration, paused: !!data.eventPaused };
+            this.eventsScanResult = {
+              ok: true,
+              title: `${labels[this.eventsScanAction]} — ${data.guests} guest${data.guests > 1 ? 's' : ''}`,
+              reg: data.registration,
+              paused: !!data.eventPaused,
+              alert: this.eventsScanAction === 'exit' ? (data.checkoutAlert || null) : null,
+            };
             this.eventsScanValue = '';
             this.loadEventStats(true);
           } catch (e) {
@@ -13304,10 +13665,18 @@
           if (!this.eventsBillData) return;
           this.eventsBillBusy = true;
           try {
-            await api('/api/dashboard/events/billing/send-otp', {
+            const result = await api('/api/dashboard/events/billing/send-otp', {
               method: 'POST',
               body: JSON.stringify({ registrationId: this.eventsBillData.registration.id }),
             });
+            if (result.otpRequired === false) {
+              this.eventsBillData.otpRequired = false;
+              this.eventsBillData.billingOtpEnabled = false;
+              this.eventsBillOtpSent = false;
+              this.eventsBillBusy = false;
+              this.showToast('Billing OTP was disabled — proceed to invoice', 'success');
+              return;
+            }
             this.eventsBillOtpSent = true;
             this.showToast('OTP sent on WhatsApp', 'success');
           } catch (e) { this.showToast(e.message || 'Failed to send OTP', 'error'); }
@@ -13319,10 +13688,19 @@
           if (!code) { this.showToast('Enter the OTP', 'error'); return; }
           this.eventsBillBusy = true;
           try {
-            await api('/api/dashboard/events/billing/verify-otp', {
+            const result = await api('/api/dashboard/events/billing/verify-otp', {
               method: 'POST',
               body: JSON.stringify({ registrationId: this.eventsBillData.registration.id, code }),
             });
+            if (result.otpRequired === false) {
+              this.eventsBillData.otpRequired = false;
+              this.eventsBillData.billingOtpEnabled = false;
+              this.eventsBillOtpSent = false;
+              this.eventsBillOtpCode = '';
+              this.eventsBillBusy = false;
+              this.showToast('Billing OTP was disabled — proceed to invoice', 'success');
+              return;
+            }
             this.eventsBillData.otpVerified = true;
             this.showToast('OTP verified', 'success');
           } catch (e) { this.showToast(e.message || 'Incorrect OTP', 'error'); }
@@ -13459,7 +13837,7 @@
           return ({ bookingId: 'fa-solid fa-ticket', qr: 'fa-solid fa-qrcode', amountPaid: 'fa-solid fa-indian-rupee-sign', serialNumber: 'fa-solid fa-hashtag', eventName: 'fa-solid fa-calendar-days' })[type] || 'fa-solid fa-square';
         },
         ptkSampleText(type) {
-          return ({ bookingId: 'PTK-PREVIEW', amountPaid: 'Amount Paid: ₹1,250.00', serialNumber: 'S/N 000001', eventName: this.preprintedTicketEvent?.name || 'Event name' })[type] || '';
+          return ({ bookingId: `${this.preprintedTicketEvent?.preprintedTicketPrefix || 'EVT'}-PREVIEW`, amountPaid: 'Amount Paid: ₹1,250.00', serialNumber: 'S/N 000001', eventName: this.preprintedTicketEvent?.name || 'Event name' })[type] || '';
         },
         ptkSelectedElement() {
           return this.ptkBackLayout?.elements?.find(element => element.id === this.ptkSelectedId) || null;
@@ -13605,6 +13983,16 @@
           this.ptkCreatePanelOpen = false;
           this.ptkCreateCount = 100;
           await this.loadPreprintedTickets();
+        },
+        togglePreprintedCreatePanel() {
+          const opening = !this.ptkCreatePanelOpen;
+          this.ptkCreatePanelOpen = opening;
+          this.ptkValidatePanelOpen = false;
+          if (opening) {
+            this.$nextTick(() => {
+              this.$refs.ptkCreatePanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }
         },
         async savePreprintedArtwork(showSuccess = true) {
           const ev = this.preprintedTicketEvent;
@@ -13760,9 +14148,15 @@
           const ev = this.selectedEvent;
           if (!ev) { this.showToast('Select an event first', 'error'); return; }
           if (ev.status === 'ended') { this.showToast('This event has ended — new registrations are blocked', 'error'); return; }
-          this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' };
+          this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, productCategories: [], formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' };
           this.manualRegSuccess = null;
-          this.manualRegSpecialNeeds = false;
+          this.manualRegSpecialCategories = [];
+          this.manualRegHasSpecialMembers = false;
+          this.manualRegSpecialWarningOpen = false;
+          this.manualRegConfirmedFingerprint = '';
+          this.manualRegStep = 1;
+          this.manualRegDateDropdownOpen = false;
+          this.manualRegTimeDropdownOpen = false;
           this.manualRegLang = 'en';
           this.manualRegModalOpen = true;
           this.manualRegLoadingLocations = true;
@@ -13789,16 +14183,75 @@
         closeManualRegModal() {
           this.manualRegModalOpen = false;
           this.manualRegSuccess = null;
+          this.manualRegSpecialWarningOpen = false;
+          this.manualRegConfirmedFingerprint = '';
         },
-        // Resolve any scan value (full URL or PTK ID) to the canonical booking ID.
+        get manualRegHasSpecialNeeds() {
+          return this.manualRegSpecialCategories.length > 0;
+        },
+        setManualSpecialMembers(hasMembers) {
+          this.manualRegHasSpecialMembers = Boolean(hasMembers);
+          this.manualRegConfirmedFingerprint = '';
+          if (!this.manualRegHasSpecialMembers) {
+            this.manualRegSpecialCategories = [];
+            this.manualRegForm.slotDate = '';
+            this.manualRegForm.slotTime = '';
+          }
+        },
+        toggleManualSpecialCategory(category) {
+          const index = this.manualRegSpecialCategories.indexOf(category);
+          if (index >= 0) this.manualRegSpecialCategories.splice(index, 1);
+          else this.manualRegSpecialCategories.push(category);
+          this.manualRegForm.slotDate = this.manualRegHasSpecialNeeds ? this.manualRegLastDate : '';
+          this.manualRegForm.slotTime = '';
+        },
+        toggleManualProductCategory(category) {
+          const selected = this.manualRegForm.productCategories;
+          const index = selected.indexOf(category);
+          if (index >= 0) selected.splice(index, 1);
+          else selected.push(category);
+        },
+        manualRegLocationChanged() {
+          this.manualRegForm.slotTime = '';
+          this.manualRegForm.amountCollected = this.manualRegAmountDue;
+          // Re-read the selected location's availability after the location
+          // model has updated. A special visitor must never retain a date
+          // from the previous location.
+          this.$nextTick(() => {
+            this.manualRegForm.slotDate = this.manualRegHasSpecialNeeds ? this.manualRegLastDate : '';
+            this.manualRegForm.slotTime = '';
+          });
+        },
+        manualRegConfirmationFingerprint() {
+          const f = this.manualRegForm || {};
+          return JSON.stringify({
+            locationId: f.locationId || '',
+            slotDate: f.slotDate || '',
+            slotTime: f.slotTime || '',
+            productCategories: [...(f.productCategories || [])].sort(),
+            specialCategories: [...this.manualRegSpecialCategories].sort(),
+            hasSpecialMembers: this.manualRegHasSpecialMembers,
+          });
+        },
+        closeManualSpecialWarning(focusEdit = false) {
+          this.manualRegSpecialWarningOpen = false;
+          if (focusEdit) this.manualRegConfirmedFingerprint = '';
+        },
+        continueManualWithoutSpecialCategory() {
+          if (this.manualRegSaving) return;
+          this.manualRegSpecialWarningOpen = false;
+          this.manualRegConfirmedFingerprint = this.manualRegConfirmationFingerprint();
+          this.manualRegStep = 2;
+        },
+        // Resolve any scan value (full URL or pre-printed ID) to the canonical booking ID.
         // Called by the preprintedTicketCode @change handler so the field always
-        // shows the clean PTK-… identifier, not a raw QR URL.
+        // shows the clean booking identifier, not a raw QR URL.
         async resolvePreprintedCode(raw, eventId) {
           const v = (raw || '').trim().toUpperCase();
           if (!v) return '';
-          // Already looks like a PTK ID — no resolution needed.
-          if (/^PTK-[A-Z0-9]{6,}$/i.test(v)) return v;
-          // Looks like a URL or hex token — resolve to a PTK booking ID via API.
+          // Already looks like a generated pre-printed ID — no resolution needed.
+          if (/^[A-Z0-9]{2,8}-[A-Z0-9]{6,}$/i.test(v)) return v;
+          // Looks like a URL or hex token — resolve to a booking ID via API.
           this.manualRegPtkResolving = true;
           let result = v;
           try {
@@ -13874,7 +14327,7 @@
         },
         get manualRegRegularDates() {
           const avail = this.manualRegSlotDates.filter(d => (d.times || []).some(t => !t.past && t.available > 0));
-          return avail.length > 1 ? avail.slice(0, -1) : avail;
+          return avail.length <= 1 ? avail : avail.slice(0, -1);
         },
         manualRegFormatDate(d) {
           try {
@@ -13903,10 +14356,43 @@
             return v === undefined || v === null || String(v).trim() === '';
           });
         },
+        get manualRegCanContinueStep1() {
+          const f = this.manualRegForm;
+          return Array.isArray(f.productCategories)
+            && f.productCategories.length > 0
+            && (!this.manualRegHasSpecialMembers || this.manualRegHasSpecialNeeds)
+            && Boolean(f.slotDate)
+            && Boolean(f.slotTime);
+        },
+        get manualRegCanContinueStep2() {
+          const f = this.manualRegForm;
+          return Boolean(String(f.customerName || '').trim())
+            && String(f.customerPhone || '').replace(/\D/g, '').length >= 10
+            && !this.manualRegMissingRequiredField;
+        },
+        nextManualRegStep() {
+          if (this.manualRegStep === 1 && this.manualRegCanContinueStep1) {
+            const confirmationFingerprint = this.manualRegConfirmationFingerprint();
+            if (!this.manualRegHasSpecialMembers && this.manualRegConfirmedFingerprint !== confirmationFingerprint) {
+              this.manualRegSpecialWarningOpen = true;
+              return;
+            }
+            this.manualRegStep = 2;
+          }
+          else if (this.manualRegStep === 2 && this.manualRegCanContinueStep2) this.manualRegStep = 3;
+        },
+        scrollManualRegAfterSlotSelection(distance = 96) {
+          this.$nextTick(() => {
+            const scroller = this.$refs.manualRegScroll;
+            if (scroller) scroller.scrollBy({ top: distance, behavior: 'smooth' });
+          });
+        },
         get manualRegCanSubmit() {
           const f = this.manualRegForm;
           if (this.manualRegSaving) return false;
           if (!f.customerName || !f.customerPhone) return false;
+          if (!Array.isArray(f.productCategories) || f.productCategories.length === 0) return false;
+          if (this.manualRegHasSpecialMembers && !this.manualRegHasSpecialNeeds) return false;
           if (!f.slotDate || !f.slotTime) return false;
           if (!['offline_paid', 'complimentary', 'unpaid'].includes(f.paymentMode)) return false;
           if (this.manualRegMissingRequiredField) return false;
@@ -13919,7 +14405,10 @@
           const f = this.manualRegForm;
           const ev = this.selectedEvent;
           if (!ev) return;
+          if (this.manualRegSaving) return;
           if (!f.customerName || !f.customerPhone) { this.showToast('Name and phone are required', 'error'); return; }
+          if (!Array.isArray(f.productCategories) || f.productCategories.length === 0) { this.showToast('Select at least one product category', 'error'); return; }
+          if (this.manualRegHasSpecialMembers && !this.manualRegHasSpecialNeeds) { this.showToast('Select at least one applicable member category', 'error'); return; }
           if (!f.slotDate || !f.slotTime) { this.showToast('Pick a slot date and time', 'error'); return; }
           if (this.manualRegMissingRequiredField) { this.showToast('Please fill in all required fields', 'error'); return; }
           if (f.paymentMode === 'offline_paid' && this.manualRegBalanceDue > 0) { this.showToast('Collect the full amount due before registering', 'error'); return; }
@@ -13938,8 +14427,11 @@
                 customerName: f.customerName,
                 customerPhone: f.customerPhone,
                 customerEmail: f.customerEmail || null,
+                productCategories: f.productCategories,
+                productCategory: f.productCategories[0],
+                specialCategories: this.manualRegSpecialCategories,
                 familyMembersCount: Number(f.familyMembersCount) || 0,
-                priorityAccess: this.manualRegSpecialNeeds,
+                priorityAccess: this.manualRegHasSpecialNeeds,
                 preferredLanguage: this.manualRegLang,
                 formData: f.formData,
                 paymentMode: f.paymentMode,
@@ -13954,8 +14446,10 @@
             await this.loadEventRegs();
           } catch (e) {
             this.showToast(e.message || 'Failed to create registration', 'error');
+          } finally {
+            this.manualRegSaving = false;
+            this.manualRegConfirmedFingerprint = '';
           }
-          this.manualRegSaving = false;
         },
 
         toggleAnnouncements() {

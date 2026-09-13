@@ -7,7 +7,6 @@ import {
   Image,
   Switch,
   Alert,
-  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -26,7 +25,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueue } from "@/contexts/QueueContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
-import { getApiUrl } from "@/lib/query-client";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -181,15 +179,6 @@ export default function ProfileScreen() {
     );
   };
 
-  const openAccountDeletion = async () => {
-    const url = new URL("/account-deletion", getApiUrl()).toString();
-    try {
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert("Couldn't open page", `Visit ${url} to request account deletion.`);
-    }
-  };
-
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
@@ -297,12 +286,6 @@ export default function ProfileScreen() {
         <MenuItem icon="shield" label="Privacy & Security" />
         <MenuItem icon="help-circle" label="Help & Support" />
         <MenuItem icon="info" label="About TIQKETS" />
-        <MenuItem
-          icon="trash-2"
-          label="Delete Account"
-          onPress={openAccountDeletion}
-          danger
-        />
       </Animated.View>
 
       <Animated.View

@@ -12,7 +12,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Linking,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -36,6 +36,7 @@ import { EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
 import { SUPPORTED_LANGUAGES, getLanguage as getSupportedLanguage } from "@shared/languages";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 
 const formatRoleLabel = (role?: string | null): string =>
   role
@@ -296,21 +297,13 @@ const hierStyles = StyleSheet.create({
 
 export default function OrgSettingsScreen() {
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<OrgStackParamList>>();
   const { isDark } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, getAccessibleServices, hasPermission, hasAnyPermission, refreshOrganizationData, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
   const isMobile = Platform.OS !== "web";
-
-  const openAccountDeletion = async () => {
-    const url = new URL("/account-deletion", getApiUrl()).toString();
-    try {
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert("Couldn't open page", `Visit ${url} to request account deletion.`);
-    }
-  };
 
   // Pull fresh org/branch data from the server every time this screen gains
   // focus so changes made elsewhere (e.g. a different admin updating queue
@@ -469,9 +462,7 @@ export default function OrgSettingsScreen() {
 
   const currentQueueMode = QUEUE_MODE_OPTIONS.find(opt => opt.id === settings.queueMode) || QUEUE_MODE_OPTIONS[0];
   const currentNotificationMode = NOTIFICATION_MODE_OPTIONS.find(opt => opt.id === settings.notificationMode) || NOTIFICATION_MODE_OPTIONS[0];
-  const visibleQueueModeOptions = isMobile
-    ? QUEUE_MODE_OPTIONS.filter((option) => option.id !== "checkin")
-    : QUEUE_MODE_OPTIONS;
+  const visibleQueueModeOptions = QUEUE_MODE_OPTIONS.filter((option) => option.id !== "checkin");
 
   // After a branch-level change, reset the per-service overrides for the fields
   // that just changed so EVERY service under the branch re-inherits the new
@@ -550,9 +541,26 @@ export default function OrgSettingsScreen() {
   };
 
   const handleQueueModeChange = async (mode: QueueMode) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await saveSetting({ queueMode: mode });
-    closeQueueModeModal();
+    if (mode === settings.queueMode) {
+      closeQueueModeModal();
+      return;
+    }
+    Alert.alert(
+      "Change queue mode?",
+      "Changing the queue mode will delete all custom fields and reset every affected service to the default or preset fields for the new mode.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Change Mode",
+          style: "destructive",
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            await saveSetting({ queueMode: mode });
+            closeQueueModeModal();
+          },
+        },
+      ],
+    );
   };
 
   const handleNotificationModeChange = async (mode: NotificationMode) => {
@@ -998,7 +1006,7 @@ export default function OrgSettingsScreen() {
           </View>
         </Pressable>
 
-        {hasPermission("org.settings.queue") ? (
+        {!isMobile && hasPermission("org.settings.queue") ? (
         <SettingSection title="QUEUE PROCESSING">
           <Pressable
             style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
@@ -1459,21 +1467,10 @@ export default function OrgSettingsScreen() {
             showChevron
           />
         </SettingSection>
-
-        <SettingSection title="ACCOUNT">
-          <SettingRow
-            icon="trash-2"
-            label="Delete Account"
-            description="Request permanent deletion of your account and personal data"
-            isDark={isDark}
-            onPress={openAccountDeletion}
-            showChevron
-          />
-        </SettingSection>
       </ScrollView>
 
       <Modal
-        visible={showQueueModeModal}
+        visible={!isMobile && showQueueModeModal}
         transparent
         animationType="none"
         onRequestClose={closeQueueModeModal}
@@ -1488,7 +1485,7 @@ export default function OrgSettingsScreen() {
                   {
                     translateY: queueModalAnimation.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [SCREEN_HEIGHT, 0],
+                    outputRange: [screenHeight, 0],
                     }),
                   },
                 ],
@@ -1574,7 +1571,7 @@ export default function OrgSettingsScreen() {
                   {
                     translateY: notificationModalAnimation.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [SCREEN_HEIGHT, 0],
+                    outputRange: [screenHeight, 0],
                     }),
                   },
                 ],
@@ -2127,6 +2124,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   settingsBranchInfo: {
     flex: 1,
+    minWidth: 0,
   },
   settingsBranchLabel: {
     fontSize: 12,

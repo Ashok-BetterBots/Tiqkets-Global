@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
+  useWindowDimensions,
   StyleSheet,
   ScrollView,
   TextInput,
@@ -50,6 +51,7 @@ export default function EventCheckOutScreen() {
 }
 
 function ExitScanPanel() {
+  const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
@@ -159,10 +161,22 @@ function ExitScanPanel() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSuccessTone();
       setRecentRefreshKey((k) => k + 1);
-      // Valid exits show no banner/info — close the modal right away.
-      setModalVisible(false);
       setPendingValue("");
-      setModalData(null);
+      if (data.checkoutAlert) {
+        setModalData({
+          success: true,
+          registration: data.registration,
+          eventName: data.eventName,
+          guests: data.guests,
+          checkoutAlert: data.checkoutAlert,
+        });
+        setModalMode("result");
+        setModalVisible(true);
+      } else {
+        // Normal exits without a configured duration alert stay fast and quiet.
+        setModalVisible(false);
+        setModalData(null);
+      }
     } catch (e: any) {
       if (selectionGeneration !== selectionGenerationRef.current) return;
       const apiErr = e instanceof ApiError ? e : null;
@@ -245,7 +259,7 @@ function ExitScanPanel() {
 
             {cameraOpen && permission.granted ? (
               <View style={{ marginBottom: Spacing.md }}>
-                <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
+                <View style={[styles.cameraBox, { borderColor: BRAND + "55", maxHeight: Math.max(180, windowHeight * 0.3) }]}>
                   <CameraView
                     style={StyleSheet.absoluteFill}
                     facing="back"
@@ -385,7 +399,7 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginBottom: Spacing.md },
   sectionIconBox: { width: 30, height: 30, borderRadius: BorderRadius.md, alignItems: "center", justifyContent: "center" },
   sectionTitle: { fontWeight: "700", fontSize: 15 },
-  cameraBox: { height: 260, borderRadius: BorderRadius.xl, overflow: "hidden", borderWidth: 2, backgroundColor: "#000" },
+  cameraBox: { width: "100%", aspectRatio: 1.45, borderRadius: BorderRadius.xl, overflow: "hidden", borderWidth: 2, backgroundColor: "#000" },
   corner: { position: "absolute", width: 36, height: 36 },
   TL: { top: 14, left: 14, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
   TR: { top: 14, right: 14, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },

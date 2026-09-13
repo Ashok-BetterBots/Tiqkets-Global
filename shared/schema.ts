@@ -906,6 +906,34 @@ export const routePayoutAllocations = pgTable("route_payout_allocations", {
   index("route_allocation_org_status_idx").on(table.organizationId, table.status),
 ]);
 
+// Immutable checkout snapshot for event payments.  This is deliberately
+// separate from the mutable Route allocation so switching the active adapter
+// cannot change an in-flight checkout.
+export const eventPaymentCheckouts = pgTable("event_payment_checkouts", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  registrationId: varchar("registration_id", { length: 36 }).notNull().references(() => eventRegistrations.id, { onDelete: "cascade" }),
+  adapter: text("adapter").notNull(), // route | direct | payment_links
+  // Bound after the provider order is created.  Keeping the intent durable
+  // before the external call makes retries recoverable without an orphan
+  // registration or duplicate provider order.
+  razorpayOrderId: text("razorpay_order_id"),
+  paymentLinkReferenceId: text("payment_link_reference_id"),
+  razorpayPaymentLinkId: text("razorpay_payment_link_id"),
+  razorpayShortUrl: text("razorpay_short_url"),
+  paymentLinkPaymentId: text("payment_link_payment_id"),
+  amount: integer("amount").notNull(),
+  currency: text("currency").notNull().default("INR"),
+  status: text("status").notNull().default("initiated"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("event_payment_checkout_registration_unique").on(table.registrationId),
+  uniqueIndex("event_payment_checkout_order_unique").on(table.razorpayOrderId),
+  uniqueIndex("event_payment_checkout_link_unique").on(table.razorpayPaymentLinkId),
+  uniqueIndex("event_payment_checkout_reference_unique").on(table.paymentLinkReferenceId),
+  index("event_payment_checkout_status_idx").on(table.status),
+]);
+
 // Webhook delivery receipts make Razorpay retries harmless and provide a
 // durable recovery queue for deliveries that fail after signature validation.
 export const razorpayWebhookReceipts = pgTable("razorpay_webhook_receipts", {
@@ -1432,6 +1460,51 @@ export const DEFAULT_EVENT_WHATSAPP_TRIGGERS: EventWhatsAppTriggers = {
   thank_you_feedback: true,
 };
 
+export type EventOtpSettings = {
+  registration: boolean;
+  billing: boolean;
+};
+
+export const DEFAULT_EVENT_OTP_SETTINGS: EventOtpSettings = {
+  registration: true,
+  billing: true,
+};
+
+export type EventCheckoutAlertConfig = {
+  enabled: boolean;
+  maxDurationMinutes: number;
+  title: string;
+  message: string;
+  iconUrl: string;
+};
+
+export type EventCheckoutAlertSnapshot = {
+  title: string;
+  message: string;
+  iconUrl: string;
+  maxDurationMinutes: number;
+  elapsedMinutes: number;
+  capturedAt: string;
+};
+
+export type EventRefundPolicy = {
+  refundable: boolean;
+  refundMessage: string;
+};
+
+export const DEFAULT_EVENT_REFUND_POLICY: EventRefundPolicy = {
+  refundable: false,
+  refundMessage: "",
+};
+
+export const DEFAULT_EVENT_CHECKOUT_ALERT: EventCheckoutAlertConfig = {
+  enabled: false,
+  maxDurationMinutes: 60,
+  title: "",
+  message: "",
+  iconUrl: "",
+};
+
 export const events = pgTable("events", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
@@ -1455,6 +1528,12 @@ export const events = pgTable("events", {
   maxGuestsPerRegistration: integer("max_guests_per_registration").default(10).notNull(),
   // Registration fee (advance amount) in paise, matching payments.amount.
   registrationFee: integer("registration_fee").default(0).notNull(),
+  // Optional customer-facing text shown below the registration fee.
+  registrationFeeCustomText: text("registration_fee_custom_text").default("").notNull(),
+  // Customer-facing refund guidance only. This does not change payment
+  // collection, payouts, or refund execution.
+  refundable: boolean("refundable").default(false).notNull(),
+  refundMessage: text("refund_message").default("").notNull(),
   termsAndConditions: text("terms_and_conditions"),
   faqs: jsonb("faqs").$type<{ question: string; answer: string }[]>().default([]).notNull(),
   supportContact: text("support_contact"),
@@ -1473,6 +1552,9 @@ export const events = pgTable("events", {
   // same template can be replaced without changing ticket inventory.
   preprintedFrontImageUrl: text("preprinted_front_image_url"),
   preprintedBackImageUrl: text("preprinted_back_image_url"),
+  // Uppercase alphanumeric prefix used only for newly created pre-printed
+  // ticket inventory. Existing issued IDs are immutable.
+  preprintedTicketPrefix: varchar("preprinted_ticket_prefix", { length: 8 }).default("EVT").notNull(),
   preprintedBackLayout: jsonb("preprinted_back_layout").$type<PreprintedBackLayout>().default({
     version: 2,
     elements: [
@@ -1486,11 +1568,13 @@ export const events = pgTable("events", {
   // "thank_you_feedback"). Falls back to shared/wa-templates.ts defaults.
   messageTemplates: jsonb("message_templates").$type<Record<string, string>>().default({}).notNull(),
   whatsappTriggers: jsonb("whatsapp_triggers").$type<EventWhatsAppTriggers>().default(DEFAULT_EVENT_WHATSAPP_TRIGGERS).notNull(),
+  otpSettings: jsonb("otp_settings").$type<EventOtpSettings>().default(DEFAULT_EVENT_OTP_SETTINGS).notNull(),
   parkingEnabled: boolean("parking_enabled").default(true).notNull(),
   // Manual parking capacity counter (no vehicle-level tracking) per the
   // Parking staff dashboard requirement.
   parkingTotalSpaces: integer("parking_total_spaces").default(0).notNull(),
   parkingOccupied: integer("parking_occupied").default(0).notNull(),
+  checkoutAlert: jsonb("checkout_alert").$type<EventCheckoutAlertConfig>().default(DEFAULT_EVENT_CHECKOUT_ALERT).notNull(),
   // Per-slot capacity overrides keyed "YYYY-MM-DD|HH:MM" → capacity. A slot
   // without an entry falls back to maxCapacityPerSlot. Organizers edit these
   // from the event setup page; the public registration flow resolves the
@@ -1534,6 +1618,13 @@ export const eventRegistrations = pgTable("event_registrations", {
   customerName: text("customer_name").notNull(),
   customerPhone: text("customer_phone").notNull(),
   customerEmail: text("customer_email"),
+  // Normalized category selected in the public customer registration form.
+  // Kept as a dedicated column so reporting can group/filter without parsing
+  // location-specific custom form data.
+  productCategory: text("product_category"),
+  // All product categories selected for this registration. The legacy
+  // productCategory column above retains the first selection for compatibility.
+  productCategories: jsonb("product_categories").$type<string[]>().default([]).notNull(),
   // Language the customer selected at the moment of submission (see
   // shared/languages.ts for the supported-language catalog). Drives which
   // language all downstream WhatsApp/email communications for this
@@ -1541,10 +1632,13 @@ export const eventRegistrations = pgTable("event_registrations", {
   // pre-select the switcher on a future registration.
   preferredLanguage: text("preferred_language").default("en").notNull(),
   familyMembersCount: integer("family_members_count").default(0).notNull(),
-  // Set when the customer requests priority access for an infant, senior
-  // citizen, or pregnant visitor. Used to surface a clear, privacy-respecting
-  // marker on the ticket shown at entry.
+  // Set when the customer selects any special category: senior citizen,
+  // pregnant women, infants, or specially abled. Used to surface a clear,
+  // privacy-respecting marker on the ticket shown at entry.
   priorityAccess: boolean("priority_access").default(false).notNull(),
+  // Exact special-access selections, retained separately from the ticket-safe
+  // priorityAccess marker for authorized reporting and operational use.
+  specialCategories: jsonb("special_categories").$type<string[]>().default([]).notNull(),
   slotDate: text("slot_date").notNull(),
   slotTime: text("slot_time").notNull(),
   status: text("status").default("registration_started").notNull(),
@@ -1555,6 +1649,7 @@ export const eventRegistrations = pgTable("event_registrations", {
   checkedInAt: timestamp("checked_in_at"),
   exitedAt: timestamp("exited_at"),
   visitDurationMinutes: integer("visit_duration_minutes"),
+  checkoutAlertSnapshot: jsonb("checkout_alert_snapshot").$type<EventCheckoutAlertSnapshot>(),
   invalidScanAttempts: integer("invalid_scan_attempts").default(0).notNull(),
   duplicateEntryAttempts: integer("duplicate_entry_attempts").default(0).notNull(),
   // One-shot flags so the reminder scheduler never double-sends.

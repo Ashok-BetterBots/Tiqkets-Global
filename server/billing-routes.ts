@@ -5,6 +5,7 @@ import { normalizeWaMode } from "@shared/wa-templates";
 import { isValidIanaTimezone } from "@shared/timezone";
 import { isDineInMode, seedDineInFields } from "@shared/dineInFields";
 import { isTakeawayMode, seedTakeawayFields } from "@shared/takeawayFields";
+import { buildQueueModePresetFields, queueModesEqual } from "@shared/queueModeFields";
 
 // See `canonicalQueueMode` in server/routes.ts — same rationale: normalize
 // `branch.queueMode` at the response boundary so mobile clients always
@@ -1096,6 +1097,20 @@ export function registerBillingRoutes(app: Express) {
       if (requiresInPersonRegistration !== undefined) updateData.requiresInPersonRegistration = requiresInPersonRegistration;
       if (inPersonPerimeterMeters !== undefined) updateData.inPersonPerimeterMeters = parseInt(inPersonPerimeterMeters) || 100;
       if (serviceSettings !== undefined) updateData.serviceSettings = serviceSettings;
+      const existingService = await storage.getServiceById(serviceId);
+      if (existingService && serviceSettings !== undefined) {
+        const branch = await storage.getBranchById(existingService.branchId);
+        const org = branch ? await storage.getOrganizationById(branch.organizationId) : null;
+        const oldMode = (existingService.serviceSettings as any)?.queueMode
+          || (branch as any)?.queueMode || (branch as any)?.settings?.queueMode
+          || (org as any)?.settings?.queueMode || "fifo";
+        const newMode = serviceSettings?.queueMode
+          || (branch as any)?.queueMode || (branch as any)?.settings?.queueMode
+          || (org as any)?.settings?.queueMode || "fifo";
+        if (!queueModesEqual(oldMode, newMode)) {
+          updateData.inputFields = buildQueueModePresetFields(newMode);
+        }
+      }
       if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
       const service = await storage.updateService(serviceId, updateData);
       if (!service) {
@@ -1163,6 +1178,9 @@ export function registerBillingRoutes(app: Express) {
       const { organizationId, name, email, phone, password, role, branchId, branchIds, assignedServiceIds } = req.body;
       if (!organizationId || !name || !email || !password || !role) {
         return res.status(400).json({ error: "organizationId, name, email, password, and role are required" });
+      }
+      if (typeof password !== "string" || password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
       }
       if (!await assertOrgOwnership(req, res, organizationId)) return;
       const ctx = await getCallerContext(req);
@@ -1429,6 +1447,7 @@ export function registerBillingRoutes(app: Express) {
           updateData.announcerUserId = announcerUserId;
         }
       }
+      const previousBranch = await storage.getBranchById(branchId);
       const branch = await storage.updateBranch(branchId, updateData);
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
@@ -1437,7 +1456,15 @@ export function registerBillingRoutes(app: Express) {
       // fields into every service that inherits the branch mode (no per-service
       // queueMode override). seedDineInFields no-ops when defaults already
       // exist, so it won't re-add fields an admin disabled.
-      if (queueMode !== undefined && isDineInMode(queueMode)) {
+      const queueModeChanged = queueMode !== undefined
+        && !queueModesEqual((previousBranch as any)?.queueMode || (previousBranch as any)?.settings?.queueMode, queueMode);
+      if (queueModeChanged) {
+        const branchServices = await storage.getServicesByBranch(branchId);
+        const presets = buildQueueModePresetFields(queueMode);
+        for (const svc of branchServices) {
+          await storage.updateService(svc.id, { inputFields: presets } as any);
+        }
+      } else if (queueMode !== undefined && isDineInMode(queueMode)) {
         try {
           const branchServices = await storage.getServicesByBranch(branchId);
           for (const svc of branchServices) {
@@ -1452,7 +1479,7 @@ export function registerBillingRoutes(app: Express) {
           console.error("Error seeding dine-in fields for branch services:", seedErr);
         }
       }
-      if (queueMode !== undefined && isTakeawayMode(queueMode)) {
+      if (!queueModeChanged && queueMode !== undefined && isTakeawayMode(queueMode)) {
         try {
           const branchServices = await storage.getServicesByBranch(branchId);
           for (const svc of branchServices) {

@@ -4,6 +4,7 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerRoutes } from "./routes";
 import { registerQueueTicketRoutes } from "./queue-ticket-routes";
 import { registerAnnouncementRoutes } from "./announcements";
+import { registerExperimentalFormRoutes } from "./form-builder/routes";
 import { ensureBuiltinRoles } from "./rbac";
 import * as fs from "fs";
 import * as path from "path";
@@ -198,27 +199,16 @@ function serveExpoManifest(platform: string, req: Request, res: Response) {
       }));
     }
 
-    // Patch hostUri / debuggerHost fields (host only, no protocol)
+    // hostUri/debuggerHost are packager identities, not URLs. They must be the
+    // bare public host; platform path suffixes can leave Android Expo Go stuck
+    // on its native "Loading project..." screen before JavaScript starts.
     const actualHost = host;
-    const patchHostField = (val: string): string => {
-      if (!val || !builtBase) return val;
-      try {
-        const builtHost = new URL(builtBase).host;
-        return val.replace(builtHost, actualHost);
-      } catch {
-        return val;
-      }
-    };
 
     if (manifest.extra?.expoClient?.hostUri) {
-      manifest.extra.expoClient.hostUri = patchHostField(
-        manifest.extra.expoClient.hostUri as string,
-      );
+      manifest.extra.expoClient.hostUri = actualHost;
     }
     if (manifest.extra?.expoGo?.debuggerHost) {
-      manifest.extra.expoGo.debuggerHost = patchHostField(
-        manifest.extra.expoGo.debuggerHost as string,
-      );
+      manifest.extra.expoGo.debuggerHost = actualHost;
     }
 
     res.send(JSON.stringify(manifest));
@@ -359,6 +349,18 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
+    // Replit's Expo preview proxy can add expo-platform to normal browser
+    // requests. A browser explicitly asking for HTML must still receive the
+    // QR launch page; Expo Go requests do not include text/html in Accept.
+    if (req.path === "/" && req.header("accept")?.includes("text/html")) {
+      return serveLandingPage({
+        req,
+        res,
+        landingPageTemplate,
+        appName,
+      });
+    }
+
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       // Dev: ask Metro for the up-to-the-minute manifest instead of the
@@ -460,6 +462,7 @@ function setupErrorHandler(app: express.Application) {
   registerAnnouncementRoutes(app);
   await ensureBuiltinRoles();
   const server = await registerRoutes(app);
+  await registerExperimentalFormRoutes(app);
 
   setupErrorHandler(app);
 

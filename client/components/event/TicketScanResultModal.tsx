@@ -6,12 +6,17 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  Image,
+  Platform,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { getApiUrl } from "@/lib/query-client";
+import { getTicketTimingStatus } from "@/components/event/ticketTiming";
 
 const BRAND = "#8c1867";
 
@@ -24,6 +29,20 @@ export interface ScanResponseData {
   eventName?: string;
   guests?: number;
   formLabels?: Record<string, string>;
+  journey?: Array<{
+    id: string;
+    stage: string;
+    createdAt: string;
+    metadata?: Record<string, any>;
+  }>;
+  checkoutAlert?: {
+    title: string;
+    message: string;
+    iconUrl: string;
+    maxDurationMinutes: number;
+    elapsedMinutes: number;
+    capturedAt: string;
+  } | null;
   registration?: {
     eventId?: string;
     bookingId?: string;
@@ -36,6 +55,9 @@ export interface ScanResponseData {
     qrToken?: string;
     formData?: Record<string, any>;
     status?: string;
+    arrivedAt?: string | null;
+    checkedInAt?: string | null;
+    exitedAt?: string | null;
     visitDurationMinutes?: number | null;
   };
 }
@@ -56,6 +78,14 @@ const VALIDITY_CONFIG: Record<ScanValidity, {
 
 // ─── Time summary (separate section) ────────────────────────────────────────
 type TimeSummary = { label: string; diffLabel: string; color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] };
+
+function formatHourMinuteDifference(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  if (minutes === 0) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  return `${hours} ${hours === 1 ? "hour" : "hours"} ${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+}
 
 /** Returns a 3-state time summary with the delta formatted as human-readable text. */
 function getTimeSummary(slotDate?: string | null, slotTime?: string | null): TimeSummary | null {
@@ -144,6 +174,21 @@ function fmtDuration(min?: number | null): string {
   return `${Math.floor(min / 60)}h ${min % 60}m`;
 }
 
+function fmtTimestamp(value?: string | null): string {
+  if (!value) return "Not recorded";
+  try {
+    return new Date(value).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return value;
+  }
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 interface Props {
   visible: boolean;
@@ -167,7 +212,8 @@ export function TicketScanResultModal({
   confirming = false,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const { theme } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
+  const { theme, isDark } = useTheme();
 
   // Derive the initial guest count from the scan data
   const registeredGuests = data?.guests ?? (
@@ -177,16 +223,19 @@ export function TicketScanResultModal({
   );
 
   const [actualGuests, setActualGuests] = useState(registeredGuests);
+  const [timingAccepted, setTimingAccepted] = useState(false);
 
   // Reset stepper whenever a new ticket is loaded into the modal
   useEffect(() => {
     setActualGuests(registeredGuests);
-  }, [data?.registration?.bookingId, registeredGuests]);
+    setTimingAccepted(false);
+  }, [data?.registration?.bookingId, registeredGuests, visible]);
 
   if (!data) return null;
 
   const reg = data.registration;
   const timeSummary = getTimeSummary(reg?.slotDate, reg?.slotTime);
+  const timingStatus = getTicketTimingStatus(reg?.slotDate, reg?.slotTime);
 
   const skipFormKeys = new Set(["name", "phone", "email", "customerName", "customerPhone", "customerEmail"]);
   const formEntries = Object.entries(reg?.formData || {}).filter(
@@ -202,11 +251,23 @@ export function TicketScanResultModal({
   const vc = VALIDITY_CONFIG[validityKey];
 
   const suppressValidBanner = action === "exit" && mode === "result" && validityKey === "valid";
+  const showCheckoutSurprise = suppressValidBanner && !!data.checkoutAlert;
 
   // Whether to show the guest count adjuster
   const showGuestAdjuster = action === "checkin" && mode === "preview";
 
   const guestsDiff = actualGuests - registeredGuests;
+  const isDuplicateResult = mode === "result" && validityKey === "duplicate";
+  const isInvalidResult = mode === "result" && validityKey === "invalid";
+  const usesCheckInTimingFlow = action === "checkin" && mode === "preview" && !!timingStatus;
+  const showTimingAlert =
+    usesCheckInTimingFlow &&
+    timingStatus.kind !== "within-window" &&
+    !timingAccepted;
+  const showCompactValidState =
+    action === "checkin" &&
+    mode === "preview" &&
+    (!timingStatus || timingStatus.kind === "within-window" || timingAccepted);
 
   return (
     <Modal
@@ -215,22 +276,80 @@ export function TicketScanResultModal({
       animationType="slide"
       onRequestClose={onClose}
       statusBarTranslucent
+      navigationBarTranslucent
     >
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable
-          style={[styles.sheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.xl }]}
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: theme.surface,
+              paddingBottom: insets.bottom + Spacing.xl,
+              minHeight: showCheckoutSurprise ? Math.max(420, windowHeight * 0.52) : undefined,
+            },
+          ]}
           onPress={() => {}}
         >
           {/* Drag handle */}
           <View style={[styles.handle, { backgroundColor: theme.border }]} />
+          {showCompactValidState ? (
+            <View style={styles.cornerSuccess} testID="ticket-valid-corner-tick">
+              <Feather name="check" size={20} color="#FFFFFF" />
+            </View>
+          ) : null}
 
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: Spacing.md }}
+            contentContainerStyle={[
+              { paddingBottom: Spacing.md },
+              showCheckoutSurprise && styles.surpriseScrollContent,
+            ]}
           >
-            {/* ── 1. Validity banner ── */}
-            {!suppressValidBanner ? (
+            {showTimingAlert && timingStatus ? (
+              <View testID="ticket-timing-alert">
+                <View style={[styles.banner, { backgroundColor: "#D1FAE5", borderColor: "#6EE7B7" }]}>
+                  <View style={[styles.bannerIconWrap, { backgroundColor: "#10B981" }]}>
+                    <Feather name="check-circle" size={26} color="#fff" />
+                  </View>
+                  <ThemedText style={[styles.bannerLabel, { color: "#065F46" }]}>Valid Ticket</ThemedText>
+                </View>
+
+                <View
+                  style={[
+                    styles.timingAlertCard,
+                    {
+                      backgroundColor: timingStatus.kind === "different-day" ? "#FFF1F2" : "#FFF7ED",
+                      borderColor: timingStatus.kind === "different-day" ? "#FDA4AF" : "#FDBA74",
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.timingAlertIcon,
+                      { backgroundColor: timingStatus.kind === "different-day" ? "#E11D48" : "#F97316" },
+                    ]}
+                  >
+                    <Feather
+                      name={timingStatus.kind === "different-day" ? "alert-triangle" : "clock"}
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                  <ThemedText style={styles.timingAlertTitle}>
+                    {timingStatus.direction === "early" ? "Early by" : "Late by"}
+                  </ThemedText>
+                  <ThemedText style={[styles.timingAlertDifference, { color: theme.text }]}>
+                    {timingStatus.kind === "different-day"
+                      ? `${timingStatus.diffDays} ${timingStatus.diffDays === 1 ? "day" : "days"}`
+                      : formatHourMinuteDifference(timingStatus.diffMinutes)}
+                  </ThemedText>
+                  <ThemedText style={[styles.timingAlertSlot, { color: theme.textSecondary }]}>
+                    Booked for {fmtSlot(reg?.slotDate, reg?.slotTime)}
+                  </ThemedText>
+                </View>
+              </View>
+            ) : !showCompactValidState && !suppressValidBanner ? (
               <View style={[styles.banner, { backgroundColor: vc.light, borderColor: vc.border }]}>
                 <View style={[styles.bannerIconWrap, { backgroundColor: vc.bg }]}>
                   <Feather name={vc.icon} size={26} color="#fff" />
@@ -251,8 +370,38 @@ export function TicketScanResultModal({
               </View>
             ) : null}
 
+            {!showTimingAlert && action === "exit" && mode === "result" && data.checkoutAlert ? (
+              <View
+                style={[
+                  styles.checkoutAlert,
+                  { backgroundColor: isDark ? "#2B1825" : "#FFF4FA", borderColor: isDark ? "#71365D" : "#E7BDD6" },
+                ]}
+                testID="checkout-duration-alert"
+              >
+                <View style={[styles.checkoutAlertIconHalo, { backgroundColor: isDark ? "#45203A" : "#F8DDEA" }]}>
+                  <Image
+                    source={{ uri: new URL(data.checkoutAlert.iconUrl, getApiUrl()).toString() }}
+                    style={styles.checkoutAlertIcon}
+                    resizeMode="cover"
+                  />
+                </View>
+                <ThemedText style={[styles.checkoutAlertTitle, { color: BRAND }]}>
+                  {data.checkoutAlert.title}
+                </ThemedText>
+                <ThemedText style={[styles.checkoutAlertMessage, { color: theme.text }]}>
+                  {data.checkoutAlert.message}
+                </ThemedText>
+                <View style={[styles.checkoutAlertMetaPill, { backgroundColor: isDark ? "#3B2634" : "#FFFFFF" }]}>
+                  <Feather name="clock" size={13} color={theme.textSecondary} />
+                  <ThemedText style={[styles.checkoutAlertMeta, { color: theme.textSecondary }]}>
+                    {fmtDuration(data.checkoutAlert.elapsedMinutes)} since check-in · limit {fmtDuration(data.checkoutAlert.maxDurationMinutes)}
+                  </ThemedText>
+                </View>
+              </View>
+            ) : null}
+
             {/* ── 2. Time summary chip ── */}
-            {timeSummary && !suppressValidBanner ? (
+            {timeSummary && !showTimingAlert && !showCompactValidState && !isInvalidResult && !suppressValidBanner ? (
               <View style={[styles.timeSummaryRow, { backgroundColor: timeSummary.bg }]}>
                 <Feather name={timeSummary.icon} size={14} color={timeSummary.color} />
                 <View style={{ flex: 1 }}>
@@ -267,8 +416,40 @@ export function TicketScanResultModal({
               </View>
             ) : null}
 
+            {isDuplicateResult && reg ? (
+              <>
+                <View
+                  style={[
+                    styles.duplicateStatusCard,
+                    { backgroundColor: "#FFF7ED", borderColor: "#FDBA74" },
+                  ]}
+                  testID="duplicate-ticket-status"
+                >
+                  <View style={styles.duplicateStatusRow}>
+                    <Feather name="activity" size={16} color="#F97316" />
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                        Last Known Status
+                      </ThemedText>
+                      <ThemedText style={[styles.duplicateStatusValue, { color: "#C2410C" }]}>
+                        {(reg.status || "Unknown").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </ThemedText>
+                    </View>
+                  </View>
+                  <View style={[styles.divider, { backgroundColor: "#FDBA74" }]} />
+                  <DetailRow
+                    icon="log-in"
+                    label="Last Entered"
+                    value={fmtTimestamp(reg.checkedInAt || reg.arrivedAt)}
+                    theme={theme}
+                  />
+                </View>
+
+              </>
+            ) : null}
+
             {/* ── 3. Details card ── */}
-            {reg && !suppressValidBanner ? (
+            {!showTimingAlert && reg && !isInvalidResult && !suppressValidBanner ? (
               <View style={[styles.detailCard, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
                 {/* Name + Booking ID */}
                 <View style={styles.topRow}>
@@ -367,7 +548,7 @@ export function TicketScanResultModal({
                   </>
                 ) : null}
               </View>
-            ) : !suppressValidBanner ? (
+            ) : !showTimingAlert && !suppressValidBanner && !isInvalidResult ? (
               <View style={[styles.detailCard, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
                 <ThemedText style={{ color: theme.textSecondary, textAlign: "center" }}>
                   {data.error || "Scan could not be processed."}
@@ -376,7 +557,25 @@ export function TicketScanResultModal({
             ) : null}
 
             {/* Footer buttons */}
-            {suppressValidBanner ? null : mode === "preview" && onConfirm ? (
+            {showTimingAlert ? (
+              <View style={styles.btnRow}>
+                <Pressable
+                  onPress={onClose}
+                  style={[styles.btnOutline, { borderColor: theme.border }]}
+                  testID="button-timing-skip"
+                >
+                  <ThemedText style={[styles.btnOutlineText, { color: theme.textSecondary }]}>Skip</ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={() => setTimingAccepted(true)}
+                  style={[styles.btnFill, { backgroundColor: BRAND }]}
+                  testID="button-timing-proceed"
+                >
+                  <ThemedText style={styles.btnFillText}>Proceed</ThemedText>
+                  <Feather name="arrow-right" size={16} color="#FFFFFF" />
+                </Pressable>
+              </View>
+            ) : suppressValidBanner && !data.checkoutAlert ? null : mode === "preview" && onConfirm ? (
               <View style={styles.btnRow}>
                 <Pressable
                   onPress={onClose}
@@ -406,7 +605,16 @@ export function TicketScanResultModal({
                 </Pressable>
               </View>
             ) : (
-              <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: BRAND }]}>
+              <Pressable
+                onPress={onClose}
+                style={[
+                  styles.closeBtn,
+                  { backgroundColor: BRAND },
+                  Platform.OS === "android" && (isInvalidResult || isDuplicateResult)
+                    ? { marginBottom: Spacing.md }
+                    : null,
+                ]}
+              >
                 <ThemedText style={styles.closeBtnText}>
                   {action === "exit" && mode === "result" && data.error ? "Cancel" : "Close"}
                 </ThemedText>
@@ -463,6 +671,69 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: Spacing.lg,
   },
+  cornerSuccess: {
+    position: "absolute",
+    top: Spacing.lg,
+    right: Spacing.lg,
+    zIndex: 2,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#10B981",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  timingAlertCard: {
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing["2xl"],
+    marginBottom: Spacing.lg,
+  },
+  timingAlertIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.md,
+  },
+  timingAlertTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: Spacing.xs,
+  },
+  timingAlertDifference: {
+    fontSize: 24,
+    fontWeight: "800",
+    marginBottom: Spacing.sm,
+  },
+  timingAlertSlot: {
+    fontSize: 12,
+    textAlign: "center",
+  },
+  duplicateStatusCard: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  duplicateStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  duplicateStatusValue: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginTop: 2,
+  },
   /* ── Validity banner ── */
   banner: {
     flexDirection: "row",
@@ -493,6 +764,56 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   /* ── Time summary ── */
+  checkoutAlert: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing["2xl"],
+    borderRadius: 28,
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+    overflow: "hidden",
+  },
+  surpriseScrollContent: {
+    flexGrow: 1,
+    justifyContent: "space-between",
+  },
+  checkoutAlertIconHalo: {
+    width: 144,
+    height: 144,
+    borderRadius: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
+  },
+  checkoutAlertIcon: {
+    width: 108,
+    height: 108,
+    borderRadius: 26,
+  },
+  checkoutAlertTitle: {
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: "900",
+    textAlign: "center",
+    marginBottom: Spacing.sm,
+  },
+  checkoutAlertMessage: {
+    fontSize: 18,
+    lineHeight: 25,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: Spacing.lg,
+  },
+  checkoutAlertMetaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+  },
+  checkoutAlertMeta: { fontSize: 12, lineHeight: 16, fontWeight: "600" },
   timeSummaryRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -20,6 +20,7 @@ import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { RequirePermission } from "@/components/RequirePermission";
 import { Journey, JourneyStage } from "@/types/organization";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -34,6 +35,7 @@ interface JourneyManagerProps {
 
 export const JourneyManager = forwardRef<JourneyManagerHandle, JourneyManagerProps>(
 function JourneyManager({ branchId, isDark = false }: JourneyManagerProps, ref) {
+  const insets = useSafeAreaInsets();
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { branches, addJourney, updateJourney, deleteJourney } = useOrganization();
@@ -362,13 +364,15 @@ function JourneyManager({ branchId, isDark = false }: JourneyManagerProps, ref) 
         visible={showJourneyModal}
         animationType="slide"
         transparent={true}
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={handleCloseJourneyModal}
       >
         <KeyboardAvoidingView
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, { paddingBottom: 20 + insets.bottom }]}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, flexShrink: 1 }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <ThemedText style={styles.modalTitle}>
@@ -379,7 +383,11 @@ function JourneyManager({ branchId, isDark = false }: JourneyManagerProps, ref) 
               </Pressable>
             </View>
 
-            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={[styles.modalScroll, { flexGrow: 1, flexShrink: 1 }]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.formGroup}>
                 <ThemedText style={styles.label}>Journey Name *</ThemedText>
                 <TextInput
@@ -708,6 +716,8 @@ function JourneyManager({ branchId, isDark = false }: JourneyManagerProps, ref) 
         visible={showDeleteConfirm !== null}
         animationType="fade"
         transparent={true}
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setShowDeleteConfirm(null)}
       >
         <Pressable style={styles.stageModalOverlay} onPress={() => setShowDeleteConfirm(null)}>
@@ -741,6 +751,8 @@ function JourneyManager({ branchId, isDark = false }: JourneyManagerProps, ref) 
         visible={showRemoveStageConfirm !== null}
         animationType="fade"
         transparent={true}
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setShowRemoveStageConfirm(null)}
       >
         <Pressable style={styles.stageModalOverlay} onPress={() => setShowRemoveStageConfirm(null)}>
@@ -894,7 +906,6 @@ const createStyles = (colors: typeof Colors.light) =>
       backgroundColor: "rgba(0,0,0,0.55)",
       justifyContent: "flex-end",
       paddingHorizontal: 10,
-      paddingBottom: 20,
     },
     stageModalOverlay: {
       flex: 1,
@@ -905,6 +916,8 @@ const createStyles = (colors: typeof Colors.light) =>
     modalContent: {
       borderRadius: 32,
       maxHeight: "90%",
+      flexShrink: 1,
+      flexDirection: "column",
     },
     modalHandle: {
       width: 44,

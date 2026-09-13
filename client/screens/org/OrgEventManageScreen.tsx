@@ -15,7 +15,10 @@ import {
   useWindowDimensions,
   Keyboard,
   Switch,
+  Image,
+  Alert,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -26,7 +29,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { BottomSheetModal } from "@/components/BottomSheetModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { apiRequest, queryClient, getErrorMessage } from "@/lib/query-client";
+import { apiRequest, queryClient, getErrorMessage, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius, BrandColors, headingFont } from "@/constants/theme";
 
 const BRAND = BrandColors.primary;
@@ -87,12 +90,30 @@ interface EventRow {
   maxCapacityPerSlot?: number;
   slotCapacityOverrides?: Record<string, number> | null;
   registrationFee: number;
+  registrationFeeCustomText?: string | null;
   supportContact?: string | null;
   parkingTotalSpaces: number;
   parkingEnabled?: boolean;
+  refundable?: boolean;
+  refundMessage?: string | null;
   whatsappTriggers?: EventWhatsappTriggers | null;
   messageTemplates?: Record<string, string> | null;
+  checkoutAlert?: CheckoutAlertConfig | null;
+  otpSettings?: EventOtpSettings | null;
 }
+
+type EventOtpSettings = {
+  registration: boolean;
+  billing: boolean;
+};
+
+type CheckoutAlertConfig = {
+  enabled: boolean;
+  maxDurationMinutes: number;
+  title: string;
+  message: string;
+  iconUrl: string;
+};
 
 type EventWhatsappTriggers = {
   reminder_day: boolean;
@@ -121,10 +142,32 @@ interface EventForm {
   slotDurationMinutes: string;
   maxCapacityPerSlot: string;
   registrationFee: string;
+  registrationFeeCustomText: string;
+  refundable: boolean;
+  refundMessage: string;
   supportContact: string;
   parkingTotalSpaces: string;
   parkingEnabled: boolean;
+  otpSettings: EventOtpSettings;
   whatsappTriggers: EventWhatsappTriggers;
+  checkoutAlert: {
+    enabled: boolean;
+    maxDurationMinutes: string;
+    title: string;
+    message: string;
+    iconUrl: string;
+  };
+}
+
+interface PayoutProfileResponse {
+  profile?: {
+    paymentMethod?: "razorpay_route" | "razorpay_direct" | "razorpay_payment_links";
+    directReady?: boolean;
+    paymentLinksReady?: boolean;
+    canAcceptPaidTickets?: boolean;
+    productId?: string | null;
+    productStatus?: string | null;
+  } | null;
 }
 
 const EMPTY_FORM: EventForm = {
@@ -138,10 +181,15 @@ const EMPTY_FORM: EventForm = {
   slotDurationMinutes: "30",
   maxCapacityPerSlot: "50",
   registrationFee: "0",
+  registrationFeeCustomText: "",
+  refundable: false,
+  refundMessage: "",
   supportContact: "",
   parkingTotalSpaces: "0",
   parkingEnabled: true,
+  otpSettings: { registration: true, billing: true },
   whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS },
+  checkoutAlert: { enabled: false, maxDurationMinutes: "60", title: "", message: "", iconUrl: "" },
 };
 
 function toDateInput(iso?: string | null): string {
@@ -174,12 +222,27 @@ export default function OrgEventManageScreen() {
     enabled: !!activeBranchId,
   });
   const events = data?.events ?? [];
+  const payoutProfileQuery = useQuery<PayoutProfileResponse>({
+    queryKey: ["/api/dashboard/payouts", organization?.id, "profile", "event-fee-gate"],
+    enabled: !!organization?.id,
+    queryFn: async () => (
+      await apiRequest("GET", `/api/dashboard/payouts/${organization!.id}/profile`)
+    ).json(),
+  });
+  const payoutProfile = payoutProfileQuery.data?.profile;
+  const razorpayProductId = String(payoutProfile?.productId || "").trim();
+  const registrationFeesReady = payoutProfile?.paymentMethod === "razorpay_direct"
+    ? payoutProfile.directReady === true
+    : payoutProfile?.paymentMethod === "razorpay_payment_links"
+      ? (payoutProfile.paymentLinksReady ?? payoutProfile.canAcceptPaidTickets) === true
+      : /^acc_prd_[A-Za-z0-9]+$/.test(razorpayProductId);
 
   // ── Create / edit form ──────────────────────────────────────────────────
   const [editing, setEditing] = useState<EventRow | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<EventForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [checkoutIconUploading, setCheckoutIconUploading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   // ── Danger-zone confirmation ─────────────────────────────────────────────
@@ -233,10 +296,21 @@ export default function OrgEventManageScreen() {
   // ── Handlers ─────────────────────────────────────────────────────────────
   const openCreate = () => {
     setEditing(null);
-    setForm({ ...EMPTY_FORM, whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS } });
+    setForm({
+      ...EMPTY_FORM,
+      otpSettings: { ...EMPTY_FORM.otpSettings },
+      whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS },
+      checkoutAlert: { ...EMPTY_FORM.checkoutAlert },
+    });
     setFormError(null);
     setShowForm(true);
   };
+
+  useEffect(() => {
+    if (showForm && !editing && !registrationFeesReady && form.registrationFee !== "0") {
+      setForm((current) => ({ ...current, registrationFee: "0" }));
+    }
+  }, [showForm, editing, registrationFeesReady, form.registrationFee]);
 
   const openEdit = (ev: EventRow) => {
     setEditing(ev);
@@ -251,10 +325,24 @@ export default function OrgEventManageScreen() {
       slotDurationMinutes: String(ev.slotDurationMinutes ?? 30),
       maxCapacityPerSlot: String(ev.maxCapacityPerSlot ?? 50),
       registrationFee: String((ev.registrationFee ?? 0) / 100),
+      registrationFeeCustomText: ev.registrationFeeCustomText ?? "",
+      refundable: ev.refundable === true,
+      refundMessage: ev.refundMessage ?? "",
       supportContact: ev.supportContact ?? "",
       parkingTotalSpaces: String(ev.parkingTotalSpaces ?? 0),
       parkingEnabled: ev.parkingEnabled !== false,
+      otpSettings: {
+        registration: ev.otpSettings?.registration !== false,
+        billing: ev.otpSettings?.billing !== false,
+      },
       whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS, ...(ev.whatsappTriggers || {}) },
+      checkoutAlert: {
+        enabled: ev.checkoutAlert?.enabled === true,
+        maxDurationMinutes: String(ev.checkoutAlert?.maxDurationMinutes ?? 60),
+        title: ev.checkoutAlert?.title ?? "",
+        message: ev.checkoutAlert?.message ?? "",
+        iconUrl: ev.checkoutAlert?.iconUrl ?? "",
+      },
     });
     setFormError(null);
     setShowForm(true);
@@ -329,6 +417,13 @@ export default function OrgEventManageScreen() {
       setFormError("Please enter start and end dates (YYYY-MM-DD)"); return;
     }
     if (!activeBranchId || !organization?.id) { setFormError("No branch selected"); return; }
+    const checkoutMinutes = parseInt(form.checkoutAlert.maxDurationMinutes, 10);
+    if (form.checkoutAlert.enabled && (!Number.isFinite(checkoutMinutes) || checkoutMinutes < 1 || checkoutMinutes > 10080)) {
+      setFormError("Checkout alert duration must be between 1 and 10,080 minutes"); return;
+    }
+    if (form.checkoutAlert.enabled && (!form.checkoutAlert.title.trim() || !form.checkoutAlert.message.trim() || !form.checkoutAlert.iconUrl)) {
+      setFormError("Add a checkout title, message, and image icon"); return;
+    }
     setSaving(true); setFormError(null);
     try {
       const payload: Record<string, unknown> = {
@@ -341,11 +436,24 @@ export default function OrgEventManageScreen() {
         operatingHoursEnd: form.operatingHoursEnd.trim() || "21:00",
         slotDurationMinutes: parseInt(form.slotDurationMinutes, 10) || 30,
         maxCapacityPerSlot: parseInt(form.maxCapacityPerSlot, 10) || 50,
-        registrationFee: Math.max(0, Math.round((parseFloat(form.registrationFee) || 0) * 100)),
+        registrationFee: !registrationFeesReady
+          ? 0
+          : Math.max(0, Math.round((parseFloat(form.registrationFee) || 0) * 100)),
+        registrationFeeCustomText: form.registrationFeeCustomText.trim(),
+        refundable: form.refundable,
+        refundMessage: form.refundMessage.trim(),
         supportContact: form.supportContact.trim() || null,
         parkingTotalSpaces: parseInt(form.parkingTotalSpaces, 10) || 0,
         parkingEnabled: form.parkingEnabled,
+        otpSettings: form.otpSettings,
         whatsappTriggers: form.whatsappTriggers,
+        checkoutAlert: {
+          enabled: form.checkoutAlert.enabled,
+          maxDurationMinutes: checkoutMinutes || 60,
+          title: form.checkoutAlert.title.trim(),
+          message: form.checkoutAlert.message.trim(),
+          iconUrl: form.checkoutAlert.iconUrl,
+        },
       };
       if (editing) {
         await apiRequest("PUT", `/api/dashboard/events/${editing.id}`, payload);
@@ -359,6 +467,36 @@ export default function OrgEventManageScreen() {
     } catch (e) {
       setFormError(getErrorMessage(e, "Failed to save event"));
     } finally { setSaving(false); }
+  };
+
+  const pickCheckoutIcon = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission required", "Allow photo access to upload a checkout icon.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+      const asset = result.canceled ? null : result.assets[0];
+      if (!asset?.base64) return;
+      setCheckoutIconUploading(true);
+      const mime = asset.mimeType || "image/jpeg";
+      const response = await apiRequest("POST", "/api/dashboard/events/upload-image", {
+        image: `data:${mime};base64,${asset.base64}`,
+      });
+      const uploaded = await response.json();
+      setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, iconUrl: uploaded.url } }));
+    } catch (e) {
+      setFormError(getErrorMessage(e, "Failed to upload checkout icon"));
+    } finally {
+      setCheckoutIconUploading(false);
+    }
   };
 
   const openConfirm = (event: EventRow, kind: ConfirmKind) => {
@@ -507,9 +645,68 @@ export default function OrgEventManageScreen() {
           <View style={{ flex: 1 }}><Field label="Capacity / slot" value={form.maxCapacityPerSlot} onChangeText={(t) => setForm((f) => ({ ...f, maxCapacityPerSlot: t }))} keyboardType="number-pad" testID="input-event-capacity" /></View>
         </View>
         <View style={styles.twoCol}>
-          <View style={{ flex: 1 }}><Field label={"Fee (\u20B9)"} value={form.registrationFee} onChangeText={(t) => setForm((f) => ({ ...f, registrationFee: t }))} keyboardType="decimal-pad" testID="input-event-fee" /></View>
+          <View style={{ flex: 1 }}>
+            <Field
+              label={"Fee (\u20B9)"}
+              value={!registrationFeesReady ? "0" : form.registrationFee}
+              onChangeText={(t) => setForm((f) => ({ ...f, registrationFee: t }))}
+              keyboardType="decimal-pad"
+              editable={registrationFeesReady}
+              testID="input-event-fee"
+            />
+          </View>
           <View style={{ flex: 1 }}><Field label="Parking spaces" value={form.parkingTotalSpaces} onChangeText={(t) => setForm((f) => ({ ...f, parkingTotalSpaces: t }))} keyboardType="number-pad" testID="input-event-parking" /></View>
         </View>
+        {!registrationFeesReady ? (
+          <View style={[styles.payoutSetupNotice, { borderColor: "#F59E0B", backgroundColor: "#FFFBEB" }]}>
+            <Feather name="alert-circle" size={18} color="#B45309" />
+            <ThemedText type="small" style={{ color: "#92400E", flex: 1, fontWeight: "700" }}>
+              {payoutProfileQuery.isLoading
+                ? "Checking payout setup before enabling registration fees..."
+                : "Create Payout setup before adding fee details. A valid Razorpay Product ID is required."}
+            </ThemedText>
+          </View>
+        ) : null}
+        <Field
+          label="Registration fee custom text"
+          value={form.registrationFeeCustomText}
+          onChangeText={(registrationFeeCustomText) => setForm((f) => ({ ...f, registrationFeeCustomText }))}
+          placeholder="Text shown below the fee on the customer review page"
+          multiline
+          testID="input-event-fee-custom-text"
+        />
+        <View style={[styles.refundPolicyBox, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="body" style={{ color: theme.text, fontWeight: "700" }}>Registration fee refund policy</ThemedText>
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
+              Customer-facing guidance only; this does not change payment collection or refunds.
+            </ThemedText>
+          </View>
+          <View style={styles.refundToggle}>
+            <Pressable
+              onPress={() => setForm((f) => ({ ...f, refundable: false }))}
+              style={[styles.refundOption, { borderColor: !form.refundable ? BRAND : theme.border, backgroundColor: !form.refundable ? BRAND + "12" : theme.surface }]}
+              testID="button-event-nonrefundable"
+            >
+              <ThemedText type="small" style={{ color: !form.refundable ? BRAND : theme.textSecondary, fontWeight: "700" }}>No</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setForm((f) => ({ ...f, refundable: true }))}
+              style={[styles.refundOption, { borderColor: form.refundable ? BRAND : theme.border, backgroundColor: form.refundable ? BRAND + "12" : theme.surface }]}
+              testID="button-event-refundable"
+            >
+              <ThemedText type="small" style={{ color: form.refundable ? BRAND : theme.textSecondary, fontWeight: "700" }}>Yes</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+        <Field
+          label="Refund message (shown to customers)"
+          value={form.refundMessage}
+          onChangeText={(refundMessage) => setForm((f) => ({ ...f, refundMessage }))}
+          placeholder="e.g. Refunds are available up to 24 hours before your visit."
+          multiline
+          testID="input-event-refund-message"
+        />
         <SettingsToggle
           label="Show Parking page"
           description="Allow parking staff to open and use this event's Parking page."
@@ -517,6 +714,58 @@ export default function OrgEventManageScreen() {
           onValueChange={(value) => setForm((f) => ({ ...f, parkingEnabled: value }))}
           testID="switch-event-parking-enabled"
         />
+        <ThemedText type="small" style={{ fontWeight: "800", marginTop: Spacing.sm, marginBottom: Spacing.xs }}>
+          OTP verification
+        </ThemedText>
+        <SettingsToggle
+          label="Registration OTP"
+          description="Require customers to verify their WhatsApp number before completing registration."
+          value={form.otpSettings.registration}
+          onValueChange={(registration) => setForm((f) => ({ ...f, otpSettings: { ...f.otpSettings, registration } }))}
+          testID="switch-event-registration-otp"
+        />
+        <SettingsToggle
+          label="Billing OTP"
+          description="Require an OTP before redeeming a customer's advance. When off, billing proceeds directly to the invoice like a store registration."
+          value={form.otpSettings.billing}
+          onValueChange={(billing) => setForm((f) => ({ ...f, otpSettings: { ...f.otpSettings, billing } }))}
+          testID="switch-event-billing-otp"
+        />
+        <ThemedText type="small" style={{ fontWeight: "800", marginTop: Spacing.sm, marginBottom: Spacing.xs }}>
+          Checkout alert
+        </ThemedText>
+        <SettingsToggle
+          label="Show message for short visits"
+          description="Show staff a custom message when checkout is within the duration below."
+          value={form.checkoutAlert.enabled}
+          onValueChange={(enabled) => setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, enabled } }))}
+          testID="switch-event-checkout-alert"
+        />
+        {form.checkoutAlert.enabled ? (
+          <>
+            <Field label="Maximum duration (minutes)" value={form.checkoutAlert.maxDurationMinutes} onChangeText={(maxDurationMinutes) => setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, maxDurationMinutes } }))} keyboardType="number-pad" testID="input-event-checkout-duration" />
+            <Field label="Checkout title" value={form.checkoutAlert.title} onChangeText={(title) => setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, title } }))} placeholder="Thank you for visiting" testID="input-event-checkout-title" />
+            <Field label="Checkout message" value={form.checkoutAlert.message} onChangeText={(message) => setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, message } }))} placeholder="Custom message for staff" multiline testID="input-event-checkout-message" />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.md, marginBottom: Spacing.md }}>
+              {form.checkoutAlert.iconUrl ? (
+                <Image source={{ uri: new URL(form.checkoutAlert.iconUrl, getApiUrl()).toString() }} style={{ width: 64, height: 64, borderRadius: 14 }} />
+              ) : (
+                <View style={{ width: 64, height: 64, borderRadius: 14, backgroundColor: theme.backgroundRoot, alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="image" size={24} color={theme.textSecondary} />
+                </View>
+              )}
+              <Pressable onPress={pickCheckoutIcon} disabled={checkoutIconUploading} style={[styles.smallButton, { borderColor: theme.border }]}>
+                {checkoutIconUploading ? <ActivityIndicator size="small" color={BRAND} /> : <Feather name="upload" size={15} color={BRAND} />}
+                <ThemedText type="small" style={{ color: BRAND, fontWeight: "700" }}>{form.checkoutAlert.iconUrl ? "Replace icon" : "Upload icon"}</ThemedText>
+              </Pressable>
+              {form.checkoutAlert.iconUrl ? (
+                <Pressable onPress={() => setForm((f) => ({ ...f, checkoutAlert: { ...f.checkoutAlert, iconUrl: "" } }))}>
+                  <Feather name="trash-2" size={18} color={theme.error} />
+                </Pressable>
+              ) : null}
+            </View>
+          </>
+        ) : null}
         <ThemedText type="small" style={{ fontWeight: "800", marginTop: Spacing.sm, marginBottom: Spacing.xs }}>
           WhatsApp messages
         </ThemedText>
@@ -543,8 +792,8 @@ export default function OrgEventManageScreen() {
       </BottomSheetModal>
 
       {/* ── Slot edit modal ── */}
-      <Modal visible={!!slotEditEvent} transparent animationType="slide" onRequestClose={() => setSlotEditEvent(null)}>
-        <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <Modal visible={!!slotEditEvent} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={() => setSlotEditEvent(null)}>
+        <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSlotEditEvent(null)} />
           <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
@@ -641,8 +890,8 @@ export default function OrgEventManageScreen() {
       </Modal>
 
       {/* ── Per-Slot Override Modal ── */}
-      <Modal visible={!!overrideEvent} transparent animationType="slide" onRequestClose={() => setOverrideEvent(null)}>
-        <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <Modal visible={!!overrideEvent} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={() => setOverrideEvent(null)}>
+        <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setOverrideEvent(null)} />
           <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
@@ -830,7 +1079,8 @@ export default function OrgEventManageScreen() {
 
       {/* ── Danger-zone confirm ── */}
       <Modal visible={!!confirm} transparent animationType="fade" onRequestClose={() => setConfirm(null)}>
-        <View style={styles.dangerBackdrop}>
+        <KeyboardAvoidingView style={styles.dangerBackdrop} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }} keyboardShouldPersistTaps="handled">
           <View style={[styles.dangerSheet, { backgroundColor: theme.surface }]}>
             <View style={[styles.dangerBanner, { backgroundColor: confirmKindColor(confirm?.kind ?? "end") + "15", borderColor: confirmKindColor(confirm?.kind ?? "end") + "40" }]}>
               <Feather name="alert-triangle" size={18} color={confirmKindColor(confirm?.kind ?? "end")} />
@@ -870,7 +1120,7 @@ export default function OrgEventManageScreen() {
                 {
                   color: theme.text,
                   borderColor: confirmMatches ? confirmKindColor(confirm?.kind ?? "end") : theme.border,
-                  backgroundColor: theme.backgroundRoot ?? theme.background,
+                  backgroundColor: theme.backgroundRoot,
                 },
               ]}
               autoCapitalize="none"
@@ -895,7 +1145,8 @@ export default function OrgEventManageScreen() {
               </Pressable>
             </View>
           </View>
-        </View>
+        </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </ThemedView>
   );
@@ -919,10 +1170,10 @@ function ActionBtn({ icon, label, iconColor, onPress, busy, testID }: {
   );
 }
 
-function Field({ label, value, onChangeText, placeholder, keyboardType, multiline, testID }: {
+function Field({ label, value, onChangeText, placeholder, keyboardType, multiline, editable = true, testID }: {
   label: string; value: string; onChangeText: (t: string) => void;
   placeholder?: string; keyboardType?: "default" | "number-pad" | "decimal-pad";
-  multiline?: boolean; testID: string;
+  multiline?: boolean; editable?: boolean; testID: string;
 }) {
   const { theme } = useTheme();
   return (
@@ -935,7 +1186,8 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, multilin
         placeholderTextColor={theme.textSecondary}
         keyboardType={keyboardType}
         multiline={multiline}
-        style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceMuted }, multiline ? { minHeight: 64, textAlignVertical: "top" } : null]}
+        editable={editable}
+        style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceMuted, opacity: editable ? 1 : 0.55 }, multiline ? { minHeight: 64, textAlignVertical: "top" } : null]}
         testID={testID}
       />
     </View>
@@ -970,6 +1222,15 @@ function SettingsToggle({ label, description, value, onValueChange, testID }: {
 }
 
 const styles = StyleSheet.create({
+  smallButton: {
+    minHeight: 40,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
   container: { flex: 1 },
   content: { padding: Spacing.lg, gap: Spacing.md },
   center: { paddingVertical: Spacing["4xl"], alignItems: "center" },
@@ -985,6 +1246,10 @@ const styles = StyleSheet.create({
   actionBtn: { flexDirection: "row", alignItems: "center", gap: Spacing.xs, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1 },
   field: { marginBottom: Spacing.md },
   twoCol: { flexDirection: "row", gap: Spacing.md },
+  payoutSetupNotice: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.sm, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md },
+  refundPolicyBox: { flexDirection: "row", alignItems: "center", gap: Spacing.md, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md },
+  refundToggle: { flexDirection: "row", gap: Spacing.xs },
+  refundOption: { minWidth: 42, alignItems: "center", borderWidth: 1, borderRadius: BorderRadius.sm, paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm },
   input: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: 15 },
   settingsToggle: { flexDirection: "row", alignItems: "center", gap: Spacing.md, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, marginBottom: Spacing.sm },
 

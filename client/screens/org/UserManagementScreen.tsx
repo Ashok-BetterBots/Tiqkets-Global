@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { memo, useCallback, useState, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -11,6 +11,7 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
+  FlatList,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -82,7 +83,7 @@ interface UserCardProps {
   isDark?: boolean;
 }
 
-function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = false }: UserCardProps) {
+const UserCard = memo(function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = false }: UserCardProps) {
   const roleColor = getRoleColor(user.role);
   const roleIcon = getRoleIcon(user.role);
   const colors = isDark ? Colors.dark : Colors.light;
@@ -161,12 +162,16 @@ function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = f
       </Card>
     </Animated.View>
   );
-}
+});
+
+type OrgUserDraft = Omit<OrgUser, "id" | "createdAt" | "organizationId"> & {
+  password?: string;
+};
 
 interface AddUserModalProps {
   visible: boolean;
   onClose: () => void;
-  onSave: (user: Omit<OrgUser, "id" | "createdAt" | "organizationId">) => void;
+  onSave: (user: OrgUserDraft) => void;
   branches: { id: string; name: string }[];
   services: { id: string; name: string; branchId: string }[];
   editingUser?: OrgUser | null;
@@ -181,6 +186,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
   const [name, setName] = useState(editingUser?.name || "");
   const [email, setEmail] = useState(editingUser?.email || "");
   const [phone, setPhone] = useState(editingUser?.phone || "");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState<string>(editingUser?.role || "front_desk");
   const [branchId, setBranchId] = useState(editingUser?.branchId || "");
   const [branchIds, setBranchIds] = useState<string[]>(editingUser?.branchIds || []);
@@ -214,6 +220,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
       setName(editingUser.name);
       setEmail(editingUser.email);
       setPhone(editingUser.phone || "");
+      setPassword("");
       setRole(editingUser.role);
       setBranchId(editingUser.branchId || "");
       setBranchIds(editingUser.branchIds || (editingUser.branchId ? [editingUser.branchId] : []));
@@ -222,6 +229,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
       setName("");
       setEmail("");
       setPhone("");
+      setPassword("");
       setRole("front_desk");
       setBranchId("");
       setBranchIds([]);
@@ -232,6 +240,10 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
   const handleSave = () => {
     if (!name.trim() || !email.trim()) {
       Alert.alert("Error", "Name and email are required");
+      return;
+    }
+    if (!editingUser && password.length < 6) {
+      Alert.alert("Error", "A password of at least 6 characters is required");
       return;
     }
     if (!role) {
@@ -262,6 +274,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim() || undefined,
+      password: editingUser ? undefined : password,
       role,
       branchId: role === "location_manager" ? (branchIds[0] || undefined) : (branchId || undefined),
       branchName: role === "location_manager" ? (selectedBranchNames[0] || undefined) : selectedBranch?.name,
@@ -349,6 +362,23 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
               placeholderTextColor={colors.textSecondary}
             />
           </View>
+
+          {!editingUser ? (
+            <View style={styles.inputGroup}>
+              <ThemedText style={styles.inputLabel}>Password</ThemedText>
+              <TextInput
+                style={styles.input}
+                placeholder="Minimum 6 characters"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="newPassword"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+          ) : null}
 
           <View style={styles.inputGroup}>
             <ThemedText style={styles.inputLabel}>Role</ThemedText>
@@ -544,9 +574,12 @@ export default function UserManagementScreen() {
   const [editingUser, setEditingUser] = useState<OrgUser | null>(null);
   const [filterRole, setFilterRole] = useState<UserRole | "all">("all");
 
-  const filteredUsers = users.filter((u) => filterRole === "all" || u.role === filterRole);
+  const filteredUsers = useMemo(
+    () => users.filter((u) => filterRole === "all" || u.role === filterRole),
+    [filterRole, users],
+  );
 
-  const handleAddUser = async (userData: Omit<OrgUser, "id" | "createdAt" | "organizationId">) => {
+  const handleAddUser = async (userData: OrgUserDraft) => {
     try {
       await addUser(userData);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -557,7 +590,7 @@ export default function UserManagementScreen() {
     }
   };
 
-  const handleEditUser = async (userData: Omit<OrgUser, "id" | "createdAt" | "organizationId">) => {
+  const handleEditUser = async (userData: OrgUserDraft) => {
     if (!editingUser) return;
     try {
       await updateUser(editingUser.id, userData);
@@ -570,12 +603,12 @@ export default function UserManagementScreen() {
     }
   };
 
-  const handleToggleStatus = async (user: OrgUser) => {
+  const handleToggleStatus = useCallback(async (user: OrgUser) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await updateUser(user.id, { isActive: !user.isActive });
-  };
+  }, [updateUser]);
 
-  const handleDeleteUser = (user: OrgUser) => {
+  const handleDeleteUser = useCallback((user: OrgUser) => {
     Alert.alert(
       "Delete User",
       `Are you sure you want to delete ${user.name}? This action cannot be undone.`,
@@ -591,7 +624,7 @@ export default function UserManagementScreen() {
         },
       ]
     );
-  };
+  }, [deleteUser]);
 
   const filters: { key: UserRole | "all"; label: string }[] = [
     { key: "all", label: "All Users" },
@@ -601,10 +634,27 @@ export default function UserManagementScreen() {
     { key: "front_desk", label: "Front Desk" },
   ];
 
-  const services = branches.flatMap((b) =>
+  const services = useMemo(() => branches.flatMap((b) =>
     (b.services || []).map((s) => ({ id: s.id, name: s.name, branchId: b.id }))
+  ), [branches]);
+  const branchOptions = useMemo(
+    () => branches.map((b) => ({ id: b.id, name: b.name })),
+    [branches],
   );
-  const branchOptions = branches.map((b) => ({ id: b.id, name: b.name }));
+
+  const renderUser = useCallback(({ item: user }: { item: OrgUser }) => (
+    <UserCard
+      user={user}
+      branches={branchOptions}
+      onEdit={() => {
+        setEditingUser(user);
+        setShowAddModal(true);
+      }}
+      onToggleStatus={() => handleToggleStatus(user)}
+      onDelete={() => handleDeleteUser(user)}
+      isDark={isDark}
+    />
+  ), [branchOptions, handleDeleteUser, handleToggleStatus, isDark]);
 
   return (
     <ThemedView style={styles.container}>
@@ -656,12 +706,18 @@ export default function UserManagementScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView
+      <FlatList
+        data={filteredUsers}
+        keyExtractor={(user) => user.id}
+        renderItem={renderUser}
         style={styles.userList}
         contentContainerStyle={[styles.userListContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
-      >
-        {filteredUsers.length === 0 ? (
+        initialNumToRender={12}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
+        ListEmptyComponent={
           <View style={styles.emptyState}>
             <Feather name="users" size={48} color={colors.textSecondary} />
             <ThemedText style={styles.emptyTitle}>No users found</ThemedText>
@@ -669,23 +725,8 @@ export default function UserManagementScreen() {
               {filterRole === "all" ? "Add your first team member" : `No ${ROLE_LABELS[filterRole as UserRole]}s yet`}
             </ThemedText>
           </View>
-        ) : (
-          filteredUsers.map((user) => (
-            <UserCard
-              key={user.id}
-              user={user}
-              branches={branchOptions}
-              onEdit={() => {
-                setEditingUser(user);
-                setShowAddModal(true);
-              }}
-              onToggleStatus={() => handleToggleStatus(user)}
-              onDelete={() => handleDeleteUser(user)}
-              isDark={isDark}
-            />
-          ))
-        )}
-      </ScrollView>
+        }
+      />
 
       <AddUserModal
         visible={showAddModal}

@@ -1,0 +1,40 @@
+Console Warning
+
+Due to changes in Androids permission requirements, Expo Go can no longer provide full access to the media library. To test the full functionality of this module, you can create a development build. https://docs.expo.dev/develop/development-builds/create-a-build
+
+Source:
+/home/runner/workspace/client/components/QRCodeModal.tsx (16:0)
+
+Call Stack:
+addLog (/home/runner/workspace/node_modules/react-native/Libraries/LogBox/Data/LogBoxData.js:235)
+registerWarning (/home/runner/workspace/node_modules/react-native/Libraries/LogBox/LogBox.js:255)
+console.warn (/home/runner/workspace/node_modules/react-native/Libraries/LogBox/LogBox.js:113)
+<global> (/home/runner/workspace/node_modules/expo-media-library/src/legacy/MediaLibrary.ts:12)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:163)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+<global> (/home/runner/workspace/node_modules/expo-media-library/src/legacy/index.ts:1)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:163)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+<global> (/home/runner/workspace/client/components/QRCodeModal.tsx:16)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:163)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+<global> (/home/runner/workspace/client/screens/org/OrgServicesScreen.tsx:49)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:163)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+<global> (/home/runner/workspace/client/navigation/OrgTabNavigator.tsx:16)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:163)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+<global> (/home/runner/workspace/client/navigation/OrgStackNavigator.tsx:5)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:163)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+<global> (/home/runner/workspace/client/App.tsx:32)
+loadModuleImplementation (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:248)
+guardedLoadModule (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:156)
+metroRequire (/home/runner/workspace/node_modules/expo/node_modules/@expo/cli/build/metro-require/require.js:74)
+setTimeout$argument_0 (/home/runner/workspace/client/AppBootstrap.tsx:14)

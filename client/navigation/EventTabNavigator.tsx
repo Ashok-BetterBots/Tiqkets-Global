@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { BlurView } from "expo-blur";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -80,9 +81,10 @@ function NoAccessScreen() {
 
 function EventTabNavigatorContent() {
   const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const { currentUser, hasPermission, hasAnyPermission } = useOrganization();
-  const { events } = useEventSelection();
-  const parkingEnabled = events.length === 0 || events.some((event) => event.parkingEnabled !== false);
+  const { selectedEvent } = useEventSelection();
+  const parkingEnabled = selectedEvent?.parkingEnabled !== false;
 
   const tabs = useMemo(() => {
     const list: Array<{
@@ -170,7 +172,8 @@ function EventTabNavigatorContent() {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: theme.borderSubtle,
           elevation: 0,
-          height: Platform.OS === "ios" ? 84 : 64,
+           height: 64 + insets.bottom,
+           paddingBottom: insets.bottom,
         },
         tabBarBackground: () =>
           Platform.OS === "ios" ? (

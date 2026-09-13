@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Switch,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -36,6 +37,9 @@ interface EventConfig {
   slotDurationMinutes: string;
   maxCapacityPerSlot: string;
   registrationFee: string;
+  registrationFeeCustomText: string;
+  refundable: boolean;
+  refundMessage: string;
 }
 
 const EMPTY_CONFIG: EventConfig = {
@@ -44,6 +48,9 @@ const EMPTY_CONFIG: EventConfig = {
   slotDurationMinutes: "30",
   maxCapacityPerSlot: "50",
   registrationFee: "0",
+  registrationFeeCustomText: "",
+  refundable: false,
+  refundMessage: "",
 };
 
 function readConfig(svc: OrgService): EventConfig {
@@ -54,11 +61,16 @@ function readConfig(svc: OrgService): EventConfig {
     slotDurationMinutes: String(ev.slotDurationMinutes ?? 30),
     maxCapacityPerSlot: String(ev.maxCapacityPerSlot ?? 50),
     registrationFee: String((ev.registrationFee ?? 0) / 100),
+    registrationFeeCustomText: typeof ev.registrationFeeCustomText === "string" ? ev.registrationFeeCustomText : "",
+    refundable: ev.refundable === true,
+    refundMessage: typeof ev.refundMessage === "string" ? ev.refundMessage : "",
   };
 }
 
 export default function OrgEventLocationsScreen() {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const isNarrowScreen = screenWidth < 380;
   const { theme, isDark } = useTheme();
   const {
     getAccessibleBranches,
@@ -224,6 +236,9 @@ export default function OrgEventLocationsScreen() {
           slotDurationMinutes: parseInt(config.slotDurationMinutes, 10) || 30,
           maxCapacityPerSlot: parseInt(config.maxCapacityPerSlot, 10) || 0,
           registrationFee: Math.max(0, Math.round((parseFloat(config.registrationFee) || 0) * 100)),
+          registrationFeeCustomText: config.registrationFeeCustomText.trim(),
+          refundable: config.refundable,
+          refundMessage: config.refundMessage.trim(),
         },
         inputFields: fields,
         applyToAll,
@@ -311,8 +326,8 @@ export default function OrgEventLocationsScreen() {
             return (
               <View key={svc.id} style={[styles.card, { backgroundColor: cardBg }]} testID={`card-location-${svc.id}`}>
                 <View style={styles.eventHeaderRow}>
-                  <View style={{ flex: 1 }}>
-                    <ThemedText type="h4" testID={`text-location-name-${svc.id}`}>
+                  <View style={styles.eventHeaderContent}>
+                    <ThemedText type="h4" numberOfLines={2} testID={`text-location-name-${svc.id}`}>
                       {svc.name}
                     </ThemedText>
                     {svc.description ? (
@@ -366,7 +381,7 @@ export default function OrgEventLocationsScreen() {
         onConfirm={saveSettings}
         confirmLoading={settingsSaving}
       >
-        <View style={styles.twoCol}>
+        <View style={[styles.twoCol, isNarrowScreen && styles.twoColNarrow]}>
           <View style={{ flex: 1 }}>
             <Field label="Opens" value={config.operatingHoursStart} onChangeText={(t) => setConfig((c) => ({ ...c, operatingHoursStart: t }))} placeholder="09:00" testID="input-cfg-open" />
           </View>
@@ -374,7 +389,7 @@ export default function OrgEventLocationsScreen() {
             <Field label="Closes" value={config.operatingHoursEnd} onChangeText={(t) => setConfig((c) => ({ ...c, operatingHoursEnd: t }))} placeholder="21:00" testID="input-cfg-close" />
           </View>
         </View>
-        <View style={styles.twoCol}>
+        <View style={[styles.twoCol, isNarrowScreen && styles.twoColNarrow]}>
           <View style={{ flex: 1 }}>
             <Field label="Slot minutes" value={config.slotDurationMinutes} onChangeText={(t) => setConfig((c) => ({ ...c, slotDurationMinutes: t }))} keyboardType="number-pad" testID="input-cfg-slot" />
           </View>
@@ -383,6 +398,44 @@ export default function OrgEventLocationsScreen() {
           </View>
         </View>
         <Field label={"Registration fee (\u20B9)"} value={config.registrationFee} onChangeText={(t) => setConfig((c) => ({ ...c, registrationFee: t }))} keyboardType="decimal-pad" testID="input-cfg-fee" />
+        <Field
+          label="Registration fee custom text"
+          value={config.registrationFeeCustomText}
+          onChangeText={(registrationFeeCustomText) => setConfig((c) => ({ ...c, registrationFeeCustomText }))}
+          placeholder="Text shown below the fee on the customer review page"
+          multiline
+          testID="input-cfg-fee-custom-text"
+        />
+        <View style={[styles.refundPolicyBox, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="body" style={{ color: theme.text, fontWeight: "700" }}>Refundable</ThemedText>
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>Customer-facing guidance only.</ThemedText>
+          </View>
+          <View style={styles.refundToggle}>
+            <Pressable
+              onPress={() => setConfig((c) => ({ ...c, refundable: false }))}
+              style={[styles.refundOption, { borderColor: !config.refundable ? theme.primary : theme.border, backgroundColor: !config.refundable ? theme.primary + "12" : theme.surface }]}
+              testID="button-cfg-nonrefundable"
+            >
+              <ThemedText type="small" style={{ color: !config.refundable ? theme.primary : theme.textSecondary, fontWeight: "700" }}>No</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setConfig((c) => ({ ...c, refundable: true }))}
+              style={[styles.refundOption, { borderColor: config.refundable ? theme.primary : theme.border, backgroundColor: config.refundable ? theme.primary + "12" : theme.surface }]}
+              testID="button-cfg-refundable"
+            >
+              <ThemedText type="small" style={{ color: config.refundable ? theme.primary : theme.textSecondary, fontWeight: "700" }}>Yes</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+        <Field
+          label="Refund message (shown to customers)"
+          value={config.refundMessage}
+          onChangeText={(refundMessage) => setConfig((c) => ({ ...c, refundMessage }))}
+          placeholder="e.g. Refunds are available up to 24 hours before your visit."
+          multiline
+          testID="input-cfg-refund-message"
+        />
 
         <ThemedText type="body" style={{ fontWeight: "700", marginTop: Spacing.md, marginBottom: Spacing.sm }}>
           Custom registration fields
@@ -585,6 +638,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: BorderRadius.lg, padding: Spacing.lg },
   emptyCard: { alignItems: "center", gap: Spacing.md, paddingVertical: Spacing["3xl"] },
   eventHeaderRow: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.md },
+  eventHeaderContent: { flex: 1, minWidth: 0 },
   actionRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginTop: Spacing.md },
   actionBtn: {
     flexDirection: "row",
@@ -597,6 +651,10 @@ const styles = StyleSheet.create({
   },
   field: { marginBottom: Spacing.md },
   twoCol: { flexDirection: "row", gap: Spacing.md },
+  twoColNarrow: { flexDirection: "column", gap: 0 },
+  refundPolicyBox: { flexDirection: "row", alignItems: "center", gap: Spacing.md, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md },
+  refundToggle: { flexDirection: "row", gap: Spacing.xs },
+  refundOption: { minWidth: 42, alignItems: "center", borderWidth: 1, borderRadius: BorderRadius.sm, paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm },
   input: {
     borderWidth: 1,
     borderRadius: BorderRadius.md,

@@ -13,6 +13,8 @@ import {
   useColorScheme,
   Image,
   Platform,
+  KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -45,6 +47,7 @@ export function ProfileModal({
   onLogout,
 }: ProfileModalProps) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
@@ -113,19 +116,15 @@ export function ProfileModal({
       setIsPickingImage(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Android's system photo picker grants access only to the selected image,
-      // so broad photo/video library permissions are unnecessary there.
-      if (Platform.OS === "ios") {
-        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-        if (!permissionResult.granted) {
-          Alert.alert(
-            "Permission Required",
-            "Please allow access to your photo library to change your profile picture.",
-            [{ text: "OK" }]
-          );
-          return;
-        }
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert(
+          "Permission Required",
+          "Please allow access to your photo library to change your profile picture.",
+          [{ text: "OK" }]
+        );
+        return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -224,7 +223,7 @@ export function ProfileModal({
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleClose}>
       <View style={styles.container}>
         <Animated.View
           style={[
@@ -237,11 +236,17 @@ export function ProfileModal({
           <Pressable style={StyleSheet.absoluteFillObject} onPress={handleClose} />
         </Animated.View>
 
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+        >
         <Animated.View
           style={[
             styles.modalContent,
             {
               width: MODAL_WIDTH,
+              maxHeight: windowHeight - insets.top - insets.bottom,
               backgroundColor: isDark ? colors.backgroundRoot : "#F7F5FE",
               transform: [{ translateX: slideAnim }],
               paddingTop: insets.top + Spacing.md,
@@ -257,8 +262,10 @@ export function ProfileModal({
           </View>
 
           <ScrollView
+            style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
           >
             <View style={styles.profileSection}>
               <Pressable onPress={handlePickImage} disabled={isPickingImage}>
@@ -528,6 +535,7 @@ export function ProfileModal({
             )}
           </ScrollView>
         </Animated.View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );

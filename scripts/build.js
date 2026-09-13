@@ -39,12 +39,12 @@ function stripProtocol(domain) {
 }
 
 function getDeploymentDomain() {
-  if (process.env.APP_DOMAIN) {
-    return stripProtocol(process.env.APP_DOMAIN);
-  }
-
   if (process.env.REPLIT_INTERNAL_APP_DOMAIN) {
     return stripProtocol(process.env.REPLIT_INTERNAL_APP_DOMAIN);
+  }
+
+  if (process.env.APP_DOMAIN) {
+    return stripProtocol(process.env.APP_DOMAIN);
   }
 
   if (process.env.REPLIT_DEV_DOMAIN) {
@@ -467,10 +467,12 @@ function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
     manifest.createdAt = new Date(
       Number(timestamp.split("-")[0]),
     ).toISOString();
-    manifest.extra.expoClient.hostUri =
-      baseUrl.replace("https://", "") + "/" + platform;
-    manifest.extra.expoGo.debuggerHost =
-      baseUrl.replace("https://", "") + "/" + platform;
+    // Expo Go expects these fields to contain only the packager host. Adding a
+    // platform path makes Android resolve the project through /android, which
+    // is a static directory rather than an Expo manifest endpoint.
+    const packagerHost = new URL(baseUrl).host;
+    manifest.extra.expoClient.hostUri = packagerHost;
+    manifest.extra.expoGo.debuggerHost = packagerHost;
     manifest.extra.expoGo.packagerOpts.dev = false;
 
     if (manifest.assets && manifest.assets.length > 0) {

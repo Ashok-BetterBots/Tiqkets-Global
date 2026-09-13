@@ -1,0 +1,56 @@
+I need you to prepare this app for App Store and Play Store submission 
+compliance WITHOUT changing any existing features, functionality, UI, or 
+business logic. This is a review/hardening pass only — treat it as 
+read-only for anything that isn't explicitly a compliance gap.
+
+Do the following, and show me a summary of every file touched before 
+and after:
+
+1. AUDIT ONLY FIRST — before making any changes, scan the codebase and 
+   give me a report of:
+   - Current targetSdkVersion / compileSdkVersion (Android) and 
+     deployment target (iOS)
+   - All permissions declared (AndroidManifest.xml, Info.plist / 
+     app.json permissions block) and whether each is actually used in 
+     code
+   - Any hardcoded API keys, secrets, test credentials, or console.log/
+     debug statements left in the codebase
+   - Whether a Privacy Policy URL and Terms of Service URL are 
+     referenced anywhere in the app or app.json/app.config
+   - Whether account deletion is possible from within the app (required 
+     by Apple if account creation exists)
+   - Whether push notification permission requests are optional/
+     skippable
+   - Any use of third-party login (Google/Facebook) without Sign in 
+     with Apple alongside it
+   - Current app icon and splash screen assets vs what's declared in 
+     app.json/eas.json
+
+2. AFTER I REVIEW THE AUDIT, only then apply fixes, and only for gaps 
+   confirmed above:
+   - Bump targetSdkVersion to Android 16 (API 36) in app.json/
+     eas.json if below that, without altering any other build config
+   - Remove only unused permissions — do not touch permissions actively 
+     used by working features
+   - Strip debug console.log/test credentials from production build 
+     paths only (keep dev environment untouched)
+   - Add usage description strings (NSCameraUsageDescription, 
+     NSLocationWhenInUseUsageDescription, etc.) for every permission 
+     that IS in active use, if missing
+   - Add encryption export compliance flag (ITSAppUsesNonExemptEncryption: 
+     false, unless we use custom encryption beyond HTTPS/standard TLS)
+   - Do NOT modify: screen layouts, navigation flow, API calls, database 
+     schema, Razorpay integration logic, WhatsApp messaging logic, or 
+     any existing working feature
+
+3. For anything that requires a business decision — like whether we 
+   need a hosted Privacy Policy page, or whether account deletion needs 
+   a new screen — STOP and ask me instead of building it, since that's 
+   new functionality, not a compliance fix to existing code.
+
+4. After changes, run the app locally (or confirm via EAS build) to 
+   verify it still starts, loads, and core screens render exactly as 
+   before — report any regression immediately.
+
+Give me the audit report first. Wait for my go-ahead before touching 
+any code.

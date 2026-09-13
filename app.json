@@ -7,30 +7,37 @@
     "icon": "./assets/images/icon.png",
     "scheme": "tiqkets",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "com.tiqkets.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSLocationWhenInUseUsageDescription": "TIQKETS uses your location to show nearby venues and confirm location-restricted queue check-ins.",
-        "NSPhotoLibraryUsageDescription": "TIQKETS uses your photo library only when you choose a profile image.",
-        "UIBackgroundModes": ["audio"]
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false
+        },
+        "NSCameraUsageDescription": "Tiqkets uses your camera to scan queue and ticket QR codes.",
+        "NSLocationWhenInUseUsageDescription": "Tiqkets uses your location to show nearby queues and services and verify in-person access.",
+        "NSPhotoLibraryUsageDescription": "Tiqkets accesses your photos so you can set profile and event images.",
+        "NSPhotoLibraryAddUsageDescription": "Tiqkets saves ticket QR codes to your photo library when you choose to save them.",
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
-      "blockedPermissions": [
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO"
-      ],
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff",
-        "foregroundImage": "./assets/images/logo-color-icon.png",
-        "monochromeImage": "./assets/images/logo-color-icon.png"
+        "backgroundColor": "#8c1867",
+        "foregroundImage": "./assets/images/icon.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.tiqkets.app"
+      "softwareKeyboardLayoutMode": "resize",
+      "package": "com.tiqkets.app",
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "web": {
       "output": "single",
@@ -53,14 +60,55 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow TIQKETS to access your camera to scan QR codes and join queues."
+          "cameraPermission": "Tiqkets uses your camera to scan queue and ticket QR codes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Tiqkets accesses your photos so you can set profile and event images.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "locationWhenInUsePermission": "Tiqkets uses your location to show nearby queues and services and verify in-person access.",
+          "motionUsagePermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
         }
       ],
       "expo-localization",
-      "expo-font"
-    ],
-    "experiments": {
-      "reactCompiler": true
-    }
+      "@react-native-community/datetimepicker",
+      "expo-font",
+      "expo-image",
+      "expo-sharing",
+      "expo-status-bar",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
+          }
+        }
+      ],
+      "expo-asset",
+      "./plugins/with-store-compliance"
+    ]
   }
 }

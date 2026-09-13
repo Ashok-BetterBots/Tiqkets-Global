@@ -1,0 +1,13 @@
+Console Error
+
+App startup import failed: TypeError: Cannot read property 'default' of undefined
+
+Source:
+/home/runner/workspace/client/AppBootstrap.tsx (17:21)
+
+Call Stack:
+addLog (/home/runner/workspace/node_modules/react-native/Libraries/LogBox/Data/LogBoxData.js:235)
+addConsoleLog (/home/runner/workspace/node_modules/react-native/Libraries/LogBox/LogBox.js:213)
+reactConsoleErrorHandler (/home/runner/workspace/node_modules/react-native/Libraries/Core/ExceptionsManager.js:248)
+console.level (/home/runner/workspace/node_modules/react-native/Libraries/Core/setUpDeveloperTools.js:42)
+setTimeout$argument_0 (/home/runner/workspace/client/AppBootstrap.tsx:17)

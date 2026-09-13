@@ -2,10 +2,11 @@ import type { Express, Request, Response } from "express";
 import crypto from "crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, pool } from "./db";
-import { events, eventRegistrations, organizerPayoutProfiles, payments, razorpayWebhookReceipts, routePayoutAllocations } from "@shared/schema";
+import { events, eventRegistrations, eventPaymentCheckouts, organizerPayoutProfiles, payments, razorpayWebhookReceipts, routePayoutAllocations, type EventRegistration } from "@shared/schema";
 import { assertOrgOwnership, getCallerContext, isSuperAdminRequest, requirePermission, writeAudit } from "./rbac";
 import { buildLinkedAccountPayload, buildLinkedAccountUpdatePayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactRouteDiagnosticPayload, routeAllocationStatusFromTransferEntity, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, safeRouteTransferDetails, type SafeRouteTransferDetails, validateAccountUpdateInput, validateLinkedAccountInput, validateOnboardingInput, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
 import { ACTIVE_ROUTE_ACCOUNT_STATUSES } from "@shared/razorpay-onboarding";
+import { directCredentialStatus, getEventPaymentMethod } from "./event-payment-method";
 
 function credentials() {
   const keyId = process.env.RAZORPAY_KEY_ID, secret = process.env.RAZORPAY_KEY_SECRET;
@@ -368,6 +369,7 @@ export function payoutProviderMessage(stage: string, failure: {
   requestId: string | null;
   field?: string | null;
   issue?: RazorpayIssue | null;
+  submittedBusinessType?: string | null;
 }): string {
   const reasonCode = failure.errorCode;
   let message: string;
@@ -380,13 +382,15 @@ export function payoutProviderMessage(stage: string, failure: {
           : "Business email: enter a valid email address that is not already linked to another Razorpay account.",
         phone: "Business phone: enter 8–15 digits without the +91 country code. Example: 9876543210.",
         contact_name: "Account contact name: use 4–255 characters and remove unsupported symbols.",
-        business_type: "Business type: select one of the values shown in the Ticket Payments form.",
+        business_type: failure.submittedBusinessType
+          ? `Business type: Razorpay rejected “${failure.submittedBusinessType.replace(/_/g, " ")}”. Select the organizer's actual legal entity type and ensure the PAN and GSTIN belong to that same entity.`
+          : "Business type: Razorpay rejected the selected type. Select the organizer's actual legal entity type and ensure the PAN and GSTIN belong to that same entity.",
         category: "Razorpay business category: select a value from the uploaded Razorpay category list.",
         subcategory: "Razorpay business subcategory: select a value belonging to the chosen category.",
         street1: "Registered address line 1: enter the primary street or building address, up to 100 characters.",
         street2: "Registered address line 2: this field is required by Razorpay and must be 100 characters or fewer.",
         city: "Registered address city: enter the city name.",
-        state: "Registered address state: enter the full Indian state name.",
+        state: "Registered address state: Razorpay rejected this value. Select the full Indian state name (for example, Tamil Nadu), not an unrecognized abbreviation.",
         postal_code: "Registered address postal code: enter exactly 6 digits.",
         pan: razorpayCredentialMode() === "test"
           ? "PAN: Test Mode requires AAACL1234C. Configure platform live keys before submitting a real PAN."
@@ -418,7 +422,17 @@ export function payoutProviderMessage(stage: string, failure: {
 type RouteProviderFailure = RazorpayFailure & {
   stage: string;
   endpoint: string;
+  submittedBusinessType: string | null;
 };
+
+function safeSubmittedBusinessType(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const value = String((payload as Record<string, unknown>).business_type || "");
+  return new Set([
+    "individual", "proprietorship", "partnership", "private_limited", "public_limited",
+    "llp", "trust", "society", "ngo", "other", "not_yet_registered", "educational_institutes",
+  ]).has(value) ? value : null;
+}
 
 async function routeProviderFailure(input: {
   stage: string;
@@ -427,7 +441,12 @@ async function routeProviderFailure(input: {
   response: globalThis.Response;
 }): Promise<RouteProviderFailure> {
   const failure = await razorpayFailure(input.response);
-  const diagnostic: RouteProviderFailure = { ...failure, stage: input.stage, endpoint: input.endpoint };
+  const diagnostic: RouteProviderFailure = {
+    ...failure,
+    stage: input.stage,
+    endpoint: input.endpoint,
+    submittedBusinessType: safeSubmittedBusinessType(input.payload),
+  };
   console.error("[razorpay-route] onboarding request rejected", {
     stage: diagnostic.stage,
     endpoint: diagnostic.endpoint,
@@ -436,6 +455,7 @@ async function routeProviderFailure(input: {
     requestId: diagnostic.requestId,
     field: diagnostic.field,
     issue: diagnostic.issue,
+    submittedBusinessType: diagnostic.submittedBusinessType,
     payload: redactRouteDiagnosticPayload(input.payload),
   });
   return diagnostic;
@@ -556,6 +576,218 @@ async function recoverCapturedPayment(orderId: string, paymentId: string): Promi
   return issued.status === "ticket_generated" ? "processed" : "failed";
 }
 
+async function recoverDirectCapturedPayment(orderId: string, paymentId: string): Promise<WebhookProcessResult> {
+  const [checkout] = await db.select().from(eventPaymentCheckouts)
+    .where(eq(eventPaymentCheckouts.razorpayOrderId, orderId)).limit(1);
+  // A capture can race the local order-binding update. Keep the receipt in
+  // recovery_failed so the normal reclaim worker retries it instead of
+  // permanently deduplicating a valid payment.
+  if (!checkout || checkout.adapter !== "direct") return "failed";
+  const [reg] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, checkout.registrationId)).limit(1);
+  if (!reg) return "failed";
+  const [ev] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
+  if (!ev) return "failed";
+  const disposition = paymentRecoveryDisposition(reg.status);
+  if (disposition === "terminal") return "processed";
+  if (disposition === "reject") return "failed";
+  if (disposition === "issue_ticket") {
+    const { issueTicket } = await import("./events-routes");
+    const issued = await issueTicket(ev, reg);
+    return issued.status === "ticket_generated" ? "processed" : "failed";
+  }
+  const keyId = process.env.RAZORPAY_DIRECT_KEY_ID, secret = process.env.RAZORPAY_DIRECT_KEY_SECRET;
+  if (!keyId || !secret) return "failed";
+  const auth = `Basic ${Buffer.from(`${keyId}:${secret}`).toString("base64")}`;
+  const get = (path: string) => fetch(`https://api.razorpay.com/v1${path}`, { headers: { Authorization: auth }, signal: AbortSignal.timeout(10_000) });
+  const [orderRes, paymentRes] = await Promise.all([get(`/orders/${encodeURIComponent(orderId)}`), get(`/payments/${encodeURIComponent(paymentId)}`)]);
+  if (!orderRes.ok || !paymentRes.ok) return "failed";
+  const order: any = await orderRes.json(), payment: any = await paymentRes.json();
+  if (order.status !== "paid" || payment.status !== "captured" || payment.order_id !== orderId ||
+      Number(order.amount) !== checkout.amount || Number(payment.amount) !== checkout.amount ||
+      String(order.currency || "").toUpperCase() !== checkout.currency.toUpperCase() ||
+      String(payment.currency || "").toUpperCase() !== checkout.currency.toUpperCase() ||
+      String(order.notes?.registrationId || "") !== reg.id) return "failed";
+  let paymentRow: any;
+  try {
+    [paymentRow] = await db.insert(payments).values({
+      organizationId: ev.organizationId, amount: checkout.amount, currency: checkout.currency,
+      status: "captured", razorpayPaymentId: paymentId, razorpayOrderId: orderId,
+      paymentMethod: payment.method || null, description: `Event registration — ${ev.name}`, paidAt: new Date(),
+    }).returning();
+  } catch {
+    [paymentRow] = await db.select().from(payments).where(eq(payments.razorpayPaymentId, paymentId)).limit(1);
+  }
+  const [paid] = await db.update(eventRegistrations).set({
+    status: "payment_completed", amountPaid: checkout.amount, paymentId: paymentRow?.id || null, updatedAt: new Date(),
+  }).where(and(eq(eventRegistrations.id, reg.id), eq(eventRegistrations.status, "registration_started"))).returning();
+  if (!paid) {
+    const [current] = await db.select().from(eventRegistrations)
+      .where(eq(eventRegistrations.id, reg.id)).limit(1);
+    if (current?.status === "payment_completed") {
+      const { issueTicket } = await import("./events-routes");
+      const issued = await issueTicket(ev, current);
+      return issued.status === "ticket_generated" ? "processed" : "failed";
+    }
+    return "processed";
+  }
+  await db.update(eventPaymentCheckouts).set({ status: "captured", updatedAt: new Date() }).where(eq(eventPaymentCheckouts.id, checkout.id));
+  await db.execute(sql`INSERT INTO event_stage_log (registration_id, stage, metadata) VALUES (${reg.id}, 'payment_completed', ${JSON.stringify({ amount: checkout.amount })}::jsonb)`);
+  const { issueTicket } = await import("./events-routes");
+  const issued = await issueTicket(ev, paid);
+  return issued.status === "ticket_generated" ? "processed" : "failed";
+}
+
+function paymentLinkProviderAuth(): string | null {
+  const keyId = process.env.RAZORPAY_DIRECT_KEY_ID;
+  const secret = process.env.RAZORPAY_DIRECT_KEY_SECRET;
+  return keyId && secret ? `Basic ${Buffer.from(`${keyId}:${secret}`).toString("base64")}` : null;
+}
+
+async function fetchPaymentLinkProvider(path: string): Promise<globalThis.Response> {
+  const auth = paymentLinkProviderAuth();
+  if (!auth) throw new Error("Direct Razorpay credentials are not configured");
+  return fetch(`https://api.razorpay.com/v1${path}`, {
+    headers: { Authorization: auth },
+    signal: AbortSignal.timeout(10_000),
+  });
+}
+
+function paymentLinkEntity(payload: any): any {
+  return payload?.payload?.payment_link?.entity || {};
+}
+
+function paymentLinkPaymentEntity(payload: any): any {
+  return payload?.payload?.payment?.entity || {};
+}
+
+export async function recoverPaymentLinkPaid(paymentLinkId: string, paymentIdHint?: string): Promise<WebhookProcessResult> {
+  const [checkout] = await db.select().from(eventPaymentCheckouts)
+    .where(eq(eventPaymentCheckouts.razorpayPaymentLinkId, paymentLinkId)).limit(1);
+  if (!checkout || checkout.adapter !== "payment_links") return "ignored";
+  const [reg] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, checkout.registrationId)).limit(1);
+  if (!reg) return "failed";
+  const [ev] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
+  if (!ev) return "failed";
+  const disposition = paymentRecoveryDisposition(reg.status);
+  if (disposition === "terminal") return "processed";
+  if (disposition === "reject") return "failed";
+  let linkRes: globalThis.Response;
+  try {
+    linkRes = await fetchPaymentLinkProvider(`/payment_links/${encodeURIComponent(paymentLinkId)}`);
+  } catch { return "failed"; }
+  if (!linkRes.ok) return "failed";
+  const link: any = await linkRes.json();
+  if (String(link.id || "") !== paymentLinkId ||
+      String(link.reference_id || "") !== String(checkout.paymentLinkReferenceId || "") ||
+      Number(link.amount) !== checkout.amount ||
+      (link.amount_paid !== undefined && Number(link.amount_paid) !== checkout.amount) ||
+      String(link.currency || "").toUpperCase() !== checkout.currency.toUpperCase() ||
+      (link.notes?.registrationId && String(link.notes.registrationId) !== reg.id) ||
+      String(link.status || "").toLowerCase() !== "paid") return "failed";
+
+  let paymentId = paymentIdHint ||
+    String(link.payment_id || link.payment?.id || link.paid_by || "");
+  if (!paymentId && Array.isArray(link.payments)) {
+    const captured = link.payments.find((p: any) => p?.status === "captured") ||
+      link.payments.find((p: any) => p?.payment_id || p?.id);
+    paymentId = String(captured?.payment_id || captured?.id || "");
+  }
+  if (!paymentId) {
+    try {
+      const paymentsRes = await fetchPaymentLinkProvider(`/payment_links/${encodeURIComponent(paymentLinkId)}/payments`);
+      if (paymentsRes.ok) {
+        const body: any = await paymentsRes.json();
+        paymentId = String((Array.isArray(body) ? body : body?.items || [])
+          .find((p: any) => p?.id)?.id || "");
+      }
+    } catch { return "failed"; }
+  }
+  if (!paymentId) return "failed";
+  let paymentRes: globalThis.Response;
+  try {
+    paymentRes = await fetchPaymentLinkProvider(`/payments/${encodeURIComponent(paymentId)}`);
+  } catch { return "failed"; }
+  if (!paymentRes.ok) return "failed";
+  const payment: any = await paymentRes.json();
+  if (String(payment.id || "") !== paymentId ||
+      payment.status !== "captured" ||
+      Number(payment.amount) !== checkout.amount ||
+      String(payment.currency || "").toUpperCase() !== checkout.currency.toUpperCase() ||
+      (payment.payment_link_id && String(payment.payment_link_id) !== paymentLinkId)) return "failed";
+
+  let paid: EventRegistration | undefined;
+  let paymentRowId: string | null = null;
+  await db.transaction(async (tx) => {
+    // Serialize all callback/webhook recovery attempts for this checkout.
+    // Production may temporarily retain the older partial provider-payment
+    // index, which PostgreSQL cannot use as an ON CONFLICT column target.
+    await tx.execute(sql`SELECT id FROM event_payment_checkouts WHERE id = ${checkout.id} FOR UPDATE`);
+    const [existing] = await tx.select().from(payments)
+      .where(eq(payments.razorpayPaymentId, paymentId)).limit(1);
+    if (existing) {
+      if (existing.organizationId !== ev.organizationId ||
+          existing.amount !== checkout.amount ||
+          existing.currency.toUpperCase() !== checkout.currency.toUpperCase()) {
+        throw new Error("Razorpay payment is already bound to another transaction");
+      }
+      paymentRowId = existing.id;
+    } else {
+      const [paymentRow] = await tx.insert(payments).values({
+        organizationId: ev.organizationId, amount: checkout.amount, currency: checkout.currency,
+        status: "captured", razorpayPaymentId: paymentId, paymentMethod: payment.method || "payment_link",
+        description: `Event registration — ${ev.name}`, paidAt: new Date(),
+      }).returning();
+      paymentRowId = paymentRow.id;
+    }
+    const [updated] = await tx.update(eventRegistrations).set({
+      status: "payment_completed", amountPaid: checkout.amount, paymentId: paymentRowId, updatedAt: new Date(),
+    }).where(and(eq(eventRegistrations.id, reg.id), eq(eventRegistrations.status, "registration_started"))).returning();
+    if (updated) paid = updated;
+    else {
+      const [current] = await tx.select().from(eventRegistrations).where(eq(eventRegistrations.id, reg.id)).limit(1);
+      paid = current;
+    }
+    await tx.update(eventPaymentCheckouts).set({
+      status: "captured", paymentLinkPaymentId: paymentId, updatedAt: new Date(),
+    }).where(eq(eventPaymentCheckouts.id, checkout.id));
+  });
+  if (!paid) return "failed";
+  await db.execute(sql`INSERT INTO event_stage_log (registration_id, stage, metadata) VALUES (${reg.id}, 'payment_completed', ${JSON.stringify({ amount: checkout.amount, paymentLinkId, paymentId })}::jsonb)`);
+  const { issueTicket } = await import("./events-routes");
+  const issued = await issueTicket(ev, paid);
+  return issued.status === "ticket_generated" ? "processed" : "failed";
+}
+
+async function recordPaymentLinkPartial(payload: any, paymentLinkId: string): Promise<WebhookProcessResult> {
+  const [checkout] = await db.select().from(eventPaymentCheckouts)
+    .where(eq(eventPaymentCheckouts.razorpayPaymentLinkId, paymentLinkId)).limit(1);
+  if (!checkout || checkout.adapter !== "payment_links") return "ignored";
+  const [registration] = await db.select({ status: eventRegistrations.status, amountPaid: eventRegistrations.amountPaid })
+    .from(eventRegistrations).where(eq(eventRegistrations.id, checkout.registrationId)).limit(1);
+  if (!registration) return "failed";
+  const link = paymentLinkEntity(payload);
+  const amount = Number(link.amount_paid ?? paymentLinkPaymentEntity(payload).amount ?? 0);
+  if (!Number.isSafeInteger(amount) || amount <= 0 || amount >= checkout.amount ||
+      (link.reference_id && String(link.reference_id) !== String(checkout.paymentLinkReferenceId)) ||
+      (link.amount !== undefined && Number(link.amount) !== checkout.amount) ||
+      (link.currency && String(link.currency).toUpperCase() !== checkout.currency.toUpperCase())) return "failed";
+  await db.transaction(async (tx) => {
+    await tx.update(eventRegistrations).set({ amountPaid: Math.max(registration.amountPaid, amount), updatedAt: new Date() })
+      .where(and(eq(eventRegistrations.id, checkout.registrationId), eq(eventRegistrations.status, "registration_started")));
+    await tx.update(eventPaymentCheckouts).set({ status: "partially_paid", updatedAt: new Date() })
+      .where(eq(eventPaymentCheckouts.id, checkout.id));
+  });
+  return "processed";
+}
+
+async function updatePaymentLinkTerminalState(paymentLinkId: string, status: "expired" | "cancelled"): Promise<WebhookProcessResult> {
+  const [checkout] = await db.select().from(eventPaymentCheckouts)
+    .where(eq(eventPaymentCheckouts.razorpayPaymentLinkId, paymentLinkId)).limit(1);
+  if (!checkout || checkout.adapter !== "payment_links") return "ignored";
+  await db.update(eventPaymentCheckouts).set({ status, updatedAt: new Date() }).where(eq(eventPaymentCheckouts.id, checkout.id));
+  return "processed";
+}
+
 async function applyVerifiedTransferEntity(
   transfer: any,
   expectedEvent?: "transfer.processed" | "transfer.failed" | "settlement.processed",
@@ -641,7 +873,19 @@ export function registerRoutePayoutRoutes(app: Express) {
         // Keep the last safe local state if Razorpay is temporarily unavailable.
       }
     }
-    return res.json({ profile: payoutProfileView(refreshedProfile) });
+    const paymentMethod = await getEventPaymentMethod();
+    const routeProfile = payoutProfileView(refreshedProfile);
+    return res.json({
+      profile: {
+        ...routeProfile,
+        paymentMethod,
+        directReady: directCredentialStatus().configured,
+        paymentLinksReady: directCredentialStatus().configured,
+        canAcceptPaidTickets: paymentMethod === "razorpay_direct" || paymentMethod === "razorpay_payment_links"
+          ? directCredentialStatus().configured
+          : routeProfile.canAcceptPaidTickets,
+      },
+    });
   };
   const saveProfileLegacy = async (req: Request, res: Response) => {
     const organizationId = String(req.params.orgId || req.params.organizationId); if (!await assertPayoutOrganizer(req, res, organizationId)) return;
@@ -1028,7 +1272,9 @@ export function registerRoutePayoutRoutes(app: Express) {
               requestId: diagnostics.requestId,
               field: diagnostics.field,
               issue: diagnostics.issue,
+              submittedBusinessType: diagnostics.submittedBusinessType,
             },
+            ...(diagnostics.field ? { fieldErrors: { [diagnostics.field]: outcome.error } } : {}),
           } : {}),
         });
       }
@@ -1050,6 +1296,7 @@ export function registerRoutePayoutRoutes(app: Express) {
   const history = async (req: Request, res: Response) => {
     const organizationId = String(req.params.orgId || req.params.organizationId); if (!await assertPayoutOrganizer(req, res, organizationId)) return;
     const requested = payoutHistoryPagination(req.query.page, req.query.limit);
+    const activeMethod = await getEventPaymentMethod();
     const [totalsRow] = await db.select({
       total: sql<number>`count(*)::int`,
       gross: sql<number>`coalesce(sum(${routePayoutAllocations.amount}), 0)::int`,
@@ -1057,7 +1304,12 @@ export function registerRoutePayoutRoutes(app: Express) {
       settled: sql<number>`coalesce(sum(case when ${routePayoutAllocations.status} = 'settled' then ${routePayoutAllocations.amount} else 0 end), 0)::int`,
       refunded: sql<number>`coalesce(sum(case when ${routePayoutAllocations.status} = 'refunded' then ${routePayoutAllocations.amount} else 0 end), 0)::int`,
     }).from(routePayoutAllocations).where(eq(routePayoutAllocations.organizationId, organizationId));
-    const total = Number(totalsRow?.total || 0);
+    const [directTotalsRow] = await db.select({
+      total: sql<number>`count(*)::int`, gross: sql<number>`coalesce(sum(${payments.amount}), 0)::int`,
+    }).from(payments).innerJoin(eventRegistrations, eq(eventRegistrations.paymentId, payments.id))
+      .innerJoin(eventPaymentCheckouts, eq(eventPaymentCheckouts.registrationId, eventRegistrations.id))
+      .where(and(eq(payments.organizationId, organizationId), eq(payments.status, "captured"), inArray(eventPaymentCheckouts.adapter, ["direct", "payment_links"])));
+    const total = Number(totalsRow?.total || 0) + Number(directTotalsRow?.total || 0);
     const totalPages = total ? Math.ceil(total / requested.limit) : 0;
     const page = totalPages ? Math.min(requested.page, totalPages) : 1;
     const rows = await db.select({ allocation: routePayoutAllocations, registration: eventRegistrations, event: events, profile: organizerPayoutProfiles }).from(routePayoutAllocations)
@@ -1068,66 +1320,70 @@ export function registerRoutePayoutRoutes(app: Express) {
       .orderBy(desc(routePayoutAllocations.createdAt))
       .limit(requested.limit)
       .offset((page - 1) * requested.limit);
-    const items = await mapWithConcurrency(rows, 4, async ({ allocation, registration, event, profile }) => {
+    let items: any[] = await mapWithConcurrency(rows, 4, async ({ allocation, registration, event, profile }) => {
       const localTransferStatus = allocation.status === "settled" ? "processed" : allocation.status;
-      const localSettlementStatus = allocation.status === "settled"
-        ? "settled"
+      const localSettlementStatus = allocation.status === "settled" ? "settled"
         : allocation.status === "processed" ? "settlement_pending"
-        : allocation.status === "captured" ? "transfer_pending"
-        : allocation.status;
+        : allocation.status === "captured" ? "transfer_pending" : allocation.status;
       const base = {
-        id: allocation.id,
-        eventName: event.name,
-        bookingId: registration.bookingId,
-        netAmount: allocation.amount,
-        transferStatus: localTransferStatus,
-        settlementStatus: localSettlementStatus,
-        transferId: allocation.razorpayTransferId,
-        sourceId: null as string | null,
-        recipientId: null as string | null,
-        amount: null as number | null,
-        providerCreatedAt: null as string | null,
-        createdAt: allocation.createdAt,
-        providerTransferStatus: null as string | null,
+        id: allocation.id, eventName: event.name, bookingId: registration.bookingId,
+        adapter: "route" as const,
+        netAmount: allocation.amount, transferStatus: localTransferStatus,
+        settlementStatus: localSettlementStatus, transferId: allocation.razorpayTransferId,
+        sourceId: null as string | null, recipientId: null as string | null,
+        amount: null as number | null, providerCreatedAt: null as string | null,
+        createdAt: allocation.createdAt, providerTransferStatus: null as string | null,
         providerSettlementStatus: null as string | null,
         orderTransferred: allocation.razorpayTransferId ? null as boolean | null : false,
         providerSyncStatus: allocation.razorpayTransferId ? "unavailable" : "not_transferred",
-        razorpayOrderId: allocation.razorpayOrderId,
-        razorpayTransferId: allocation.razorpayTransferId,
+        razorpayOrderId: allocation.razorpayOrderId, razorpayTransferId: allocation.razorpayTransferId,
         failureReason: allocation.status === "failed" ? "Razorpay marked this organizer transfer as failed." : null,
       };
-
       if (!allocation.razorpayTransferId || !isValidRazorpayProviderId(allocation.razorpayTransferId, "trf_")) return base;
       const details = await lookupSafeRouteTransfer({
-        transferId: allocation.razorpayTransferId,
-        amount: allocation.amount,
-        allocationId: allocation.id,
-        recipientId: profile.razorpayAccountId,
+        transferId: allocation.razorpayTransferId, amount: allocation.amount,
+        allocationId: allocation.id, recipientId: profile.razorpayAccountId,
       }, async transferId => {
         const response = await razorpay(`/transfers/${encodeURIComponent(transferId)}`, { method: "GET" });
         if (!response.ok) throw new Error("Razorpay transfer lookup unavailable");
         return response.json();
       });
       if (!details) return base;
-      return {
-        ...base,
-        transferId: details.transferId,
-        sourceId: details.sourceId,
-        recipientId: details.recipientId,
-        amount: details.amount,
-        providerCreatedAt: details.createdAt,
+      return { ...base, transferId: details.transferId, sourceId: details.sourceId,
+        recipientId: details.recipientId, amount: details.amount, providerCreatedAt: details.createdAt,
         createdAt: details.createdAt || allocation.createdAt,
         transferStatus: details.transferStatus || localTransferStatus,
         settlementStatus: details.settlementStatus || localSettlementStatus,
         providerTransferStatus: details.transferStatus,
         providerSettlementStatus: details.settlementStatus,
-        orderTransferred: details.orderTransferred,
-        providerSyncStatus: "synced",
-      };
+        orderTransferred: details.orderTransferred, providerSyncStatus: "synced" };
     });
+    // Direct captures have no Route allocation. Include them in the same
+    // historical feed even after the global adapter changes.
+    const directRows = await db.select({ payment: payments, registration: eventRegistrations, event: events, checkout: eventPaymentCheckouts })
+      .from(payments).innerJoin(eventRegistrations, eq(eventRegistrations.paymentId, payments.id))
+      .innerJoin(events, eq(eventRegistrations.eventId, events.id))
+      .innerJoin(eventPaymentCheckouts, eq(eventPaymentCheckouts.registrationId, eventRegistrations.id))
+      .where(and(eq(payments.organizationId, organizationId), eq(payments.status, "captured"), inArray(eventPaymentCheckouts.adapter, ["direct", "payment_links"])))
+      .orderBy(desc(payments.createdAt));
+    items = [...items, ...directRows.map(({ payment, registration, event, checkout }) => ({
+      id: payment.id, adapter: checkout.adapter as "direct" | "payment_links", eventName: event.name, bookingId: registration.bookingId,
+      amount: payment.amount, status: payment.status, razorpayOrderId: payment.razorpayOrderId,
+       razorpayPaymentId: payment.razorpayPaymentId, paymentMethod: payment.paymentMethod,
+       ...(checkout.adapter === "payment_links" ? {
+         paymentLinkId: checkout.razorpayPaymentLinkId,
+         paymentLinkReferenceId: checkout.paymentLinkReferenceId,
+         paymentLinkReference: checkout.paymentLinkReferenceId,
+         shortUrl: checkout.razorpayShortUrl,
+         paymentLinkPaymentId: checkout.paymentLinkPaymentId,
+         paymentLinkStatus: checkout.status,
+       } : {}),
+      paidAt: payment.paidAt, createdAt: payment.createdAt,
+    }))].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return res.json({
+      activeMethod,
       totals: {
-        gross: Number(totalsRow?.gross || 0),
+        gross: Number(totalsRow?.gross || 0) + Number(directTotalsRow?.gross || 0),
         transferred: Number(totalsRow?.transferred || 0),
         settled: Number(totalsRow?.settled || 0),
         refunded: Number(totalsRow?.refunded || 0),
@@ -1307,7 +1563,9 @@ export function registerRoutePayoutRoutes(app: Express) {
   app.post("/api/webhooks/razorpay", async (req, res) => {
     const raw = req.rawBody;
     const signature = req.header("x-razorpay-signature");
-    if (!Buffer.isBuffer(raw) || !verifyRazorpaySignature(raw, signature, process.env.RAZORPAY_WEBHOOK_SECRET)) return res.status(401).json({ error: "Invalid webhook signature" });
+    const routeAuthenticated = Buffer.isBuffer(raw) && verifyRazorpaySignature(raw, signature, process.env.RAZORPAY_WEBHOOK_SECRET);
+    const directAuthenticated = Buffer.isBuffer(raw) && verifyRazorpaySignature(raw, signature, process.env.RAZORPAY_DIRECT_WEBHOOK_SECRET);
+    if (!routeAuthenticated && !directAuthenticated) return res.status(401).json({ error: "Invalid webhook signature" });
     const payload: any = req.body;
     const eventId = String(req.header("x-razorpay-event-id") || crypto.createHash("sha256").update(raw).digest("hex"));
     try {
@@ -1323,18 +1581,60 @@ export function registerRoutePayoutRoutes(app: Express) {
       }
       const eventType = String(payload?.event || "");
       let outcome: WebhookProcessResult = "ignored";
-      if (eventType === "payment.captured") {
+       if (eventType === "payment_link.paid" || eventType === "payment_link.partially_paid" ||
+           eventType === "payment_link.expired" || eventType === "payment_link.cancelled") {
+         // Payment Links use the Direct credential set, including its
+         // dedicated webhook secret. Never let a valid Route signature
+         // authorize a Payment Link state transition.
+         if (!directAuthenticated) {
+           outcome = "failed";
+         } else {
+           const linkEntity = paymentLinkEntity(payload);
+           const paymentLinkId = String(linkEntity.id || "");
+           if (!paymentLinkId) outcome = "failed";
+           else if (eventType === "payment_link.paid") {
+             const paymentEntity = paymentLinkPaymentEntity(payload);
+             outcome = await recoverPaymentLinkPaid(paymentLinkId, String(paymentEntity.id || "") || undefined);
+           } else if (eventType === "payment_link.partially_paid") {
+             outcome = await recordPaymentLinkPartial(payload, paymentLinkId);
+           } else {
+             outcome = await updatePaymentLinkTerminalState(paymentLinkId, eventType === "payment_link.expired" ? "expired" : "cancelled");
+           }
+         }
+       } else if (eventType === "payment.captured") {
         // Payload only supplies lookup ids. recoverCapturedPayment independently
         // fetches order + payment and verifies every binding before issuing.
         const paymentId = String(payload?.payload?.payment?.entity?.id || "");
         const orderId = String(payload?.payload?.payment?.entity?.order_id || "");
-        outcome = paymentId && orderId ? await recoverCapturedPayment(orderId, paymentId) : "failed";
+        if (paymentId && orderId) {
+          const [checkout] = await db.select({ adapter: eventPaymentCheckouts.adapter })
+            .from(eventPaymentCheckouts)
+            .where(eq(eventPaymentCheckouts.razorpayOrderId, orderId))
+            .limit(1);
+          if (checkout?.adapter === "direct") {
+            outcome = directAuthenticated
+              ? await recoverDirectCapturedPayment(orderId, paymentId)
+              : "failed";
+          } else {
+            // Legacy Route orders may predate checkout snapshots, so absence of
+            // a snapshot continues through the existing Route recovery path.
+            outcome = routeAuthenticated
+              ? await recoverCapturedPayment(orderId, paymentId)
+              : "failed";
+          }
+        } else {
+          outcome = "failed";
+        }
       } else if (eventType === "transfer.processed" || eventType === "transfer.failed") {
         const transferId = String(payload?.payload?.transfer?.entity?.id || "");
-        outcome = await reconcileTransferWebhook(transferId, eventType);
+        outcome = routeAuthenticated
+          ? await reconcileTransferWebhook(transferId, eventType)
+          : "failed";
       } else if (eventType === "settlement.processed") {
         const settlementId = String(payload?.payload?.settlement?.entity?.id || "");
-        outcome = await reconcileSettlementWebhook(settlementId);
+        outcome = routeAuthenticated
+          ? await reconcileSettlementWebhook(settlementId)
+          : "failed";
       }
       await db.update(razorpayWebhookReceipts).set({
         status: outcome === "failed" ? "recovery_failed" : outcome,

@@ -92,6 +92,7 @@ export function BottomSheet({
       animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
+      navigationBarTranslucent
     >
       <Animated.View
         entering={FadeIn.duration(200)}

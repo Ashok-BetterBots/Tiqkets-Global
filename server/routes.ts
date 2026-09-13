@@ -24,6 +24,7 @@ import { registerBillingRoutes } from "./billing-routes";
 import { registerReportRoutes } from "./reports";
 import { registerQueueTicketRoutes } from "./queue-ticket-routes";
 import { registerRoutePayoutRoutes } from "./route-payouts";
+import { directCredentialStatus, getEventPaymentMethod, setEventPaymentMethod } from "./event-payment-method";
 import { broadcastAnnouncement, broadcastQueueUpdate, resolveEffectiveQueueMode } from "./announcements";
 import {
   checkAndSendQueueNotifications,
@@ -45,6 +46,7 @@ import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle, normalizeWaMode } from "@shared/wa-templates";
 import { isDineInMode, seedDineInFields } from "@shared/dineInFields";
 import { isTakeawayMode, seedTakeawayFields } from "@shared/takeawayFields";
+import { buildQueueModePresetFields, queueModesEqual } from "@shared/queueModeFields";
 import {
   predictForTicket,
   recordCompletion,
@@ -153,58 +155,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
   // CUSTOMER AUTH (WhatsApp OTP)
   // ============================================
-
-  app.get("/account-deletion", (_req: Request, res: Response) => {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.setHeader("Cache-Control", "public, max-age=300");
-    res.sendFile(path.join(templatesDir, "account-deletion.html"));
-  });
-
-  const deletionRequestAttempts = new Map<string, number>();
-  app.post(
-    "/api/account-deletion-requests",
-    publicRoute("public account deletion request form"),
-    async (req: Request, res: Response) => {
-      try {
-        const email = String(req.body?.email ?? "").trim().toLowerCase();
-        const phone = String(req.body?.phone ?? "").trim().slice(0, 40);
-        const details = String(req.body?.details ?? "").trim().slice(0, 1000);
-        const accountType = req.body?.accountType === "customer" ? "customer" : "organization";
-        if (req.body?.website) return res.status(202).json({ reference: "received" });
-        if (!email && !phone) {
-          return res.status(400).json({ error: "Enter the email address or phone number registered to the account." });
-        }
-        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          return res.status(400).json({ error: "Enter a valid account email address." });
-        }
-        const source = req.ip || "unknown";
-        const lastAttempt = deletionRequestAttempts.get(source) ?? 0;
-        if (Date.now() - lastAttempt < 60_000) {
-          return res.status(429).json({ error: "Please wait a minute before sending another request." });
-        }
-        deletionRequestAttempts.set(source, Date.now());
-        const ticketNumber = `DEL-${Date.now().toString(36).toUpperCase()}`;
-        await storage.createSupportTicket({
-          organizationId: null,
-          ticketNumber,
-          subject: `Account deletion request (${accountType})`,
-          description: [
-            email ? `Account email: ${email}` : null,
-            phone ? `Registered phone: ${phone}` : null,
-            details ? `Additional details: ${details}` : null,
-            "Verify ownership before deleting or anonymizing data.",
-          ].filter(Boolean).join("\n"),
-          priority: "high",
-          status: "open",
-          reportedByEmail: email || null,
-        });
-        return res.status(201).json({ reference: ticketNumber });
-      } catch (error) {
-        console.error("create account deletion request failed:", error);
-        return res.status(500).json({ error: "Could not submit the request. Please email hello@tiqkets.in." });
-      }
-    },
-  );
 
   app.post("/api/auth/send-otp", async (req: Request, res: Response) => {
     try {
@@ -1290,6 +1240,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // the user picks the "Event" account type.
         eventName, eventDescription, eventStartDate, eventEndDate, locationName,
       } = req.body;
+
+      if (typeof password !== "string" || password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
 
       // Account flavour: "organization" (default) or "event". Anything else
       // is rejected rather than silently coerced so the client learns about
@@ -3394,6 +3348,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const existingService = await storage.getServiceById(serviceId);
       const previousStatus = (existingService as any)?.queueStatus || "active";
+      if (existingService && serviceSettings !== undefined) {
+        const branch = await storage.getBranchById(existingService.branchId);
+        const org = branch ? await storage.getOrganizationById(branch.organizationId) : null;
+        const oldMode = (existingService.serviceSettings as any)?.queueMode
+          || (branch as any)?.queueMode
+          || (branch as any)?.settings?.queueMode
+          || (org as any)?.settings?.queueMode
+          || "fifo";
+        const newMode = serviceSettings?.queueMode
+          || (branch as any)?.queueMode
+          || (branch as any)?.settings?.queueMode
+          || (org as any)?.settings?.queueMode
+          || "fifo";
+        if (!queueModesEqual(oldMode, newMode)) {
+          updateData.inputFields = buildQueueModePresetFields(newMode);
+        }
+      }
 
       const service = await storage.updateService(serviceId, updateData);
 
@@ -4213,13 +4184,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (branchForMode as any)?.queueMode ||
         (branchForMode as any)?.settings?.queueMode ||
         (orgForMode as any)?.settings?.queueMode;
-      if (isDineInMode(effectiveMode)) {
+      const previousEffectiveMode =
+        existingSettings.queueMode ||
+        (branchForMode as any)?.queueMode ||
+        (branchForMode as any)?.settings?.queueMode ||
+        (orgForMode as any)?.settings?.queueMode;
+      if (!queueModesEqual(previousEffectiveMode, effectiveMode)) {
+        serviceUpdate.inputFields = buildQueueModePresetFields(effectiveMode);
+      } else if (isDineInMode(effectiveMode)) {
         const seeded = seedDineInFields((service.inputFields as any[]) || []);
         if (seeded.length !== ((service.inputFields as any[]) || []).length) {
           serviceUpdate.inputFields = seeded;
         }
       }
-      if (isTakeawayMode(effectiveMode)) {
+      if (serviceUpdate.inputFields === undefined && isTakeawayMode(effectiveMode)) {
         const seeded = seedTakeawayFields((service.inputFields as any[]) || []);
         if (seeded.length !== ((service.inputFields as any[]) || []).length) {
           serviceUpdate.inputFields = seeded;
@@ -4510,12 +4488,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       if (!await assertCanCreateOrgUser(req, res, organizationId)) return;
+      if (typeof password !== "string" || password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
       const user = await storage.createOrgUser({
         organizationId,
         name,
         email,
         phone,
-        password: password || "changeme123",
+        password,
         role: roleRow.key,
         roleId: roleRow.id,
         branchId: branchIdNorm,
@@ -4688,6 +4669,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (requiresInPersonRegistration !== undefined) updateData.requiresInPersonRegistration = requiresInPersonRegistration;
       if (inPersonPerimeterMeters !== undefined) updateData.inPersonPerimeterMeters = parseInt(inPersonPerimeterMeters) || 100;
       if (serviceSettings !== undefined) updateData.serviceSettings = serviceSettings;
+      const existingService = await storage.getServiceById(id);
+      if (existingService && serviceSettings !== undefined) {
+        const branch = await storage.getBranchById(existingService.branchId);
+        const org = branch ? await storage.getOrganizationById(branch.organizationId) : null;
+        const oldMode = (existingService.serviceSettings as any)?.queueMode
+          || (branch as any)?.queueMode || (branch as any)?.settings?.queueMode
+          || (org as any)?.settings?.queueMode || "fifo";
+        const newMode = serviceSettings?.queueMode
+          || (branch as any)?.queueMode || (branch as any)?.settings?.queueMode
+          || (org as any)?.settings?.queueMode || "fifo";
+        if (!queueModesEqual(oldMode, newMode)) {
+          updateData.inputFields = buildQueueModePresetFields(newMode);
+        }
+      }
       const service = await storage.updateService(id, updateData);
       res.json({ service });
     } catch (error) {
@@ -6505,6 +6500,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ customerAppLoginEnabled: enabled });
     } catch (err) {
       console.error("update customer-app-login setting failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Global event checkout provider selection. Route remains the safe default
+  // when the setting is absent or was written by an older/invalid client.
+  app.get("/api/superadmin/event-payment-method", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const paymentMethod = await getEventPaymentMethod();
+      const direct = directCredentialStatus();
+      res.json({ paymentMethod, direct, paymentLinksReady: direct.configured });
+    } catch (err) {
+      console.error("get event payment method failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.put("/api/superadmin/event-payment-method", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const paymentMethod = await setEventPaymentMethod(req.body?.paymentMethod);
+      const direct = directCredentialStatus();
+      res.json({ paymentMethod, direct, paymentLinksReady: direct.configured });
+    } catch (err) {
+      if (err instanceof Error && err.message === "Invalid event payment method") {
+        return res.status(400).json({ error: "paymentMethod must be razorpay_route, razorpay_direct, or razorpay_payment_links" });
+      }
+      if (err instanceof Error && (err.message === "Direct Razorpay credentials are not configured" || err.message === "Direct Razorpay credentials are not configured: key, secret, and webhook secret are required")) {
+        return res.status(409).json({ error: "Direct Razorpay key, secret, and webhook secret are required", direct: directCredentialStatus() });
+      }
+      console.error("update event payment method failed:", err);
       res.status(500).json({ error: "Failed" });
     }
   });

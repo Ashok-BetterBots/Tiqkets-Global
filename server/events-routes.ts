@@ -27,8 +27,11 @@ import QRCode from "qrcode";
 import { db, pool } from "./db";
 import { and, desc, eq, gte, ilike, inArray, isNull, isNotNull, lt, ne, or, sql as dsql } from "drizzle-orm";
 import {
+  DEFAULT_EVENT_OTP_SETTINGS,
+  DEFAULT_EVENT_REFUND_POLICY,
   DEFAULT_EVENT_WHATSAPP_TRIGGERS,
   EVENT_WHATSAPP_TRIGGER_KEYS,
+  type EventOtpSettings,
   type EventWhatsAppTriggers,
   events,
   eventRegistrations,
@@ -48,15 +51,26 @@ import {
   payments,
   organizerPayoutProfiles,
   routePayoutAllocations,
+  eventPaymentCheckouts,
   type Event,
   type EventRegistration,
+  type EventRefundPolicy,
   type PreprintedBackElement,
   type PreprintedBackElementType,
   type PreprintedBackFontFamily,
   type PreprintedBackLayout,
 } from "@shared/schema";
-import { createRouteOrder, isRazorpayTestMode, isRouteProfileActive, mapWithConcurrency } from "./route-payouts";
+import { createRouteOrder, isRazorpayTestMode, isRouteProfileActive, mapWithConcurrency, recoverPaymentLinkPaid } from "./route-payouts";
+import { createDirectOrder } from "./razorpay-direct";
+import { createPaymentLink } from "./razorpay-payment-links";
+import { directCredentialStatus, getEventPaymentMethod } from "./event-payment-method";
 import { isValidRazorpayProviderId } from "./razorpay-route-contract";
+import { formatEventSlotRange, formatEventTime } from "@shared/eventSlots";
+import {
+  getExactTicketIdCandidates,
+  getPartialTicketIdPatterns,
+  normalizeTicketIdSearchInput,
+} from "./event-ticket-id-search";
 import {
   requirePermission,
   publicRoute,
@@ -95,6 +109,25 @@ function requireAnyEventsPerm() {
   (fn as any).__permissionKey = "org.events.* (any)";
   return fn;
 }
+
+export function canConfigureEventRegistrationFee(profile: {
+  providerProductId?: string | null;
+  productStatus?: string | null;
+} | null | undefined): boolean {
+  return !!profile &&
+    isValidRazorpayProviderId(profile.providerProductId, "acc_prd_");
+}
+
+/** Paid-event configuration follows the adapter currently selected by the platform. */
+export function canConfigureEventRegistrationFeeForMethod(
+  method: "razorpay_route" | "razorpay_direct" | "razorpay_payment_links",
+  profile: { providerProductId?: string | null; productStatus?: string | null } | null | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return method === "razorpay_direct" || method === "razorpay_payment_links"
+    ? directCredentialStatus(env).configured
+    : canConfigureEventRegistrationFee(profile);
+}
 // Admin (org.events.manage) or Billing (org.events.billing) only — used for
 // the desk/counter manual registration flow.
 function requireEventsManageOrBilling() {
@@ -112,7 +145,7 @@ function requireEventsManageOrBilling() {
 }
 import { renderWaMessage, type WaVars } from "./wa-templates";
 import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTemplateMessage, sendWhatsAppOTP, normalizeIndianPhone } from "./whatsapp";
-import { getPublicBaseUrl } from "./mailer";
+import { getPublicBaseUrl, sendEventTicketEmail } from "./mailer";
 import { isSupportedLanguage } from "@shared/languages";
 import { getApprovedWaTemplate } from "@shared/wa-approved-templates";
 import { ObjectStorageService } from "./objectStorage";
@@ -122,6 +155,18 @@ const templatesDir = path.resolve(process.cwd(), "server", "templates");
 // Registration rows stuck in `registration_started` (payment never
 // completed) stop holding slot capacity after this many minutes.
 const PENDING_HOLD_MINUTES = 30;
+const allowedProductCategories = new Set([
+  "electronics",
+  "furniture",
+  "home_appliances",
+  "vessels",
+]);
+const allowedSpecialCategories = new Set([
+  "senior_citizen",
+  "pregnant_women",
+  "infants",
+  "specially_abled",
+]);
 
 // ---------------------------------------------------------------
 // Helpers
@@ -132,22 +177,35 @@ function makeBookingId(): string {
   const bytes = crypto.randomBytes(6);
   let s = "";
   for (const byte of bytes) s += chars[byte % chars.length];
-  return `EVT-${s}`;
+  return `TIQ-${s}`;
 }
 
 function makeQrToken(): string {
   return crypto.randomBytes(20).toString("hex");
 }
 
-function makePreprintedTicketId(): string {
-  // PTK-XXXXXXXXXX: PTK prefix + 10 random alphanumeric chars (no numeric suffix).
-  // Total length = 14 chars, well within the varchar(20) booking_id column.
+const DEFAULT_PREPRINTED_TICKET_PREFIX = "EVT";
+
+export function normalizePreprintedTicketPrefix(
+  value: unknown,
+  fallback = DEFAULT_PREPRINTED_TICKET_PREFIX,
+): string {
+  const normalized = String(value ?? fallback).trim().toUpperCase().replace(/-+$/, "");
+  if (!/^[A-Z0-9]{2,8}$/.test(normalized)) {
+    throw new Error("Ticket prefix must be 2–8 letters or numbers");
+  }
+  return normalized;
+}
+
+function makePreprintedTicketId(prefix: string): string {
+  // PREFIX-XXXXXXXXXX: organizer prefix + 10 random unambiguous characters.
+  // Maximum length is 19 chars, within the varchar(20) booking_id column.
   // Each ticket is independently random — uniqueness is enforced by the DB.
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes = crypto.randomBytes(10);
   let s = "";
   for (const byte of bytes) s += chars[byte % chars.length];
-  return `PTK-${s}`;
+  return `${normalizePreprintedTicketPrefix(prefix)}-${s}`;
 }
 
 function makePreprintedBatchCode(): string {
@@ -238,6 +296,19 @@ function generateOtpCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+function normalizeCategorySelections(value: unknown, fallback: unknown, allowed: Set<string>): string[] | null {
+  const raw = Array.isArray(value) ? value : fallback == null ? [] : [fallback];
+  const normalized = [...new Set(raw.map((item) => String(item || "").trim().toLowerCase()).filter(Boolean))];
+  return normalized.length > 0 && normalized.every((item) => allowed.has(item)) ? normalized : null;
+}
+
+function normalizeOptionalCategorySelections(value: unknown, allowed: Set<string>): string[] | null {
+  if (value == null) return [];
+  if (!Array.isArray(value)) return null;
+  const normalized = [...new Set(value.map((item) => String(item || "").trim().toLowerCase()).filter(Boolean))];
+  return normalized.every((item) => allowed.has(item)) ? normalized : null;
+}
+
 function formatSlotDate(dateStr: string): string {
   try {
     const [y, m, d] = dateStr.split("-").map(Number);
@@ -250,14 +321,7 @@ function formatSlotDate(dateStr: string): string {
 }
 
 function formatSlotTime(timeStr: string): string {
-  try {
-    const [h, m] = timeStr.split(":").map(Number);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const hh = h % 12 === 0 ? 12 : h % 12;
-    return `${hh}:${String(m).padStart(2, "0")} ${ampm}`;
-  } catch {
-    return timeStr;
-  }
+  return formatEventTime(timeStr);
 }
 
 // Convert a wall-clock date+time in an IANA timezone to a UTC Date.
@@ -318,6 +382,9 @@ export type LocationEventConfig = {
   maxCapacityPerSlot: number;
   slotCapacityOverrides: Record<string, number>;
   registrationFee: number;
+  registrationFeeCustomText: string;
+  refundable: boolean;
+  refundMessage: string;
   // Optional link tying this location to a specific event on the branch.
   // Empty string / undefined means the location is not linked to any event.
   eventId?: string;
@@ -355,6 +422,10 @@ export function resolveLocationConfig(ev: Event, svc: any | null | undefined): L
   const overrides = (s.slotCapacityOverrides && typeof s.slotCapacityOverrides === "object" && !Array.isArray(s.slotCapacityOverrides))
     ? (s.slotCapacityOverrides as Record<string, number>)
     : {};
+  const locationRefundable = typeof s.refundable === "boolean" ? s.refundable : ev.refundable;
+  const hasLocationRefundMessage = typeof s.refundMessage === "string";
+  const locationRefundMessage = hasLocationRefundMessage ? s.refundMessage.trim() : "";
+  const hasLocationFeeText = typeof s.registrationFeeCustomText === "string";
   return {
     operatingHoursStart: s.operatingHoursStart || ev.operatingHoursStart,
     operatingHoursEnd: s.operatingHoursEnd || ev.operatingHoursEnd,
@@ -362,6 +433,11 @@ export function resolveLocationConfig(ev: Event, svc: any | null | undefined): L
     maxCapacityPerSlot: Math.max(0, num(s.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
     slotCapacityOverrides: overrides,
     registrationFee: Math.max(0, num(s.registrationFee, ev.registrationFee)),
+    registrationFeeCustomText: hasLocationFeeText
+      ? s.registrationFeeCustomText.trim()
+      : ev.registrationFeeCustomText || "",
+    refundable: locationRefundable,
+    refundMessage: hasLocationRefundMessage ? locationRefundMessage : ev.refundMessage || "",
     eventId: typeof s.eventId === "string" ? s.eventId : "",
   };
 }
@@ -387,6 +463,44 @@ export function buildEventDates(ev: Event): string[] {
     cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return out;
+}
+
+// Matches the landing page's definition of a bookable date: it has at least
+// one remaining-capacity slot that has not started in the location's timezone.
+export function buildBookableEventDates(
+  ev: Event,
+  cfg: LocationEventConfig,
+  usage: Record<string, number>,
+  timeZone: string,
+  now = Date.now(),
+): string[] {
+  const dates = buildEventDates(ev);
+  const times = buildSlotTimesFrom(cfg.operatingHoursStart, cfg.operatingHoursEnd, cfg.slotDurationMinutes);
+  return dates.filter((date) => times.some((time) => {
+    const capacity = cfg.slotCapacityOverrides[`${date}|${time}`] ?? cfg.maxCapacityPerSlot;
+    const available = capacity - (usage[`${date}|${time}`] || 0);
+    return available > 0 && zonedTimeToUtc(date, time, timeZone).getTime() >= now;
+  }));
+}
+
+// The customer UI lets both registration types use a sole bookable date. When
+// there are multiple dates, its last one is reserved for priority access.
+export function validateEventPriorityAccessDate(
+  bookableDates: string[],
+  slotDate: string,
+  priorityAccess: boolean,
+): string | null {
+  if (!bookableDates.length) {
+    return "No bookable dates are available for this location.";
+  }
+  const finalBookableDate = bookableDates[bookableDates.length - 1];
+  if (priorityAccess && slotDate !== finalBookableDate) {
+    return "Priority access registrations must use the final bookable event date.";
+  }
+  if (!priorityAccess && bookableDates.length > 1 && slotDate === finalBookableDate) {
+    return "The final bookable event date is reserved for priority access registrations.";
+  }
+  return null;
 }
 
 const CAPACITY_STATUSES_SQL = dsql`(${eventRegistrations.status} <> 'registration_started' OR ${eventRegistrations.createdAt} > NOW() - INTERVAL '${dsql.raw(String(PENDING_HOLD_MINUTES))} minutes')`;
@@ -500,6 +614,87 @@ export function normalizeEventWhatsappTriggers(raw: unknown): EventWhatsAppTrigg
     normalized[key as keyof EventWhatsAppTriggers] = value;
   }
   return normalized;
+}
+
+export function normalizeEventOtpSettings(raw: unknown, fallback?: unknown): EventOtpSettings {
+  const base = fallback && typeof fallback === "object" && !Array.isArray(fallback)
+    ? { ...DEFAULT_EVENT_OTP_SETTINGS, ...(fallback as Partial<EventOtpSettings>) }
+    : { ...DEFAULT_EVENT_OTP_SETTINGS };
+  if (raw === undefined || raw === null) return base;
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("otpSettings must be an object map");
+  }
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (key !== "registration" && key !== "billing") {
+      throw new Error(`Unknown OTP setting "${key}"`);
+    }
+    if (typeof value !== "boolean") {
+      throw new Error(`OTP setting "${key}" must be a boolean`);
+    }
+    base[key] = value;
+  }
+  return base;
+}
+
+export function normalizeEventRefundPolicy(raw: unknown, fallback?: unknown): EventRefundPolicy {
+  const fallbackSource = fallback && typeof fallback === "object" && !Array.isArray(fallback)
+    ? fallback as Record<string, unknown>
+    : {};
+  const source = raw === undefined || raw === null
+    ? fallbackSource
+    : raw && typeof raw === "object" && !Array.isArray(raw)
+      ? raw as Record<string, unknown>
+      : (() => { throw new Error("refund policy must be an object map"); })();
+
+  for (const key of Object.keys(source)) {
+    if (key !== "refundable" && key !== "refundMessage") {
+      throw new Error(`Unknown refund policy setting "${key}"`);
+    }
+  }
+  if (source.refundable !== undefined && typeof source.refundable !== "boolean") {
+    throw new Error("Refundable must be a boolean");
+  }
+  if (source.refundMessage !== undefined && typeof source.refundMessage !== "string") {
+    throw new Error("Refund message must be text");
+  }
+  const refundMessage = String(source.refundMessage ?? fallbackSource.refundMessage ?? "").trim();
+  if (refundMessage.length > 1000) {
+    throw new Error("Refund message must be 1,000 characters or fewer");
+  }
+  return {
+    refundable: typeof source.refundable === "boolean"
+      ? source.refundable
+      : typeof fallbackSource.refundable === "boolean"
+        ? fallbackSource.refundable
+        : DEFAULT_EVENT_REFUND_POLICY.refundable,
+    refundMessage,
+  };
+}
+
+function normalizeRegistrationFeeCustomText(value: unknown, fallback = ""): string {
+  if (value === undefined || value === null) return String(fallback || "").trim();
+  if (typeof value !== "string") throw new Error("Registration fee custom text must be text");
+  const text = value.trim();
+  if (text.length > 1000) {
+    throw new Error("Registration fee custom text must be 1,000 characters or fewer");
+  }
+  return text;
+}
+
+export function isEventRegistrationOtpEnabled(
+  ev: Pick<Event, "otpSettings">,
+): boolean {
+  return normalizeEventOtpSettings(ev.otpSettings).registration;
+}
+
+export function isEventBillingOtpRequired(
+  ev: Pick<Event, "otpSettings">,
+  feeExists: boolean,
+  cashPaidAtCounter: boolean,
+): boolean {
+  return feeExists &&
+    normalizeEventOtpSettings(ev.otpSettings).billing &&
+    !cashPaidAtCounter;
 }
 
 export function normalizeEventParkingEnabled(raw: unknown, fallback = true): boolean {
@@ -696,7 +891,7 @@ export async function issueTicket(
       });
     } catch (txErr) {
       console.error("[events] issueTicket transaction failed — registration state unchanged:", txErr);
-      return reg; // Return original reg; caller can retry.
+      throw txErr;
     }
 
     if (isReissue) {
@@ -710,7 +905,13 @@ export async function issueTicket(
     // error 130472 "Image not available" and the entire template send fails.
     // Rendering first and caching the PNG ensures the endpoint serves the image
     // instantly when Meta checks it.
-    dispatch(ev, reg, base);
+    try {
+      dispatch(ev, reg, base);
+    } catch (dispatchErr) {
+      // Ticket issuance is already committed. Delivery is an independent
+      // best-effort side effect and must never suppress the customer ticket.
+      console.error(`[events] ticket dispatch failed for reg ${reg.id}:`, dispatchErr);
+    }
   }
   return reg;
 }
@@ -753,6 +954,9 @@ function publicEventShape(ev: Event) {
     maxCapacityPerSlot: ev.maxCapacityPerSlot,
     maxGuestsPerRegistration: ev.maxGuestsPerRegistration,
     registrationFee: ev.registrationFee,
+    registrationFeeCustomText: ev.registrationFeeCustomText || "",
+    refundable: ev.refundable === true,
+    refundMessage: typeof ev.refundMessage === "string" ? ev.refundMessage : "",
     termsAndConditions: ev.termsAndConditions,
     faqs: ev.faqs,
     supportContact: ev.supportContact,
@@ -763,6 +967,7 @@ function publicEventShape(ev: Event) {
     brandPrimaryColor: ev.brandPrimaryColor,
     brandButtonColor: ev.brandButtonColor,
     brandFontFamily: ev.brandFontFamily,
+    otpSettings: normalizeEventOtpSettings(ev.otpSettings),
     status: ev.status,
   };
 }
@@ -796,8 +1001,22 @@ const PREPRINTED_FONT_FAMILY_CSS: Record<PreprintedBackFontFamily, string> = {
   Verdana: "Verdana, sans-serif",
 };
 const PREPRINTED_FONT_FAMILIES = new Set(Object.keys(PREPRINTED_FONT_FAMILY_CSS));
-const PREPRINTED_CANVAS_ASPECT_RATIO = 2550 / 825;
+const PREPRINTED_CANVAS_ASPECT_RATIO = 203 / 82;
 const PREPRINTED_MAX_QR_WIDTH = 100 / PREPRINTED_CANVAS_ASPECT_RATIO;
+const PREPRINTED_PRINT_TICKET_WIDTH_MM = 202;
+const PREPRINTED_PRINT_TICKET_HEIGHT_MM = 82;
+const PREPRINTED_PRINT_GUTTER_MM = 4;
+const PREPRINTED_PRINT_CORNER_RADIUS_MM = 6;
+const PREPRINTED_PRINT_BACK_CUT_LINE_OFFSET_MM = 57;
+const PREPRINTED_PRINT_COLUMNS = 3;
+const PREPRINTED_PRINT_ROWS = 2;
+const PREPRINTED_PRINT_TICKETS_PER_SHEET = PREPRINTED_PRINT_COLUMNS * PREPRINTED_PRINT_ROWS;
+const PREPRINTED_PRINT_MARGIN_X_MM =
+  (297 - (PREPRINTED_PRINT_COLUMNS * PREPRINTED_PRINT_TICKET_HEIGHT_MM)
+    - ((PREPRINTED_PRINT_COLUMNS - 1) * PREPRINTED_PRINT_GUTTER_MM)) / 2;
+const PREPRINTED_PRINT_MARGIN_Y_MM =
+  (420 - (PREPRINTED_PRINT_ROWS * PREPRINTED_PRINT_TICKET_WIDTH_MM)
+    - ((PREPRINTED_PRINT_ROWS - 1) * PREPRINTED_PRINT_GUTTER_MM)) / 2;
 
 export function normalizePreprintedBackLayout(raw: unknown): PreprintedBackLayout {
   const source = raw && typeof raw === "object" && !Array.isArray(raw)
@@ -933,9 +1152,94 @@ function regShape(r: EventRegistration) {
     checkedInAt: r.checkedInAt,
     exitedAt: r.exitedAt,
     visitDurationMinutes: r.visitDurationMinutes,
+    checkoutAlertSnapshot: r.checkoutAlertSnapshot,
     invalidScanAttempts: r.invalidScanAttempts,
     duplicateEntryAttempts: r.duplicateEntryAttempts,
     createdAt: r.createdAt,
+  };
+}
+
+async function registrationJourney(registrationId: string) {
+  return db
+    .select({
+      id: eventStageLog.id,
+      stage: eventStageLog.stage,
+      createdAt: eventStageLog.createdAt,
+      metadata: eventStageLog.metadata,
+    })
+    .from(eventStageLog)
+    .where(eq(eventStageLog.registrationId, registrationId))
+    .orderBy(desc(eventStageLog.createdAt))
+    .limit(30);
+}
+
+type CheckoutAlert = {
+  enabled: boolean;
+  maxDurationMinutes: number;
+  title: string;
+  message: string;
+  iconUrl: string;
+};
+
+export function normalizeCheckoutAlert(raw: unknown, fallback?: unknown): CheckoutAlert {
+  const source = raw && typeof raw === "object" && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : fallback && typeof fallback === "object" && !Array.isArray(fallback)
+      ? fallback as Record<string, unknown>
+      : {};
+  const enabled = source.enabled === true;
+  const rawDuration = source.maxDurationMinutes ?? 60;
+  if (
+    (typeof rawDuration !== "number" && typeof rawDuration !== "string") ||
+    !/^\d+$/.test(String(rawDuration).trim())
+  ) {
+    throw new Error("Checkout alert duration must be a whole number of minutes");
+  }
+  const maxDurationMinutes = Number(rawDuration);
+  const title = String(source.title ?? "").trim();
+  const message = String(source.message ?? "").trim();
+  const iconUrl = String(source.iconUrl ?? "").trim();
+  if (!Number.isFinite(maxDurationMinutes) || maxDurationMinutes < 1 || maxDurationMinutes > 10080) {
+    throw new Error("Checkout alert duration must be between 1 and 10,080 minutes");
+  }
+  if (title.length > 120) throw new Error("Checkout alert title must be 120 characters or fewer");
+  if (message.length > 1000) throw new Error("Checkout alert message must be 1,000 characters or fewer");
+  if (iconUrl && !/^\/public-objects\/[A-Za-z0-9._~:/-]+$/.test(iconUrl)) {
+    throw new Error("Checkout alert icon must be an uploaded image");
+  }
+  if (enabled && (!title || !message || !iconUrl)) {
+    throw new Error("Checkout alert title, message, and uploaded icon are required when enabled");
+  }
+  return { enabled, maxDurationMinutes, title, message, iconUrl };
+}
+
+export function checkoutAlertFor(
+  ev: Pick<Event, "checkoutAlert">,
+  reg: {
+    checkedInAt: EventRegistration["checkedInAt"];
+    checkoutAlertSnapshot?: EventRegistration["checkoutAlertSnapshot"];
+  },
+  at: Date,
+) {
+  if (reg.checkoutAlertSnapshot) return reg.checkoutAlertSnapshot;
+  if (!reg.checkedInAt) return null;
+  let config: CheckoutAlert;
+  try {
+    config = normalizeCheckoutAlert(ev.checkoutAlert);
+  } catch {
+    return null;
+  }
+  if (!config.enabled) return null;
+  const elapsedMs = Math.max(0, at.getTime() - new Date(reg.checkedInAt).getTime());
+  if (elapsedMs > config.maxDurationMinutes * 60000) return null;
+  const elapsedMinutes = Math.round(elapsedMs / 60000);
+  return {
+    title: config.title,
+    message: config.message,
+    iconUrl: config.iconUrl,
+    maxDurationMinutes: config.maxDurationMinutes,
+    elapsedMinutes,
+    capturedAt: at.toISOString(),
   };
 }
 
@@ -958,19 +1262,20 @@ async function buildFormLabels(locationId: string | null): Promise<Record<string
 async function findRegistrationByAny(idOrCode: string): Promise<EventRegistration | null> {
   const v = (idOrCode || "").trim();
   if (!v) return null;
+  const bookingIdCandidates = getExactTicketIdCandidates(v);
   const rows = await db
     .select()
     .from(eventRegistrations)
     .where(or(
       eq(eventRegistrations.qrToken, v.toLowerCase()),
-      eq(eventRegistrations.bookingId, v.toUpperCase()),
+      inArray(eventRegistrations.bookingId, bookingIdCandidates),
       eq(eventRegistrations.id, v),
     ))
     .limit(1);
   return rows[0] || null;
 }
 
-// Public-route lookup: qrToken ONLY. Booking IDs (EVT-XXXXXX) are short and
+// Public-route lookup: qrToken ONLY. Human-readable booking IDs are short and
 // guessable, so they must never resolve tickets on unauthenticated paths —
 // only the 40-hex-char unguessable token may.
 async function findRegistrationByToken(token: string): Promise<EventRegistration | null> {
@@ -1023,13 +1328,14 @@ async function findUnassignedPreprintedTicketForOrg(
 ): Promise<{ ticket: typeof eventPreprintedTickets.$inferSelect; ev: Event } | null> {
   const v = (idOrCode || "").trim();
   if (!v) return null;
+  const bookingIdCandidates = getExactTicketIdCandidates(v);
   const rows = await db.select({ ticket: eventPreprintedTickets, ev: events })
     .from(eventPreprintedTickets)
     .innerJoin(events, eq(eventPreprintedTickets.eventId, events.id))
     .where(and(
       or(
         eq(eventPreprintedTickets.qrToken, v.toLowerCase()),
-        eq(eventPreprintedTickets.bookingId, v.toUpperCase()),
+        inArray(eventPreprintedTickets.bookingId, bookingIdCandidates),
       ),
       ne(eventPreprintedTickets.status, "assigned"),
     ))
@@ -1047,13 +1353,14 @@ async function findUnassignedPreprintedTicketForEvent(
 ): Promise<typeof eventPreprintedTickets.$inferSelect | null> {
   const v = (idOrCode || "").trim();
   if (!v) return null;
+  const bookingIdCandidates = getExactTicketIdCandidates(v);
   const rows = await db.select()
     .from(eventPreprintedTickets)
     .where(and(
       eq(eventPreprintedTickets.eventId, eventId),
       or(
         eq(eventPreprintedTickets.qrToken, v.toLowerCase()),
-        eq(eventPreprintedTickets.bookingId, v.toUpperCase()),
+        inArray(eventPreprintedTickets.bookingId, bookingIdCandidates),
       ),
       ne(eventPreprintedTickets.status, "assigned"),
     ))
@@ -1451,6 +1758,7 @@ export function registerEventsRoutes(app: Express) {
             return {
               time,
               label: formatSlotTime(time),
+              rangeLabel: formatEventSlotRange(time, cfg.slotDurationMinutes),
               capacity,
               used,
               available: Math.max(0, capacity - used),
@@ -1480,6 +1788,10 @@ export function registerEventsRoutes(app: Express) {
           name: svc.name,
           description: svc.description || "",
           registrationFee: cfg.registrationFee,
+           registrationFeeCustomText: cfg.registrationFeeCustomText,
+          refundable: cfg.refundable,
+          refundMessage: cfg.refundMessage,
+          slotDurationMinutes: cfg.slotDurationMinutes,
           inputFields: Array.isArray(svc.inputFields) ? svc.inputFields : [],
           slots: buildSlots(cfg, usage),
         };
@@ -1519,6 +1831,10 @@ export function registerEventsRoutes(app: Express) {
   }));
 
   // Legacy branch-scoped landing-data route (pre-dates per-event linking).
+  // Register this fixed path before /api/event/:branchId so Express does not
+  // interpret "payment-link-callback" as a branch ID.
+  app.get("/api/event/payment-link-callback", publicRoute("payment link callback"), handlePaymentLinkCallback);
+
   app.get("/api/event/:branchId", publicRoute("public event landing data (legacy branch-scoped)"), handleEventLanding(async (req) => {
     return loadEventForBranch(String(req.params.branchId), { publishedOnly: true });
   }));
@@ -1553,6 +1869,8 @@ export function registerEventsRoutes(app: Express) {
 
   const handleSendPhoneOtp = async (req: Request, res: Response, eventId: string) => {
     try {
+      const ev = await loadEventById(eventId, { publishedOnly: true });
+      if (!ev) return res.status(404).json({ error: "No active event" });
       const rawPhone = String(req.body?.phone || "");
       const phone = normalizeIndianPhone(rawPhone);
       if (!phone || phone.replace(/\D/g, "").length < 10) {
@@ -1607,6 +1925,8 @@ export function registerEventsRoutes(app: Express) {
 
   const handleVerifyPhoneOtp = async (req: Request, res: Response, eventId: string) => {
     try {
+      const ev = await loadEventById(eventId, { publishedOnly: true });
+      if (!ev) return res.status(404).json({ error: "No active event" });
       const rawPhone = String(req.body?.phone || "");
       const code = String(req.body?.otp || "").trim();
       const phone = normalizeIndianPhone(rawPhone);
@@ -1676,7 +1996,7 @@ export function registerEventsRoutes(app: Express) {
       if (ev.status === "paused") {
         return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please check back soon.", paused: true });
       }
-      const { customerName, customerPhone, customerEmail, preferredLanguage, familyMembersCount, priorityAccess, slotDate, slotTime, locationId, formData } = req.body || {};
+      const { customerName, customerPhone, customerEmail, productCategory, productCategories, specialCategories, preferredLanguage, familyMembersCount, priorityAccess, slotDate, slotTime, locationId, formData } = req.body || {};
       const name = String(customerName || "").trim();
       // Normalize to full international digits (country code + number) —
       // the public web registration form only collects a bare 10-digit
@@ -1687,9 +2007,20 @@ export function registerEventsRoutes(app: Express) {
       const language = isSupportedLanguage(preferredLanguage) ? String(preferredLanguage).toLowerCase() : "en";
       const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
       const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
-      const needsPriorityAccess = priorityAccess === true;
+      const normalizedProductCategories = normalizeCategorySelections(productCategories, productCategory, allowedProductCategories);
+      const normalizedSpecialCategories = normalizeOptionalCategorySelections(specialCategories, allowedSpecialCategories);
+      const needsPriorityAccess = normalizedSpecialCategories?.length
+        ? true
+        : priorityAccess === true;
+      const normalizedProductCategory = normalizedProductCategories?.[0] || "";
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
+      if (!normalizedProductCategories) {
+        return res.status(400).json({ error: "Select at least one valid product category" });
+      }
+      if (!normalizedSpecialCategories) {
+        return res.status(400).json({ error: "One or more special categories are invalid" });
+      }
       if (parseInt(String(familyMembersCount ?? 0), 10) > maxGuests - 1) {
         return res.status(400).json({ error: `This event allows a maximum of ${maxGuests} guests per registration` });
       }
@@ -1750,6 +2081,18 @@ export function registerEventsRoutes(app: Express) {
       if (!dates.includes(slotDate) || !times.includes(slotTime)) {
         return res.status(400).json({ error: "Invalid slot selection" });
       }
+      const [branch] = await db.select({ timezone: branches.timezone })
+        .from(branches)
+        .where(eq(branches.id, ev.branchId))
+        .limit(1);
+      const bookableDates = buildBookableEventDates(
+        ev,
+        cfg,
+        await slotUsage(ev.id, chosenLocationId),
+        branch?.timezone || "Asia/Kolkata",
+      );
+      const priorityDateError = validateEventPriorityAccessDate(bookableDates, slotDate, needsPriorityAccess);
+      if (priorityDateError) return res.status(400).json({ error: priorityDateError });
 
       // Validate the location's custom input fields (required + basic typing)
       // and collect a clean formData object keyed by field id.
@@ -1779,8 +2122,15 @@ export function registerEventsRoutes(app: Express) {
       // account. Test mode may proceed before the provider reports the
       // account fully active, but the transfer remains mandatory.
       const fee = cfg.registrationFee || 0;
+      const paymentMethod = await getEventPaymentMethod();
       let payoutProfile: typeof organizerPayoutProfiles.$inferSelect | undefined;
-      if (fee > 0) {
+      if (fee > 0 && paymentMethod === "razorpay_direct" && !directCredentialStatus().configured) {
+        return res.status(503).json({ error: "Paid registration requires configured Direct Razorpay credentials" });
+      }
+      if (fee > 0 && paymentMethod === "razorpay_payment_links" && !directCredentialStatus().configured) {
+        return res.status(503).json({ error: "Paid registration requires configured Direct Razorpay credentials" });
+      }
+      if (fee > 0 && paymentMethod === "razorpay_route") {
         [payoutProfile] = await db.select().from(organizerPayoutProfiles)
           .where(eq(organizerPayoutProfiles.organizationId, ev.organizationId)).limit(1);
         const linkedAccountReady = !!payoutProfile &&
@@ -1821,22 +2171,39 @@ export function registerEventsRoutes(app: Express) {
           customerName: name,
           customerPhone: phone,
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
+          productCategory: normalizedProductCategory,
+          productCategories: normalizedProductCategories,
           preferredLanguage: language,
           familyMembersCount: fam,
           priorityAccess: needsPriorityAccess,
+          specialCategories: normalizedSpecialCategories,
           slotDate,
           slotTime,
           status: "registration_started",
           amountPaid: 0,
         }).returning();
         let allocation: typeof routePayoutAllocations.$inferSelect | undefined;
-        if (fee > 0 && payoutProfile) {
+        let checkout: typeof eventPaymentCheckouts.$inferSelect | undefined;
+        if (fee > 0 && paymentMethod === "razorpay_route" && payoutProfile) {
           [allocation] = await tx.insert(routePayoutAllocations).values({
             registrationId: inserted.id, organizationId: ev.organizationId,
             payoutProfileId: payoutProfile.id, amount: fee, currency: "INR",
           }).returning();
         }
-        return { full: false as const, reg: inserted, allocation };
+        if (fee > 0) {
+          [checkout] = await tx.insert(eventPaymentCheckouts).values({
+            registrationId: inserted.id,
+            adapter: paymentMethod === "razorpay_direct"
+              ? "direct"
+              : paymentMethod === "razorpay_payment_links" ? "payment_links" : "route",
+            razorpayOrderId: null, amount: fee, currency: "INR", status: "creating",
+          }).onConflictDoNothing({ target: eventPaymentCheckouts.registrationId }).returning();
+          if (!checkout) {
+            [checkout] = await tx.select().from(eventPaymentCheckouts)
+              .where(eq(eventPaymentCheckouts.registrationId, inserted.id)).limit(1);
+          }
+        }
+        return { full: false as const, reg: inserted, allocation, checkout };
       });
       if (result.full) {
         return res.status(409).json({ error: "This slot is full. Please pick another slot.", available: result.available });
@@ -1848,6 +2215,74 @@ export function registerEventsRoutes(app: Express) {
         // Free event — issue the ticket immediately.
         const done = await issueTicket(ev, { ...reg, amountPaid: 0 });
         return res.json({ registration: regShape(done), payment: null });
+      }
+
+      if (paymentMethod === "razorpay_direct") {
+        try {
+          if (result.checkout?.razorpayOrderId) {
+            const keyId = process.env.RAZORPAY_DIRECT_KEY_ID;
+            return res.json({ registration: regShape(reg), payment: { orderId: result.checkout.razorpayOrderId, amount: fee, currency: "INR", keyId } });
+          }
+          const order = await createDirectOrder({ registrationId: reg.id, eventId: ev.id, amount: fee });
+          await db.update(eventPaymentCheckouts).set({
+            razorpayOrderId: order.id, status: "initiated", updatedAt: new Date(),
+          }).where(and(eq(eventPaymentCheckouts.registrationId, reg.id), isNull(eventPaymentCheckouts.razorpayOrderId)));
+          return res.json({
+            registration: regShape(reg),
+            payment: { orderId: order.id, amount: fee, currency: "INR", keyId: order.keyId },
+          });
+        } catch (e) {
+          console.error("[events] Razorpay direct order request failed:", e);
+          return res.status(504).json({ error: "Payment gateway timed out. Please try again in a moment." });
+        }
+      }
+
+      if (paymentMethod === "razorpay_payment_links") {
+        try {
+          if (result.checkout?.razorpayPaymentLinkId && result.checkout.razorpayShortUrl) {
+            return res.json({
+              registration: regShape(reg),
+              payment: {
+                paymentLinkId: result.checkout.razorpayPaymentLinkId,
+                shortUrl: result.checkout.razorpayShortUrl,
+                paymentLinkUrl: result.checkout.razorpayShortUrl,
+                amount: fee,
+                currency: "INR",
+              },
+            });
+          }
+          const link = await createPaymentLink({
+            registrationId: reg.id,
+            eventId: ev.id,
+            amount: fee,
+            customerName: reg.customerName,
+            customerPhone: reg.customerPhone,
+            customerEmail: reg.customerEmail,
+            callbackUrl: `${getPublicBaseUrl().replace(/^http:\/\//i, "https://")}/api/event/payment-link-callback?registrationId=${encodeURIComponent(reg.id)}`,
+          });
+          // The registration checkout intent exists before the provider call.
+          // Bind every provider identifier before exposing the hosted URL.
+          await db.update(eventPaymentCheckouts).set({
+            paymentLinkReferenceId: link.referenceId,
+            razorpayPaymentLinkId: link.id,
+            razorpayShortUrl: link.short_url,
+            status: "initiated",
+            updatedAt: new Date(),
+          }).where(and(eq(eventPaymentCheckouts.registrationId, reg.id), isNull(eventPaymentCheckouts.razorpayPaymentLinkId)));
+          return res.json({
+            registration: regShape(reg),
+            payment: {
+              paymentLinkId: link.id,
+              shortUrl: link.short_url,
+              paymentLinkUrl: link.short_url,
+              amount: fee,
+              currency: "INR",
+            },
+          });
+        } catch (e) {
+          console.error("[events] Razorpay Payment Link request failed:", e);
+          return res.status(504).json({ error: "Payment gateway timed out. Please try again in a moment." });
+        }
       }
 
       const keyId = process.env.RAZORPAY_KEY_ID;
@@ -1870,6 +2305,9 @@ export function registerEventsRoutes(app: Express) {
         if (!result.allocation || !payoutProfile) {
           return res.status(503).json({ error: "Paid registration requires a valid Razorpay linked account" });
         }
+        if (result.checkout?.razorpayOrderId) {
+          return res.json({ registration: regShape(reg), payment: { orderId: result.checkout.razorpayOrderId, amount: fee, currency: "INR", keyId } });
+        }
         const order = await createRouteOrder({
           allocationId: result.allocation.id, registrationId: reg.id, eventId: ev.id,
           accountId: payoutProfile.razorpayAccountId, amount: fee,
@@ -1878,6 +2316,9 @@ export function registerEventsRoutes(app: Express) {
           razorpayOrderId: order.id, razorpayTransferId: order.transfers?.[0]?.id || null,
           status: "order_created", updatedAt: new Date(),
         }).where(and(eq(routePayoutAllocations.id, result.allocation.id), eq(routePayoutAllocations.status, "pending_order")));
+        await db.update(eventPaymentCheckouts).set({
+          razorpayOrderId: order.id, status: "initiated", updatedAt: new Date(),
+        }).where(and(eq(eventPaymentCheckouts.registrationId, reg.id), isNull(eventPaymentCheckouts.razorpayOrderId)));
         return res.json({
           registration: regShape(reg),
           payment: { orderId: order.id, amount: fee, currency: "INR", keyId },
@@ -1914,7 +2355,7 @@ export function registerEventsRoutes(app: Express) {
     try {
       const {
         eventId, locationId, slotDate, slotTime, customerName, customerPhone,
-        customerEmail, preferredLanguage, familyMembersCount, priorityAccess, formData,
+        customerEmail, productCategory, productCategories, specialCategories, preferredLanguage, familyMembersCount, priorityAccess, formData,
         paymentMade, amountCollected, paymentMode, paymentReason,
         ticketMethod, preprintedTicketCode,
       } = req.body || {};
@@ -1932,9 +2373,20 @@ export function registerEventsRoutes(app: Express) {
       const language = isSupportedLanguage(preferredLanguage) ? String(preferredLanguage).toLowerCase() : "en";
       const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
       const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
-      const needsPriorityAccess = priorityAccess === true;
+      const normalizedProductCategories = normalizeCategorySelections(productCategories, productCategory, allowedProductCategories);
+      const normalizedSpecialCategories = normalizeOptionalCategorySelections(specialCategories, allowedSpecialCategories);
+      const needsPriorityAccess = specialCategories === undefined
+        ? priorityAccess === true
+        : Boolean(normalizedSpecialCategories?.length);
+      const normalizedProductCategory = normalizedProductCategories?.[0] || "";
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
+      if (!normalizedProductCategories) {
+        return res.status(400).json({ error: "Select at least one valid product category" });
+      }
+      if (!normalizedSpecialCategories) {
+        return res.status(400).json({ error: "One or more special categories are invalid" });
+      }
 
       const allLocationRows = await loadEventLocations(ev.branchId);
       const eventLinked = allLocationRows.filter((s) => (s as any)?.serviceSettings?.event?.eventId === ev.id);
@@ -1955,6 +2407,18 @@ export function registerEventsRoutes(app: Express) {
       if (!dates.includes(slotDate) || !times.includes(slotTime)) {
         return res.status(400).json({ error: "Invalid slot selection" });
       }
+      const [branch] = await db.select({ timezone: branches.timezone })
+        .from(branches)
+        .where(eq(branches.id, ev.branchId))
+        .limit(1);
+      const bookableDates = buildBookableEventDates(
+        ev,
+        cfg,
+        await slotUsage(ev.id, chosenLocationId),
+        branch?.timezone || "Asia/Kolkata",
+      );
+      const priorityDateError = validateEventPriorityAccessDate(bookableDates, slotDate, needsPriorityAccess);
+      if (priorityDateError) return res.status(400).json({ error: priorityDateError });
 
       const cleanForm: Record<string, unknown> = {};
       const fields = Array.isArray(location?.inputFields) ? location.inputFields : [];
@@ -2002,7 +2466,7 @@ export function registerEventsRoutes(app: Express) {
       if (resolvedTicketMethod === "preprinted" && !scannedTicket) {
         return res.status(400).json({ error: "Scan or enter a pre-printed ticket ID" });
       }
-      const ticketLookupBookingId = scannedTicket.toUpperCase();
+      const ticketLookupBookingIds = getExactTicketIdCandidates(scannedTicket);
       const ticketLookupToken = scannedTicket.toLowerCase();
       const staffUserId = getRequestUserId(req);
       const result = await db.transaction(async (tx) => {
@@ -2030,7 +2494,7 @@ export function registerEventsRoutes(app: Express) {
             .where(and(
               eq(eventPreprintedTickets.eventId, ev.id),
               or(
-                eq(eventPreprintedTickets.bookingId, ticketLookupBookingId),
+                inArray(eventPreprintedTickets.bookingId, ticketLookupBookingIds),
                 eq(eventPreprintedTickets.qrToken, ticketLookupToken),
               ),
             ))
@@ -2083,9 +2547,12 @@ export function registerEventsRoutes(app: Express) {
           customerName: name,
           customerPhone: phone,
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
+          productCategory: normalizedProductCategory,
+          productCategories: normalizedProductCategories,
           preferredLanguage: language,
           familyMembersCount: fam,
           priorityAccess: needsPriorityAccess,
+          specialCategories: normalizedSpecialCategories,
           slotDate,
           slotTime,
           status: "payment_completed",
@@ -2147,6 +2614,21 @@ export function registerEventsRoutes(app: Express) {
       // the dashboard also exposes an explicit "Send via WhatsApp" action
       // (resend-ticket) for staff to re-trigger it on demand.
       const done = await issueTicket(ev, reg);
+      if (done.customerEmail && done.bookingId && done.qrToken) {
+        void sendEventTicketEmail({
+          to: done.customerEmail,
+          customerName: done.customerName,
+          eventName: ev.name,
+          bookingId: done.bookingId,
+          qrToken: done.qrToken,
+          slotDate: done.slotDate,
+          slotTime: done.slotTime,
+          locationName: location?.name || null,
+          guestCount: 1 + done.familyMembersCount,
+        }).then((sent) => {
+          if (!sent) console.warn(`[events] ticket email was not sent for registration ${done.id}`);
+        });
+      }
       res.json({ registration: regShape(done), eventName: ev.name });
     } catch (e) {
       console.error("[events] manual registration failed:", e);
@@ -2174,6 +2656,7 @@ export function registerEventsRoutes(app: Express) {
       // overflows the created_by_user_id varchar(36) column. Treat those as null.
       const rawUserId = getRequestUserId(req);
       const createdByUserId = rawUserId && !rawUserId.startsWith("owner:") ? rawUserId : null;
+      const ticketPrefix = normalizePreprintedTicketPrefix(ev.preprintedTicketPrefix);
 
       let batchCode = "";
       let totalCreated = 0;
@@ -2187,7 +2670,7 @@ export function registerEventsRoutes(app: Express) {
         const stock = Array.from({ length: count }, (_, index) => ({
           eventId: ev.id,
           batchCode,
-          bookingId: makePreprintedTicketId(),
+          bookingId: makePreprintedTicketId(ticketPrefix),
           qrToken: makeQrToken(),
           status: "available" as const,
           createdByUserId,
@@ -2241,15 +2724,17 @@ export function registerEventsRoutes(app: Express) {
 
       const page  = Math.max(1, parseInt(String(req.query.page  || "1"),  10) || 1);
       const limit = Math.min(200, Math.max(10, parseInt(String(req.query.limit || "50"), 10) || 50));
-      const search      = String(req.query.search || "").trim();
+      const search      = normalizeTicketIdSearchInput(req.query.search);
       const statusFilter = String(req.query.status || "").trim().toLowerCase();
       const batchFilter  = String(req.query.batch  || "").trim().toUpperCase();
 
       // Build WHERE conditions for the ticket detail query
       const conditions: any[] = [eq(eventPreprintedTickets.eventId, ev.id)];
       if (search) {
+        const bookingIdConditions = getPartialTicketIdPatterns(search)
+          .map((pattern) => ilike(eventPreprintedTickets.bookingId, pattern));
         conditions.push(or(
-          ilike(eventPreprintedTickets.bookingId, `%${search}%`),
+          or(...bookingIdConditions),
           ilike(eventPreprintedTickets.batchCode, `%${search}%`),
         ));
       }
@@ -2324,6 +2809,7 @@ export function registerEventsRoutes(app: Express) {
       const raw = String(req.query.code || "").trim();
       if (!raw) return res.status(400).json({ error: "code is required" });
       const parsed = parseScanValue(raw);
+      const bookingIdCandidates = getExactTicketIdCandidates(parsed);
       const [row] = await db.select({
         bookingId: eventPreprintedTickets.bookingId,
         status:    eventPreprintedTickets.status,
@@ -2332,7 +2818,7 @@ export function registerEventsRoutes(app: Express) {
         .where(and(
           eq(eventPreprintedTickets.eventId, ev.id),
           or(
-            eq(eventPreprintedTickets.bookingId, parsed.toUpperCase()),
+            inArray(eventPreprintedTickets.bookingId, bookingIdCandidates),
             eq(eventPreprintedTickets.qrToken,   parsed.toLowerCase()),
           ),
         ))
@@ -2413,8 +2899,6 @@ export function registerEventsRoutes(app: Express) {
       }));
       if (!rows.length) return res.status(404).send("Ticket batch not found");
       const layout = normalizePreprintedBackLayout(ev.preprintedBackLayout);
-      const hasArtwork = Boolean(ev.preprintedFrontImageUrl || ev.preprintedBackImageUrl);
-      const usesArtworkSheetLayout = Boolean(ev.preprintedFrontImageUrl && ev.preprintedBackImageUrl);
       const renderedTickets = await mapWithConcurrency(rows, 8, async (ticket, index) => {
         // QR encodes the PTK booking ID directly so the staff desk scanner
         // receives the ID immediately — no URL parsing needed at the counter.
@@ -2424,7 +2908,7 @@ export function registerEventsRoutes(app: Express) {
         });
         return { ticket, qr, serialNumber: String(index + 1).padStart(6, "0") };
       });
-      const frontCards = renderedTickets.map(({ ticket, qr }) => {
+      const renderFrontCard = () => {
         if (ev.preprintedFrontImageUrl) {
           return `<article class="ticket-face artwork-face">
             <img class="artwork" src="${escapeHtml(ev.preprintedFrontImageUrl)}" alt="Front artwork for ${escapeHtml(ev.name)}">
@@ -2433,11 +2917,9 @@ export function registerEventsRoutes(app: Express) {
         return `<article class="ticket-face fallback-face">
           <div class="brand">TIQKETS · PRE-PRINTED</div>
           <h2>${escapeHtml(ev.name)}</h2>
-          <p class="code">${escapeHtml(ticket.bookingId)}</p>
-          <img class="fallback-qr" src="${qr}" alt="Ticket QR code">
           <p class="hint">Assign this ticket to an attendee at the staff desk before entry.</p>
         </article>`;
-      });
+      };
       const backCards = renderedTickets.map(({ ticket, qr, serialNumber }) => {
         if (ev.preprintedBackImageUrl) {
           const overlays = renderPreprintedBackOverlays(layout, {
@@ -2460,16 +2942,20 @@ export function registerEventsRoutes(app: Express) {
           <p class="hint">Assign this ticket to an attendee at the staff desk before entry.</p>
         </article>`;
       });
-      const ticketsPerSheet = usesArtworkSheetLayout ? 3 : 6;
-      const gridClass = usesArtworkSheetLayout ? "grid artwork-grid" : "grid";
-      const duplexSheets: string[] = [];
-      for (let offset = 0; offset < rows.length; offset += ticketsPerSheet) {
-        const sheetNumber = Math.floor(offset / ticketsPerSheet) + 1;
-        const frontSheet = frontCards.slice(offset, offset + ticketsPerSheet);
-        const backSheet = backCards.slice(offset, offset + ticketsPerSheet);
-        duplexSheets.push(
-          `<section class="sheet"><h1 class="sheet-title">Sheet ${sheetNumber} front — ${escapeHtml(ev.name)}</h1><main class="${gridClass}">${frontSheet.join("")}</main></section>`,
-          `<section class="sheet"><h1 class="sheet-title">Sheet ${sheetNumber} back — matching reverse side</h1><main class="${gridClass}">${backSheet.join("")}</main></section>`,
+      const frontSheet = Array.from(
+        { length: PREPRINTED_PRINT_TICKETS_PER_SHEET },
+        () => `<div class="ticket-slot">${renderFrontCard()}</div>`,
+      );
+      const printSheets: string[] = [
+        `<section class="sheet front-sheet"><h1 class="sheet-title">Front master — ${escapeHtml(ev.name)}</h1><main class="ticket-grid">${frontSheet.join("")}</main></section>`,
+      ];
+      for (let offset = 0; offset < rows.length; offset += PREPRINTED_PRINT_TICKETS_PER_SHEET) {
+        const sheetNumber = Math.floor(offset / PREPRINTED_PRINT_TICKETS_PER_SHEET) + 1;
+        const backSheet = backCards
+          .slice(offset, offset + PREPRINTED_PRINT_TICKETS_PER_SHEET)
+          .map((card) => `<div class="ticket-slot">${card}</div>`);
+        printSheets.push(
+          `<section class="sheet back-sheet"><h1 class="sheet-title">Back sheet ${sheetNumber} — ${escapeHtml(ev.name)}</h1><main class="ticket-grid">${backSheet.join("")}</main></section>`,
         );
       }
       await db.update(eventPreprintedTickets)
@@ -2477,23 +2963,26 @@ export function registerEventsRoutes(app: Express) {
         .where(and(eq(eventPreprintedTickets.eventId, ev.id), eq(eventPreprintedTickets.batchCode, batchCode)));
       res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(ev.name)} tickets</title>
         <style>
-           @page { size: A4; margin: 10mm; } * { box-sizing: border-box; } body { font-family: Arial,sans-serif; color:#1a1a2e; margin:0; }
+           @page { size: A3 portrait; margin:${PREPRINTED_PRINT_MARGIN_Y_MM}mm ${PREPRINTED_PRINT_MARGIN_X_MM}mm; } * { box-sizing: border-box; } body { font-family: Arial,sans-serif; color:#1a1a2e; margin:0; }
            .print-controls { margin:0 0 10px; padding:10px 12px; border-radius:8px; background:#f5f3f7; color:#514755; font-size:12px; }
            .print { margin-right:8px; padding:8px 12px; border:0; border-radius:6px; background:#8c1867; color:white; font-weight:700; cursor:pointer; }
            .sheet { page-break-after:always; } .sheet:last-of-type { page-break-after:auto; } .sheet-title { color:#8c1867; font-size:12px; font-weight:800; margin:0 0 8px; }
-           .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8mm; } .artwork-grid { grid-template-columns:1fr; gap:6mm; } .ticket-face { position:relative; width:100%; aspect-ratio:2550 / 825; overflow:hidden; break-inside:avoid; container-type:inline-size; }
+           .ticket-grid { display:grid; grid-template-columns:repeat(${PREPRINTED_PRINT_COLUMNS},${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm); grid-template-rows:repeat(${PREPRINTED_PRINT_ROWS},${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm); column-gap:${PREPRINTED_PRINT_GUTTER_MM}mm; row-gap:${PREPRINTED_PRINT_GUTTER_MM}mm; }
+           .ticket-slot { position:relative; width:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; height:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; }
+           .ticket-face { position:absolute; left:50%; top:50%; width:${PREPRINTED_PRINT_TICKET_WIDTH_MM}mm; height:${PREPRINTED_PRINT_TICKET_HEIGHT_MM}mm; overflow:hidden; break-inside:avoid; container-type:inline-size; border-radius:${PREPRINTED_PRINT_CORNER_RADIUS_MM}mm; transform:translate(-50%,-50%) rotate(90deg); transform-origin:center; }
+           .back-sheet .ticket-face::after { content:""; position:absolute; z-index:4; top:0; bottom:0; left:${PREPRINTED_PRINT_BACK_CUT_LINE_OFFSET_MM}mm; border-left:.3mm dashed rgba(26,26,46,.72); pointer-events:none; }
            .artwork-face { background:#fff; } .artwork { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; display:block; }
-           .fallback-face { border:2px solid #8c1867; border-radius:12px; padding:10px; text-align:center; min-height:92mm; }
+           .fallback-face { border:2px solid #8c1867; padding:10px; text-align:center; }
            .brand { color:#8c1867; font-size:9px; font-weight:800; letter-spacing:.08em; } h2 { font-size:14px; margin:7px 0 4px; } .code { font-family:monospace; font-weight:800; font-size:14px; margin:0 0 5px; }
            .fallback-qr { width:42mm; height:42mm; display:block; margin:5px auto; } .hint { color:#555; font-size:9px; line-height:1.35; margin:5px 0 0; } .back-fallback .serial { font-family:monospace; font-weight:700; margin:3px 0; }
             .overlay { position:absolute; transform:translate(-50%,-50%); z-index:2; } .text-overlay { padding:.12em .3em; border-radius:.15em; font-family:monospace; line-height:1.1; white-space:normal; overflow-wrap:anywhere; }
             .overlay.has-background { background:rgba(255,255,255,.96); } .qr-overlay { height:auto; aspect-ratio:1; object-fit:contain; padding:.15%; }
            @media print { .print-controls { display:none; } .sheet-title { display:none; } }
          </style></head><body>
-         <div class="print-controls"><button class="print" onclick="window.print()">Print front and back pages</button>
-           ${hasArtwork ? "Each front sheet is immediately followed by its matching back sheet for duplex printing." : "No artwork is uploaded yet, so the standard ticket layout is being used."}
+          <div class="print-controls"><button class="print" onclick="window.print()">Print front master and ticket backs</button>
+            One static front master is followed by ${Math.ceil(rows.length / PREPRINTED_PRINT_TICKETS_PER_SHEET)} ticket-specific back page(s), six tickets per A3 sheet.
          </div>
-         ${duplexSheets.join("")}
+          ${printSheets.join("")}
          </body></html>`);
     } catch (e) {
       console.error("[events] pre-printed ticket print failed:", e);
@@ -2531,31 +3020,120 @@ export function registerEventsRoutes(app: Express) {
     }
   });
 
+  // Razorpay redirects here after hosted Payment Link checkout. This is only
+  // a customer-experience redirect. It never trusts Razorpay's callback query
+  // parameters as proof of payment: recovery fetches and validates the
+  // persisted Payment Link and captured payment directly from Razorpay.
+  async function handlePaymentLinkCallback(req: Request, res: Response) {
+    const registrationId = String(req.query.registrationId || "");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(registrationId)) {
+      return res.status(404).send("Registration not found");
+    }
+    // Strip provider-supplied payment fields and signatures from the address
+    // bar before rendering or retrying the callback. Use the canonical base
+    // URL so callbacks received on a secondary deployment domain move to the
+    // preferred custom domain.
+    const canonicalCallbackUrl = `${getPublicBaseUrl()}/api/event/payment-link-callback?registrationId=${encodeURIComponent(registrationId)}`;
+    let canonicalHost = "";
+    try {
+      canonicalHost = new URL(canonicalCallbackUrl).host;
+    } catch {
+      canonicalHost = "";
+    }
+    if (Object.keys(req.query).some(key => key !== "registrationId") ||
+        (canonicalHost && req.get("host") !== canonicalHost)) {
+      return res.redirect(303, canonicalCallbackUrl);
+    }
+    let [row] = await db.select({
+      status: eventRegistrations.status,
+      qrToken: eventRegistrations.qrToken,
+      checkoutStatus: eventPaymentCheckouts.status,
+      adapter: eventPaymentCheckouts.adapter,
+      paymentLinkId: eventPaymentCheckouts.razorpayPaymentLinkId,
+    }).from(eventRegistrations)
+      .leftJoin(eventPaymentCheckouts, eq(eventPaymentCheckouts.registrationId, eventRegistrations.id))
+      .where(eq(eventRegistrations.id, registrationId)).limit(1);
+    if (!row) return res.status(404).send("Registration not found");
+    if (row.qrToken) {
+      return res.redirect(303, `/event-ticket/${encodeURIComponent(row.qrToken)}`);
+    }
+    if (row.adapter === "payment_links" && row.paymentLinkId && row.status === "registration_started") {
+      await recoverPaymentLinkPaid(row.paymentLinkId).catch(error => {
+        console.error("[events] Payment Link callback recovery failed:", error);
+      });
+      [row] = await db.select({
+        status: eventRegistrations.status,
+        qrToken: eventRegistrations.qrToken,
+        checkoutStatus: eventPaymentCheckouts.status,
+        adapter: eventPaymentCheckouts.adapter,
+        paymentLinkId: eventPaymentCheckouts.razorpayPaymentLinkId,
+      }).from(eventRegistrations)
+        .leftJoin(eventPaymentCheckouts, eq(eventPaymentCheckouts.registrationId, eventRegistrations.id))
+        .where(eq(eventRegistrations.id, registrationId)).limit(1);
+      if (row?.qrToken) {
+        return res.redirect(303, `/event-ticket/${encodeURIComponent(row.qrToken)}`);
+      }
+    }
+    const terminal = row?.checkoutStatus === "expired" || row?.checkoutStatus === "cancelled";
+    res.status(terminal ? 409 : 202)
+      .set({
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
+      })
+      .send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${terminal ? "Payment not completed" : "Preparing your ticket"}</title>
+<style>body{margin:0;background:#f8f6f8;color:#241f23;font-family:system-ui,-apple-system,sans-serif;display:grid;min-height:100vh;place-items:center}.card{width:min(88vw,420px);background:#fff;border:1px solid #eadfe7;border-radius:20px;padding:32px;text-align:center;box-shadow:0 14px 36px rgba(82,26,66,.1)}h1{font-size:24px;margin:0 0 12px}p{color:#675d65;line-height:1.5;margin:0 0 22px}.spinner{width:34px;height:34px;border:4px solid #eadfe7;border-top-color:#8c1867;border-radius:50%;margin:0 auto 22px;animation:spin .9s linear infinite}button{border:0;border-radius:12px;background:#8c1867;color:#fff;padding:12px 20px;font-weight:700}@keyframes spin{to{transform:rotate(360deg)}}</style></head>
+<body><main class="card">${terminal ? "" : '<div class="spinner" aria-hidden="true"></div>'}
+<h1>${terminal ? "Payment not completed" : "Payment received"}</h1>
+<p>${terminal ? "This payment link is no longer active. Please return to the event page and try again." : "We are securely confirming your payment and preparing your ticket. This page will update automatically."}</p>
+<button type="button" onclick="location.reload()">Check again</button></main>
+${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</script>"}</body></html>`);
+  }
+
   app.post("/api/event/verify-payment", publicRoute("customer payment verification (signature-checked)"), async (req: Request, res: Response) => {
     try {
       const { registrationId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body || {};
       if (!registrationId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
         return res.status(400).json({ error: "Missing payment fields" });
       }
-      const keySecret = process.env.RAZORPAY_KEY_SECRET;
+      const [reg] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, registrationId)).limit(1);
+      if (!reg) return res.status(404).json({ error: "Registration not found" });
+      const [ev] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
+      if (!ev) return res.status(404).json({ error: "Event not found" });
+      const [checkout] = await db.select().from(eventPaymentCheckouts)
+        .where(eq(eventPaymentCheckouts.registrationId, reg.id)).limit(1);
+      if (!checkout) return res.status(400).json({ error: "Payment checkout snapshot not found" });
+      if (checkout.adapter === "payment_links") {
+        return res.status(400).json({ error: "Payment Links are confirmed by Razorpay webhook" });
+      }
+      const [allocation] = await db.select().from(routePayoutAllocations)
+        .where(eq(routePayoutAllocations.registrationId, reg.id)).limit(1);
+      const paymentMethod = checkout.adapter === "direct" ? "razorpay_direct" : "razorpay_route";
+      const keySecret = paymentMethod === "razorpay_direct"
+        ? process.env.RAZORPAY_DIRECT_KEY_SECRET
+        : process.env.RAZORPAY_KEY_SECRET;
       if (!keySecret) return res.status(500).json({ error: "Payments not configured" });
       const expected = crypto
         .createHmac("sha256", keySecret)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
         .digest("hex");
-      if (expected !== razorpay_signature) {
+      const expectedBuf = Buffer.from(expected, "hex");
+      const suppliedBuf = Buffer.from(String(razorpay_signature), "hex");
+      if (expectedBuf.length !== suppliedBuf.length || !crypto.timingSafeEqual(expectedBuf, suppliedBuf)) {
         return res.status(400).json({ error: "Payment signature verification failed" });
       }
-      const [reg] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, registrationId)).limit(1);
-      if (!reg) return res.status(404).json({ error: "Registration not found" });
-      const [ev] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
-      if (!ev) return res.status(404).json({ error: "Event not found" });
-      const [allocation] = await db.select().from(routePayoutAllocations)
-        .where(eq(routePayoutAllocations.registrationId, reg.id)).limit(1);
-      if (!allocation || allocation.razorpayOrderId !== razorpay_order_id || allocation.amount <= 0) {
+      if (checkout.razorpayOrderId !== String(razorpay_order_id)) {
         return res.status(400).json({ error: "Payment order does not belong to this registration" });
       }
-      const expectedAmount = allocation.amount;
+      const expectedAmount = checkout.amount;
+      const expectedCurrency = checkout.currency.toUpperCase();
+      if (paymentMethod === "razorpay_route") {
+        if (!allocation || allocation.razorpayOrderId !== razorpay_order_id || allocation.amount !== expectedAmount || allocation.amount <= 0) {
+          return res.status(400).json({ error: "Payment order does not belong to this registration" });
+        }
+      }
 
       const finishTicketIssuance = async (current: EventRegistration) => {
         const done = await issueTicket(ev, current);
@@ -2582,7 +3160,9 @@ export function registerEventsRoutes(app: Express) {
       }
 
       // Confirm provider order and payment data; never trust callback fields alone.
-      const keyId = process.env.RAZORPAY_KEY_ID!;
+      const keyId = paymentMethod === "razorpay_direct"
+        ? process.env.RAZORPAY_DIRECT_KEY_ID!
+        : process.env.RAZORPAY_KEY_ID!;
       const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
       let orderRes: globalThis.Response;
       try {
@@ -2600,7 +3180,10 @@ export function registerEventsRoutes(app: Express) {
       if (String(order.notes?.registrationId || "") !== reg.id) {
         return res.status(400).json({ error: "Payment does not belong to this registration" });
       }
-      if (String(order.notes?.allocationId || "") !== allocation.id || Number(order.amount) !== expectedAmount) {
+      if ((paymentMethod === "razorpay_route" && String(order.notes?.allocationId || "") !== allocation!.id) ||
+          (paymentMethod === "razorpay_direct" && String(order.notes?.registrationId || "") !== reg.id) ||
+           Number(order.amount) !== expectedAmount ||
+           String(order.currency || "").toUpperCase() !== expectedCurrency) {
         return res.status(400).json({ error: "Payment amount mismatch" });
       }
       let paymentRes: globalThis.Response;
@@ -2613,8 +3196,44 @@ export function registerEventsRoutes(app: Express) {
       }
       if (!paymentRes.ok) return res.status(502).json({ error: "Could not confirm payment with Razorpay" });
       const providerPayment: any = await paymentRes.json();
-      if (providerPayment.status !== "captured" || providerPayment.order_id !== razorpay_order_id || Number(providerPayment.amount) !== expectedAmount || String(providerPayment.currency || "").toUpperCase() !== "INR") {
+      if (providerPayment.status !== "captured" || providerPayment.order_id !== razorpay_order_id || Number(providerPayment.amount) !== expectedAmount || String(providerPayment.currency || "").toUpperCase() !== expectedCurrency) {
         return res.status(400).json({ error: "Payment is not captured for this order" });
+      }
+
+      if (paymentMethod === "razorpay_direct") {
+        // Direct capture is committed atomically with the common payment row.
+        let paymentRowId: string | null = null;
+        const paid = await db.transaction(async (tx) => {
+           const [p] = await tx.insert(payments).values({
+             organizationId: ev.organizationId, amount: expectedAmount, currency: "INR",
+             status: "captured", razorpayPaymentId: razorpay_payment_id,
+             razorpayOrderId: razorpay_order_id, razorpaySignature: razorpay_signature,
+             paymentMethod: providerPayment.method || null,
+             description: `Event registration — ${ev.name}`, paidAt: new Date(),
+           }).onConflictDoNothing({ target: payments.razorpayPaymentId }).returning();
+           if (p) paymentRowId = p.id;
+           else {
+             const [existing] = await tx.select().from(payments)
+               .where(eq(payments.razorpayPaymentId, razorpay_payment_id)).limit(1);
+             paymentRowId = existing?.id || null;
+           }
+           const [updated] = await tx.update(eventRegistrations)
+             .set({ status: "payment_completed", amountPaid: expectedAmount, paymentId: paymentRowId, updatedAt: new Date() })
+             .where(and(eq(eventRegistrations.id, reg.id), eq(eventRegistrations.status, "registration_started")))
+             .returning();
+           if (updated) return updated;
+           const [current] = await tx.select().from(eventRegistrations).where(eq(eventRegistrations.id, reg.id)).limit(1);
+           return current;
+        });
+        if (!paid) return res.status(404).json({ error: "Registration not found" });
+        if (paid.status !== "payment_completed") {
+          return res.status(409).json({ error: "Payment is being finalized. Please try again.", pending: true, retryable: true });
+        }
+        await db.update(eventPaymentCheckouts)
+          .set({ status: "captured", updatedAt: new Date() })
+          .where(eq(eventPaymentCheckouts.id, checkout.id));
+        await logStage(reg.id, "payment_completed", { razorpay_payment_id, amount: expectedAmount });
+        return finishTicketIssuance(paid);
       }
 
       // Persist a payments row (org-scoped, matches existing conventions:
@@ -2655,6 +3274,9 @@ export function registerEventsRoutes(app: Express) {
         await db.update(routePayoutAllocations).set({ status: "captured", updatedAt: new Date() })
           .where(eq(routePayoutAllocations.id, allocation.id));
       }
+      await db.update(eventPaymentCheckouts)
+        .set({ status: "captured", updatedAt: new Date() })
+        .where(eq(eventPaymentCheckouts.id, checkout.id));
       await logStage(reg.id, "payment_completed", {
         razorpay_payment_id, amount: expectedAmount,
         ...(allocation ? { allocationId: allocation.id } : { testMode: true }),
@@ -2662,7 +3284,11 @@ export function registerEventsRoutes(app: Express) {
       return finishTicketIssuance(paid);
     } catch (e) {
       console.error("[events] verify payment failed:", e);
-      res.status(500).json({ error: "Internal server error" });
+      res.status(503).json({
+        error: "Payment is confirmed, but your ticket is still being prepared. Please try again.",
+        pending: true,
+        retryable: true,
+      });
     }
   });
 
@@ -2813,13 +3439,33 @@ export function registerEventsRoutes(app: Express) {
         return res.status(400).json({ error: "Branch does not belong to this organization" });
       }
       let whatsappTriggers: EventWhatsAppTriggers;
+      let otpSettings: EventOtpSettings;
+      let refundPolicy: EventRefundPolicy;
       let parkingEnabled: boolean;
+      let checkoutAlert: CheckoutAlert;
+      let preprintedTicketPrefix: string;
       try {
         whatsappTriggers = normalizeEventWhatsappTriggers(b.whatsappTriggers);
+        otpSettings = normalizeEventOtpSettings(b.otpSettings);
+        refundPolicy = normalizeEventRefundPolicy({
+          refundable: b.refundable,
+          refundMessage: b.refundMessage,
+        });
         parkingEnabled = normalizeEventParkingEnabled(b.parkingEnabled);
+        checkoutAlert = normalizeCheckoutAlert(b.checkoutAlert);
+        preprintedTicketPrefix = normalizePreprintedTicketPrefix(b.preprintedTicketPrefix);
       } catch (e) {
         return res.status(400).json({ error: (e as Error).message });
       }
+      const requestedRegistrationFee = Math.max(0, parseInt(String(b.registrationFee || 0), 10) || 0);
+      const [payoutProfile] = await db.select({
+        providerProductId: organizerPayoutProfiles.providerProductId,
+        productStatus: organizerPayoutProfiles.productStatus,
+      }).from(organizerPayoutProfiles)
+        .where(eq(organizerPayoutProfiles.organizationId, String(b.organizationId)))
+        .limit(1);
+      const paymentMethod = await getEventPaymentMethod();
+      const registrationFeesReady = canConfigureEventRegistrationFeeForMethod(paymentMethod, payoutProfile);
       const [ev] = await db.insert(events).values({
         branchId: b.branchId,
         organizationId: b.organizationId,
@@ -2834,7 +3480,10 @@ export function registerEventsRoutes(app: Express) {
         slotDurationMinutes: Math.max(5, parseInt(String(b.slotDurationMinutes || 30), 10) || 30),
         maxCapacityPerSlot: Math.max(1, parseInt(String(b.maxCapacityPerSlot || 50), 10) || 50),
         maxGuestsPerRegistration: Math.max(1, parseInt(String(b.maxGuestsPerRegistration || 10), 10) || 10),
-        registrationFee: Math.max(0, parseInt(String(b.registrationFee || 0), 10) || 0),
+        registrationFee: registrationFeesReady ? requestedRegistrationFee : 0,
+        registrationFeeCustomText: normalizeRegistrationFeeCustomText(b.registrationFeeCustomText),
+        refundable: refundPolicy.refundable,
+        refundMessage: refundPolicy.refundMessage,
         termsAndConditions: b.termsAndConditions || null,
         faqs: Array.isArray(b.faqs) ? b.faqs : [],
         supportContact: b.supportContact || null,
@@ -2845,9 +3494,12 @@ export function registerEventsRoutes(app: Express) {
         brandPrimaryColor: b.brandPrimaryColor || null,
         brandButtonColor: b.brandButtonColor || null,
         brandFontFamily: b.brandFontFamily || null,
+        preprintedTicketPrefix,
         messageTemplates: b.messageTemplates && typeof b.messageTemplates === "object" ? b.messageTemplates : {},
         whatsappTriggers,
+        otpSettings,
         parkingEnabled,
+        checkoutAlert,
         parkingTotalSpaces: Math.max(0, parseInt(String(b.parkingTotalSpaces || 0), 10) || 0),
         status: "draft",
       }).returning();
@@ -2874,7 +3526,44 @@ export function registerEventsRoutes(app: Express) {
       if (b.slotDurationMinutes !== undefined) patch.slotDurationMinutes = Math.max(5, parseInt(String(b.slotDurationMinutes), 10) || 30);
       if (b.maxCapacityPerSlot !== undefined) patch.maxCapacityPerSlot = Math.max(1, parseInt(String(b.maxCapacityPerSlot), 10) || 50);
       if (b.maxGuestsPerRegistration !== undefined) patch.maxGuestsPerRegistration = Math.max(1, parseInt(String(b.maxGuestsPerRegistration), 10) || 10);
-      if (b.registrationFee !== undefined) patch.registrationFee = Math.max(0, parseInt(String(b.registrationFee), 10) || 0);
+      if (b.registrationFee !== undefined) {
+        const [payoutProfile] = await db.select({
+          providerProductId: organizerPayoutProfiles.providerProductId,
+          productStatus: organizerPayoutProfiles.productStatus,
+        }).from(organizerPayoutProfiles)
+          .where(eq(organizerPayoutProfiles.organizationId, ev.organizationId))
+          .limit(1);
+        const paymentMethod = await getEventPaymentMethod();
+        patch.registrationFee = canConfigureEventRegistrationFeeForMethod(paymentMethod, payoutProfile)
+          ? Math.max(0, parseInt(String(b.registrationFee), 10) || 0)
+          : 0;
+      }
+      if ("registrationFeeCustomText" in b) {
+        try {
+          patch.registrationFeeCustomText = normalizeRegistrationFeeCustomText(b.registrationFeeCustomText, ev.registrationFeeCustomText);
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
+      if ("preprintedTicketPrefix" in b) {
+        try {
+          patch.preprintedTicketPrefix = normalizePreprintedTicketPrefix(b.preprintedTicketPrefix);
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
+      if ("refundable" in b || "refundMessage" in b) {
+        try {
+          const refundPolicy = normalizeEventRefundPolicy({
+            refundable: b.refundable,
+            refundMessage: b.refundMessage,
+          }, { refundable: ev.refundable, refundMessage: ev.refundMessage });
+          patch.refundable = refundPolicy.refundable;
+          patch.refundMessage = refundPolicy.refundMessage;
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
       if (Array.isArray(b.faqs)) patch.faqs = b.faqs;
       if (Array.isArray(b.galleryUrls)) patch.galleryUrls = b.galleryUrls;
       if (b.messageTemplates && typeof b.messageTemplates === "object") patch.messageTemplates = b.messageTemplates;
@@ -2885,9 +3574,23 @@ export function registerEventsRoutes(app: Express) {
           return res.status(400).json({ error: (e as Error).message });
         }
       }
+      if (b.otpSettings !== undefined) {
+        try {
+          patch.otpSettings = normalizeEventOtpSettings(b.otpSettings, ev.otpSettings);
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
       if (b.parkingEnabled !== undefined) {
         try {
           patch.parkingEnabled = normalizeEventParkingEnabled(b.parkingEnabled, ev.parkingEnabled);
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
+      if (b.checkoutAlert !== undefined) {
+        try {
+          patch.checkoutAlert = normalizeCheckoutAlert(b.checkoutAlert, ev.checkoutAlert);
         } catch (e) {
           return res.status(400).json({ error: (e as Error).message });
         }
@@ -2944,16 +3647,42 @@ export function registerEventsRoutes(app: Express) {
       if (!svc) return res.status(404).json({ error: "Location not found" });
       const ev = await loadEventForBranch(svc.branchId);
       if (!ev) return res.status(400).json({ error: "This branch has no event yet" });
+      const activePaymentMethod = await getEventPaymentMethod();
+      const [activePayoutProfile] = await db.select({
+        providerProductId: organizerPayoutProfiles.providerProductId,
+        productStatus: organizerPayoutProfiles.productStatus,
+      }).from(organizerPayoutProfiles)
+        .where(eq(organizerPayoutProfiles.organizationId, ev.organizationId)).limit(1);
+      const feeReady = canConfigureEventRegistrationFeeForMethod(activePaymentMethod, activePayoutProfile);
 
       const b = req.body || {};
       const c = (b.config && typeof b.config === "object") ? b.config : {};
       const timeRe = /^([01]?\d|2[0-3]):[0-5]\d$/;
+      let refundPolicy: EventRefundPolicy;
+      try {
+        refundPolicy = normalizeEventRefundPolicy({
+          refundable: c.refundable,
+          refundMessage: c.refundMessage,
+        }, {
+          refundable: ev.refundable,
+          refundMessage: ev.refundMessage,
+        });
+      } catch (e) {
+        return res.status(400).json({ error: (e as Error).message });
+      }
       const cfg: LocationEventConfig = {
         operatingHoursStart: timeRe.test(String(c.operatingHoursStart)) ? String(c.operatingHoursStart) : ev.operatingHoursStart,
         operatingHoursEnd: timeRe.test(String(c.operatingHoursEnd)) ? String(c.operatingHoursEnd) : ev.operatingHoursEnd,
         slotDurationMinutes: Math.max(5, num(c.slotDurationMinutes, ev.slotDurationMinutes)),
         maxCapacityPerSlot: Math.max(0, num(c.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
-        registrationFee: Math.max(0, num(c.registrationFee, ev.registrationFee)),
+        // Fail closed if adapter readiness changes while editing.
+        registrationFee: feeReady ? Math.max(0, num(c.registrationFee, ev.registrationFee)) : 0,
+         registrationFeeCustomText: normalizeRegistrationFeeCustomText(
+           c.registrationFeeCustomText,
+           ev.registrationFeeCustomText,
+         ),
+        refundable: refundPolicy.refundable,
+        refundMessage: refundPolicy.refundMessage,
         slotCapacityOverrides: {},
         eventId: typeof c.eventId === "string" ? c.eventId : "",
       };
@@ -3111,11 +3840,13 @@ export function registerEventsRoutes(app: Express) {
       if (status) conds.push(inArray(eventRegistrations.status, status.split(",")));
       if (slotDate) conds.push(eq(eventRegistrations.slotDate, slotDate));
       if (q?.trim()) {
+        const bookingIdConditions = getPartialTicketIdPatterns(q)
+          .map((pattern) => ilike(eventRegistrations.bookingId, pattern));
         const needle = `%${q.trim()}%`;
         conds.push(or(
           ilike(eventRegistrations.customerName, needle),
           ilike(eventRegistrations.customerPhone, needle),
-          ilike(eventRegistrations.bookingId, needle),
+          or(...bookingIdConditions),
         ) as any);
       }
       const whereClause = and(...conds);
@@ -3288,10 +4019,12 @@ export function registerEventsRoutes(app: Express) {
       if (type === "billing") {
         const whereConditions = [eq(eventRegistrations.eventId, ev.id)];
         if (search) {
+          const bookingIdConditions = getPartialTicketIdPatterns(search)
+            .map((pattern) => ilike(eventRegistrations.bookingId, pattern));
           whereConditions.push(
             or(
               ilike(eventRegistrations.customerName, `%${search}%`),
-              ilike(eventRegistrations.bookingId, `%${search}%`),
+              or(...bookingIdConditions),
             ) as any,
           );
         }
@@ -3471,12 +4204,15 @@ export function registerEventsRoutes(app: Express) {
       const t = SCAN_TRANSITIONS[action];
       if (t && !t.validFrom.includes(reg.status)) {
         const isDup = t.duplicateWhen.includes(reg.status);
+        const journey = isDup ? await registrationJourney(reg.id) : undefined;
         return res.status(409).json({
           error: isDup ? `Already ${reg.status.replace(/_/g, " ")}` : t.invalidMsg(reg.status),
           ...(isDup ? { duplicate: true } : { invalid: true }),
           ...(ev.status === "paused" ? { eventPaused: true } : {}),
           registration: regShape(reg),
           eventName: ev.name,
+          formLabels,
+          ...(journey ? { journey } : {}),
         });
       }
 
@@ -3562,6 +4298,7 @@ export function registerEventsRoutes(app: Express) {
             status: "exited",
             exitedAt: now,
             visitDurationMinutes: r.checkedInAt ? Math.max(0, Math.round((now.getTime() - new Date(r.checkedInAt).getTime()) / 60000)) : null,
+            checkoutAlertSnapshot: checkoutAlertFor(ev, r, now),
             updatedAt: now,
           }),
           stage: "exited",
@@ -3578,12 +4315,14 @@ export function registerEventsRoutes(app: Express) {
             : { invalidScanAttempts: (current.invalidScanAttempts || 0) + 1, updatedAt: now })
           .where(eq(eventRegistrations.id, current.id));
         await logStage(current.id, isDup ? "duplicate_scan" : "invalid_scan", { action, status: current.status });
+        const journey = isDup ? await registrationJourney(current.id) : undefined;
         return res.status(409).json({
           error: isDup ? `Already ${current.status.replace(/_/g, " ")}` : t.invalidMsg(current.status),
           ...(isDup ? { duplicate: true } : {}),
           ...(ev.status === "paused" ? { eventPaused: true } : {}),
           registration: regShape(current),
           eventName: ev.name,
+          ...(journey ? { journey } : {}),
         });
       };
 
@@ -3602,7 +4341,10 @@ export function registerEventsRoutes(app: Express) {
 
       await logStage(reg.id, t.stage, {
         by: getRequestUserId(req),
-        ...(action === "exit" ? { durationMin: updated.visitDurationMinutes } : {}),
+        ...(action === "exit" ? {
+          durationMin: updated.visitDurationMinutes,
+          checkoutAlert: updated.checkoutAlertSnapshot || undefined,
+        } : {}),
       });
       try {
         await sendEventTrigger(ev, updated, t.waTrigger);
@@ -3610,7 +4352,7 @@ export function registerEventsRoutes(app: Express) {
       // Paused events still admit already-ticketed guests, but the console
       // shows a clear notice so staff know registrations are paused.
       const formLabels = await buildFormLabels(reg.locationId);
-      return res.json({ success: true, action, registration: regShape(updated), eventName: ev.name, guests: g, formLabels, ...(ev.status === "paused" ? { eventPaused: true } : {}) });
+      return res.json({ success: true, action, registration: regShape(updated), eventName: ev.name, guests: g, formLabels, checkoutAlert: updated.checkoutAlertSnapshot, ...(ev.status === "paused" ? { eventPaused: true } : {}) });
     } catch (e) {
       console.error("[events] scan failed:", e);
       res.status(500).json({ error: "Internal server error" });
@@ -3637,7 +4379,8 @@ export function registerEventsRoutes(app: Express) {
       }
 
       const feeExists = (ev.registrationFee || 0) > 0;
-      const otpRequired = feeExists && !cashPaidAtCounter;
+      const billingOtpEnabled = normalizeEventOtpSettings(ev.otpSettings).billing;
+      const otpRequired = isEventBillingOtpRequired(ev, feeExists, cashPaidAtCounter);
       let otpVerified = false;
       if (otpRequired && !redemption) {
         const [otpRow] = await db.select().from(eventBillingOtps)
@@ -3653,6 +4396,7 @@ export function registerEventsRoutes(app: Express) {
         otpRequired,
         otpVerified,
         cashPaidAtCounter,
+        billingOtpEnabled,
       });
     } catch (e) {
       console.error("[events] billing lookup failed:", e);
@@ -3671,6 +4415,9 @@ export function registerEventsRoutes(app: Express) {
       const scoped = await findOrgRegistration(req, String(registrationId));
       if (!scoped) return res.status(404).json({ error: "Registration not found" });
       const { reg, ev } = scoped;
+      if (!normalizeEventOtpSettings(ev.otpSettings).billing) {
+        return res.json({ sent: false, otpRequired: false });
+      }
       if ((ev.registrationFee || 0) <= 0) {
         return res.status(400).json({ error: "This event has no registration fee configured — OTP verification is not required" });
       }
@@ -3707,7 +4454,10 @@ export function registerEventsRoutes(app: Express) {
       if (!registrationId || !code) return res.status(400).json({ error: "registrationId and code are required" });
       const scoped = await findOrgRegistration(req, String(registrationId));
       if (!scoped) return res.status(404).json({ error: "Registration not found" });
-      const { reg } = scoped;
+      const { reg, ev } = scoped;
+      if (!normalizeEventOtpSettings(ev.otpSettings).billing) {
+        return res.json({ verified: true, otpRequired: false });
+      }
       const [otpRow] = await db.select().from(eventBillingOtps)
         .where(and(eq(eventBillingOtps.registrationId, reg.id), eq(eventBillingOtps.verified, false), gte(eventBillingOtps.expiresAt, new Date())))
         .orderBy(desc(eventBillingOtps.createdAt)).limit(1);
@@ -3750,7 +4500,7 @@ export function registerEventsRoutes(app: Express) {
             .from(payments).where(eq(payments.id, reg.paymentId)).limit(1);
           cashPaidAtCounter = pmtRow?.paymentMethod === "manual";
         }
-        if (!cashPaidAtCounter) {
+        if (isEventBillingOtpRequired(ev, true, cashPaidAtCounter)) {
           const [otpRow] = await db.select().from(eventBillingOtps)
             .where(and(eq(eventBillingOtps.registrationId, reg.id), eq(eventBillingOtps.verified, true)))
             .limit(1);
@@ -3975,10 +4725,12 @@ export function registerEventsRoutes(app: Express) {
 
       const whereConditions: any[] = [eq(eventParkingLogs.eventId, ev.id)];
       if (search) {
+        const bookingIdConditions = getPartialTicketIdPatterns(search)
+          .map((pattern) => ilike(eventParkingLogs.bookingId, pattern));
         whereConditions.push(
           or(
             ilike(eventParkingLogs.customerName,    `%${search}%`),
-            ilike(eventParkingLogs.bookingId,       `%${search}%`),
+            or(...bookingIdConditions),
             ilike(eventParkingLogs.customerPhone,   `%${search}%`),
             ilike(eventParkingLogs.vehicleRegNumber, `%${search}%`),
           ) as any,

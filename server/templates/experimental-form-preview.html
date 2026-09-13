@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Experimental registration form</title>
+  <link rel="stylesheet" href="/experimental/form-builder/assets/experimental-form.css">
+  <script defer src="/experimental/form-builder/assets/renderer.js"></script>
+  <script defer src="/experimental/form-builder/assets/preview.js"></script>
+</head>
+<body>
+  <main class="public-shell">
+    <section class="public-card">
+      <header class="public-head">
+        <div>
+          <span class="experimental-badge">Experimental form</span>
+          <h1 id="form-title">Registration</h1>
+        </div>
+        <div class="language" aria-label="Language">
+          <button id="language-en" type="button">EN</button>
+          <button id="language-ta" type="button">தமிழ்</button>
+        </div>
+      </header>
+      <div id="form-root"></div>
+      <div id="form-status" class="fb-status" aria-live="polite"></div>
+    </section>
+  </main>
+  <div class="popup" id="popup" role="dialog" aria-modal="true">
+    <div class="popup-card">
+      <h2 id="popup-title">Form notice</h2>
+      <p id="popup-message"></p>
+      <button id="popup-close" type="button" class="primary">Continue</button>
+    </div>
+  </div>
+</body>
+</html>

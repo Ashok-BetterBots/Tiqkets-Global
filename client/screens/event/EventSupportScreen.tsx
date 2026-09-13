@@ -45,6 +45,14 @@ interface RegResult {
   amountPaid: number;
   eventName?: string;
   qrToken?: string;
+  checkoutAlertSnapshot?: {
+    title: string;
+    message: string;
+    iconUrl: string;
+    maxDurationMinutes: number;
+    elapsedMinutes: number;
+    capturedAt: string;
+  } | null;
 }
 
 interface StageLogRow {
@@ -158,7 +166,7 @@ function BottomSheet({
   const insets = useSafeAreaInsets();
   const sheetBg = colorScheme === "dark" ? "#1c1c1e" : "#ffffff";
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={blocking ? undefined : onClose} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -564,7 +572,7 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function EventSupportScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { selectedEventId } = useEventSelection();
@@ -877,6 +885,40 @@ export default function EventSupportScreen() {
             </View>
 
             {/* Current status */}
+            {selected.checkoutAlertSnapshot ? (
+              <View
+                style={[
+                  styles.card,
+                  styles.checkoutAlertCard,
+                  {
+                    backgroundColor: isDark ? "#2B1825" : "#FFF4FA",
+                    borderColor: isDark ? "#71365D" : "#E7BDD6",
+                  },
+                ]}
+                testID="support-checkout-alert"
+              >
+                <View style={[styles.sectionHeader, { marginBottom: Spacing.md }]}>
+                  <Image
+                    source={{ uri: new URL(selected.checkoutAlertSnapshot.iconUrl, getApiUrl()).toString() }}
+                    style={styles.checkoutAlertIcon}
+                  />
+                  <View style={styles.checkoutAlertHeaderContent}>
+                    <ThemedText type="h4" style={[styles.transparentText, { color: BRAND }]}>
+                      {selected.checkoutAlertSnapshot.title}
+                    </ThemedText>
+                    <ThemedText type="small" style={[styles.transparentText, { color: theme.textSecondary }]}>
+                      Checkout message shown {fmtTs(selected.checkoutAlertSnapshot.capturedAt)}
+                    </ThemedText>
+                  </View>
+                </View>
+                <ThemedText type="body" style={styles.transparentText}>{selected.checkoutAlertSnapshot.message}</ThemedText>
+                <ThemedText type="small" style={[styles.transparentText, { color: theme.textSecondary, marginTop: Spacing.sm }]}>
+                  {selected.checkoutAlertSnapshot.elapsedMinutes} min since check-in · {selected.checkoutAlertSnapshot.maxDurationMinutes} min limit
+                </ThemedText>
+              </View>
+            ) : null}
+
+            {/* Current status */}
             <View style={[styles.stageCard, {
               backgroundColor: (STATUS_COLORS[selected.status] ?? "#9CA3AF") + "12",
               borderColor: (STATUS_COLORS[selected.status] ?? "#9CA3AF") + "30",
@@ -1069,6 +1111,25 @@ const styles = StyleSheet.create({
     padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, marginBottom: Spacing.md,
   },
   sectionHeader: { flexDirection: "row", alignItems: "center" },
+  checkoutAlertCard: {
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  checkoutAlertIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    marginRight: Spacing.md,
+    backgroundColor: "transparent",
+  },
+  checkoutAlertHeaderContent: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: "transparent",
+  },
+  transparentText: {
+    backgroundColor: "transparent",
+  },
   resultRow: {
     flexDirection: "row", alignItems: "center", gap: Spacing.md,
     padding: Spacing.lg, borderRadius: BorderRadius.lg,

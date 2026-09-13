@@ -3,7 +3,7 @@ import { Platform, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import * as Font from "expo-font";
@@ -38,8 +38,6 @@ import { AppointmentProvider } from "@/contexts/AppointmentContext";
 import { OrganizationProvider, useOrganization } from "@/contexts/OrganizationContext";
 import { ThemeProvider, ThemeVariantProvider } from "@/contexts/ThemeContext";
 import { useNotificationHandler } from "@/hooks/useNotificationHandler";
-
-SplashScreen.preventAutoHideAsync();
 
 function NotificationWrapper({ children }: { children: React.ReactNode }) {
   useNotificationHandler();
@@ -129,6 +127,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const timeout = setTimeout(() => {
+      if (active) {
+        console.warn("Icon font load timed out; continuing without blocking startup");
+        setIconFontLoaded(true);
+      }
+    }, 5000);
+
     async function loadIconFont() {
       try {
         if (!Font.isLoaded("feather")) {
@@ -136,10 +142,16 @@ export default function App() {
         }
       } catch (e) {
         console.log("Icon font load error:", e);
+      } finally {
+        clearTimeout(timeout);
+        if (active) setIconFontLoaded(true);
       }
-      setIconFontLoaded(true);
     }
     loadIconFont();
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
   }, []);
 
   const fontsReady = fontsLoaded || !!fontError || fontTimeout;
@@ -163,7 +175,7 @@ export default function App() {
             <QueueProvider>
               <AppointmentProvider>
                 <OrganizationProvider>
-                  <SafeAreaProvider>
+                  <SafeAreaProvider initialMetrics={initialWindowMetrics}>
                     <GestureHandlerRootView style={styles.root}>
                       <KeyboardProvider>
                         <NavigationContainer>
