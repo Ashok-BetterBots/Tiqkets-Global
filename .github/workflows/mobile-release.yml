@@ -112,8 +112,17 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - name: Cache Gradle dependencies and build outputs
-        uses: gradle/actions/setup-gradle@v5
+      # Native React Native builds need considerably more temporary disk than a
+      # standard Gradle app. Restoring Gradle's large build-output cache can
+      # exhaust the hosted runner before CMake finishes, so each release uses
+      # a clean dependency cache instead.
+      - name: Prepare disk for native Android build
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android/sdk/system-images
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          docker system prune --all --force || true
+          df -h
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
