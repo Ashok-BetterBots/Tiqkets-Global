@@ -27,6 +27,7 @@ import { Feather } from "@expo/vector-icons";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
 import { notificationService } from "@/services/NotificationService";
+import { Audio } from "@/utils/audioCompat";
 
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import OrgStackNavigator from "@/navigation/OrgStackNavigator";
@@ -120,6 +121,22 @@ export default function App() {
     NunitoSans_700Bold,
     NunitoSans_800ExtraBold,
   });
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+      interruptionModeIOS: Audio.InterruptionModeIOS.DuckOthers,
+      interruptionModeAndroid: Audio.InterruptionModeAndroid.DuckOthers,
+    }).catch((error) => {
+      console.log("Background audio mode setup error (non-fatal):", error);
+    });
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setFontTimeout(true), 5000);
