@@ -1,0 +1,1879 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Join Queue - TIQKETS</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  
+  <!-- PWA / App Clip Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TIQKETS" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#8c1867" />
+  <meta name="application-name" content="TIQKETS" />
+  <meta name="format-detection" content="telephone=no" />
+  
+  <!-- iOS Splash Screens -->
+  <meta name="apple-touch-fullscreen" content="yes" />
+  <link rel="apple-touch-icon" href="/assets/icon-180.png" />
+  
+  <!-- Android Chrome -->
+  <link rel="manifest" href="/manifest.json" />
+  
+  <!-- Open Graph for link previews -->
+  <meta property="og:title" content="Join Queue - TIQKETS" />
+  <meta property="og:description" content="Skip the wait - join the queue instantly from your phone" />
+  <meta property="og:type" content="website" />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --brand-primary: #8c1867;
+      --brand-primary-dark: #6a1250;
+      --brand-tint: #fbf6f9;
+      --brand-tint-strong: #f3e6ee;
+      --brand-secondary: #1d499b;
+      --brand-accent: #ffd700;
+      --brand-accent-dark: #e6c200;
+      --white: #ffffff;
+      --bg: #f7f6f9;
+      --surface: #ffffff;
+      --line: #ececf1;
+      --line-strong: #e2e2ea;
+      --text: #1a1a1f;
+      --text-secondary: #6b6b76;
+      --text-muted: #9a9aa6;
+      --light-gray: #f2f2f5;
+      --dark-gray: #272626;
+      --success: #10B981;
+      --error: #EF4444;
+      --shadow-sm: 0 1px 2px rgba(20, 12, 26, 0.04);
+      --shadow-md: 0 8px 24px rgba(20, 12, 26, 0.06);
+      --shadow-lg: 0 18px 48px -12px rgba(20, 12, 26, 0.12), 0 4px 12px rgba(20, 12, 26, 0.04);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background:
+        radial-gradient(1100px 520px at 50% -180px, rgba(140, 24, 103, 0.10) 0%, rgba(140, 24, 103, 0) 60%),
+        var(--bg);
+      min-height: 100vh;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      letter-spacing: -0.01em;
+    }
+
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 20px 20px 40px;
+      min-height: 100vh;
+    }
+
+    .header {
+      text-align: center;
+      padding: 18px 0 22px;
+      color: var(--text);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-img {
+      height: 72px;
+      width: auto;
+      display: block;
+    }
+
+    .org-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-top: 14px;
+      letter-spacing: 0;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: 24px;
+      padding: 28px 22px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+    }
+
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 22px;
+      text-align: center;
+      letter-spacing: -0.02em;
+    }
+
+    /* Modern minimal stepper */
+    .step-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin: 6px auto 26px;
+      max-width: 260px;
+    }
+
+    .step {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 12px;
+      background: var(--brand-tint-strong);
+      color: var(--brand-primary);
+      flex-shrink: 0;
+      transition: background 280ms cubic-bezier(0.22, 1, 0.36, 1),
+                  color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+                  transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+                  box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .step.active {
+      background: var(--brand-primary);
+      color: #fff;
+      transform: scale(1.06);
+      box-shadow: 0 6px 16px -6px rgba(140, 24, 103, 0.55);
+    }
+
+    .step.completed {
+      background: var(--brand-primary);
+      color: #fff;
+    }
+
+    .step-line {
+      flex: 1;
+      height: 2px;
+      background: var(--line);
+      align-self: center;
+      position: relative;
+      overflow: hidden;
+      border-radius: 2px;
+      margin: 0 8px;
+    }
+
+    .step-line::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 0%;
+      background: var(--brand-primary);
+      transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .step-line.completed::after {
+      width: 100%;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      letter-spacing: 0;
+    }
+
+    label .required {
+      color: var(--error);
+    }
+
+    input:not([type="checkbox"]), select, textarea {
+      width: 100%;
+      padding: 13px 15px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--text);
+      transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--surface);
+    }
+
+    input:not([type="checkbox"]):hover, select:hover, textarea:hover {
+      border-color: #cfcfd8;
+    }
+
+    input:not([type="checkbox"]):focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 4px rgba(140, 24, 103, 0.08);
+    }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236b6b76' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 20px;
+      padding-right: 44px;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      cursor: pointer;
+      accent-color: var(--brand-primary);
+    }
+
+    .checkbox-label {
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    .service-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .service-option {
+      position: relative;
+      border: 1px solid var(--line-strong);
+      border-radius: 14px;
+      padding: 16px 18px;
+      cursor: pointer;
+      background: var(--surface);
+      transition: border-color 200ms ease,
+                  background-color 200ms ease,
+                  box-shadow 200ms ease,
+                  transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .service-option:hover {
+      border-color: #d4b8c9;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .service-option:active {
+      transform: scale(0.985);
+    }
+
+    .service-option.selected {
+      border-color: var(--brand-primary);
+      background: var(--brand-tint);
+      box-shadow: 0 0 0 3px rgba(140, 24, 103, 0.08);
+    }
+
+    .service-option input {
+      display: none;
+    }
+
+    .service-name {
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .service-info {
+      display: flex;
+      gap: 14px;
+      margin-top: 6px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 15px 18px;
+      border: none;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: -0.01em;
+      transition: background 180ms ease,
+                  box-shadow 220ms ease,
+                  transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+                  color 180ms ease;
+    }
+
+    .btn-primary {
+      background: var(--brand-primary);
+      color: #fff;
+      box-shadow: 0 8px 20px -8px rgba(140, 24, 103, 0.55);
+    }
+
+    .btn-primary:hover {
+      background: var(--brand-primary-dark);
+      box-shadow: 0 10px 24px -8px rgba(140, 24, 103, 0.6);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.985);
+    }
+
+    .btn-primary:disabled {
+      background: #e5e5ec;
+      color: #a8a8b3;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: var(--light-gray);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background: #e8e8ee;
+    }
+
+    .btn-secondary:active {
+      transform: scale(0.985);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .btn-group .btn {
+      flex: 1;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .success-screen {
+      text-align: center;
+      padding: 12px 0;
+    }
+
+    .success-icon {
+      width: 72px;
+      height: 72px;
+      background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 22px;
+      box-shadow: 0 12px 24px -10px rgba(16, 185, 129, 0.55);
+    }
+
+    .success-icon svg {
+      width: 36px;
+      height: 36px;
+      color: white;
+    }
+
+    .queue-number {
+      font-size: 64px;
+      font-weight: 800;
+      color: var(--brand-primary);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .queue-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 6px;
+      font-weight: 500;
+    }
+
+    .queue-info {
+      background: #f7f6f9;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 6px 16px;
+      margin-top: 22px;
+    }
+
+    .queue-info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      font-size: 14px;
+    }
+
+    .queue-info-row:not(:last-child) {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .queue-info-label {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .queue-info-value {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .download-prompt {
+      margin-top: 28px;
+      padding: 18px;
+      background: var(--brand-tint);
+      border: 1px solid var(--brand-tint-strong);
+      border-radius: 14px;
+      text-align: center;
+    }
+
+    .download-prompt p {
+      font-size: 13.5px;
+      color: var(--text);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .app-badges {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .app-badge {
+      height: 38px;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--line-strong);
+      border-top-color: var(--brand-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes scaleIn {
+      from {
+        opacity: 0;
+        transform: scale(0.96) translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    @keyframes checkmark {
+      0% { stroke-dashoffset: 24; }
+      100% { stroke-dashoffset: 0; }
+    }
+
+    .animate-fade-in {
+      animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .animate-scale-in {
+      opacity: 0;
+      animation: scaleIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.08s forwards;
+    }
+
+    .animate-pulse {
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .success-icon svg path {
+      stroke-dasharray: 24;
+      stroke-dashoffset: 24;
+      animation: checkmark 0.5s ease-out 0.3s forwards;
+    }
+
+    /* Subtle stagger when service tiles enter */
+    .service-option {
+      opacity: 0;
+      animation: fadeInUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    .service-option:nth-child(1) { animation-delay: 0.04s; }
+    .service-option:nth-child(2) { animation-delay: 0.10s; }
+    .service-option:nth-child(3) { animation-delay: 0.16s; }
+    .service-option:nth-child(4) { animation-delay: 0.22s; }
+    .service-option:nth-child(5) { animation-delay: 0.28s; }
+    .service-option:nth-child(n+6) { animation-delay: 0.34s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-delay: 0ms !important;
+        transition-duration: 0.001ms !important;
+      }
+      .service-option { opacity: 1; }
+      .animate-scale-in { opacity: 1; }
+    }
+
+    .safe-area-top {
+      padding-top: env(safe-area-inset-top, 20px);
+    }
+
+    .safe-area-bottom {
+      padding-bottom: env(safe-area-inset-bottom, 20px);
+    }
+    
+    .location-banner {
+      background: #FEF3C7;
+      border: 1px solid #F59E0B;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    
+    .location-banner.error {
+      background: #FEE2E2;
+      border-color: #EF4444;
+    }
+    
+    .location-banner.success {
+      background: #D1FAE5;
+      border-color: #10B981;
+    }
+    
+    .location-icon {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+    }
+    
+    .location-text {
+      flex: 1;
+    }
+    
+    .location-text strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+    
+    .location-text span {
+      font-size: 13px;
+      color: #666;
+    }
+    
+    .in-person-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #D1FAE5;
+      color: #059669;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: 6px;
+    }
+    
+    .distance-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+    
+    .error-message {
+      background: #FDEDED;
+      color: #C62828;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    
+    .premium-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: linear-gradient(135deg, var(--brand-accent) 0%, var(--brand-accent-dark) 100%);
+      color: var(--dark-gray);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-left: 8px;
+    }
+
+    .whatsapp-section {
+      margin-top: 20px;
+      padding-top: 16px;
+    }
+
+    .whatsapp-divider {
+      text-align: center;
+      position: relative;
+      margin-bottom: 14px;
+    }
+
+    .whatsapp-divider::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: #e0e0e0;
+    }
+
+    .whatsapp-divider span {
+      background: #fff;
+      padding: 0 12px;
+      position: relative;
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+    }
+
+    .whatsapp-desc {
+      font-size: 13px;
+      color: #666;
+      text-align: center;
+      margin-bottom: 14px;
+      line-height: 1.4;
+    }
+
+    .whatsapp-ref {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: #f0f7f0;
+      border: 1px dashed #25D366;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+    }
+
+    .ref-label {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .ref-code {
+      font-size: 18px;
+      font-weight: 700;
+      color: #128C7E;
+      letter-spacing: 2px;
+      font-family: monospace;
+    }
+
+    .whatsapp-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 20px;
+      background: #25D366;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s;
+      font-family: inherit;
+    }
+
+    .whatsapp-btn:hover {
+      background: #1da851;
+    }
+
+    .whatsapp-hint {
+      font-size: 11px;
+      color: #999;
+      text-align: center;
+      margin-top: 8px;
+      line-height: 1.3;
+    }
+
+    /* ── Redesigned success screen ─────────────────────────────────────── */
+    .booking-confirmed-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+      margin: 0 0 4px;
+      letter-spacing: -0.02em;
+    }
+
+    .booking-confirmed-sub {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .booking-id-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: var(--brand-tint);
+      border: 1.5px solid var(--brand-tint-strong);
+      border-radius: 14px;
+      padding: 14px 24px;
+      margin: 18px 0 0;
+    }
+
+    .booking-id-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+
+    .booking-id-value {
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--brand-primary);
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .wa-notice {
+      background: #f0fdf4;
+      border: 1.5px solid #bbf7d0;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-top: 18px;
+      text-align: left;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .wa-notice-icon {
+      flex-shrink: 0;
+      width: 38px;
+      height: 38px;
+      background: #25D366;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 8px rgba(37,211,102,0.3);
+    }
+
+    .wa-notice-body { flex: 1; }
+
+    .wa-notice-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #14532d;
+      margin-bottom: 3px;
+    }
+
+    .wa-notice-desc {
+      font-size: 12.5px;
+      color: #166534;
+      line-height: 1.55;
+    }
+
+    .wa-link-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 20px;
+      background: #25D366;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.18s, box-shadow 0.18s, transform 0.12s;
+      font-family: inherit;
+      margin-top: 14px;
+      box-shadow: 0 4px 14px rgba(37,211,102,0.38);
+    }
+
+    .wa-link-btn:hover {
+      background: #1ebe5d;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(37,211,102,0.45);
+    }
+
+    .wa-link-btn:active { transform: translateY(0); }
+
+    /* ── Language picker ─────────────────────────────────── */
+    .lang-picker {
+      position: fixed;
+      top: 14px;
+      right: 16px;
+      z-index: 1200;
+    }
+    .lang-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 11px;
+      background: var(--white);
+      border: 1.5px solid var(--line-strong);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      font-family: inherit;
+      letter-spacing: 0.02em;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .lang-btn:hover {
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 2px rgba(140,24,103,0.08);
+    }
+    .lang-btn svg { flex-shrink: 0; }
+    .lang-menu {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      background: var(--white);
+      border: 1.5px solid var(--line-strong);
+      border-radius: 12px;
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+      min-width: 148px;
+      display: none;
+    }
+    .lang-menu.open { display: block; }
+    .lang-menu button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 11px 14px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--text);
+      transition: background 0.12s;
+    }
+    .lang-menu button:hover { background: var(--brand-tint); }
+    .lang-menu button.lang-active {
+      color: var(--brand-primary);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <!-- Language picker — fixed top-right corner -->
+  <div class="lang-picker" id="langPicker">
+    <button class="lang-btn" id="langBtn" onclick="toggleLangMenu(event)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      <span id="langLabel">EN</span>
+    </button>
+    <div class="lang-menu" id="langMenu">
+      <button onclick="setLang('en')" id="langOptEn" class="lang-active">🇬🇧 English</button>
+      <button onclick="setLang('ta')" id="langOptTa">🇮🇳 தமிழ்</button>
+    </div>
+  </div>
+
+  <div class="container safe-area-top safe-area-bottom">
+    <div class="header">
+      <div class="logo animate-fade-in">
+        <img class="logo-img" src="/assets/images/logo-color-icon.png" alt="TIQKETS" />
+      </div>
+      <div class="org-name animate-fade-in" id="orgName">Loading...</div>
+    </div>
+    
+    <div class="card animate-scale-in">
+      <div class="step-indicator">
+        <div class="step active" id="step1">1</div>
+        <div class="step-line" id="line1"></div>
+        <div class="step" id="step2">2</div>
+        <div class="step-line" id="line2"></div>
+        <div class="step" id="step3">3</div>
+      </div>
+      
+      <div id="screen1">
+        <h2 class="card-title" data-i18n="selectService">Select a Service</h2>
+        <div class="service-list" id="serviceList">
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="nextBtn1" disabled data-i18n="continue">Continue</button>
+        </div>
+      </div>
+      
+      <div id="screen2" class="hidden">
+        <h2 class="card-title" data-i18n="yourDetails">Your Details</h2>
+        <div id="errorMessage" class="error-message hidden"></div>
+        <form id="detailsForm">
+          <div id="dynamicFields"></div>
+        </form>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="backBtn2" data-i18n="back">Back</button>
+          <button class="btn btn-primary" id="nextBtn2" data-i18n="joinQueue">Join Queue</button>
+        </div>
+      </div>
+      
+      <div id="screen3" class="hidden">
+        <div class="success-screen">
+          <div class="success-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 class="booking-confirmed-title" data-i18n="bookingConfirmed">Booking Confirmed!</h2>
+          <p class="booking-confirmed-sub" data-i18n="bookingConfirmedSub">Your spot is reserved. Check your WhatsApp for details.</p>
+
+          <div class="booking-id-badge">
+            <div class="booking-id-label" data-i18n="bookingId">Booking ID</div>
+            <div class="booking-id-value" id="queueNumber">--</div>
+          </div>
+
+          <div class="queue-info" style="margin-top:18px;">
+            <div class="queue-info-row">
+              <span class="queue-info-label" data-i18n="service">Service</span>
+              <span class="queue-info-value" id="confirmedService">--</span>
+            </div>
+            <div class="queue-info-row" id="guestsRow" style="display:none;">
+              <span class="queue-info-label" data-i18n="guests">Guests</span>
+              <span class="queue-info-value" id="confirmedGuests">--</span>
+            </div>
+            <div class="queue-info-row">
+              <span class="queue-info-label" data-i18n="position">Position</span>
+              <span class="queue-info-value" id="queuePosition">--</span>
+            </div>
+            <div class="queue-info-row">
+              <span class="queue-info-label" data-i18n="estWaitTime">Est. Wait Time</span>
+              <span class="queue-info-value" id="estWaitTime">--</span>
+            </div>
+          </div>
+
+          <!-- WhatsApp ticket-sent notice (dine-in / approved template flow) -->
+          <div id="waNoticeSection" class="wa-notice" style="display:none;">
+            <div class="wa-notice-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+              </svg>
+            </div>
+            <div class="wa-notice-body">
+              <div class="wa-notice-title" data-i18n="waTicketSentTitle">Ticket sent to your WhatsApp</div>
+              <div class="wa-notice-desc" data-i18n="waTicketSentDesc">Your booking details and QR code have been sent. Show the QR code at the entrance.</div>
+            </div>
+          </div>
+
+          <!-- WhatsApp confirmation section (regular queue / bot-confirm flow) -->
+          <div id="whatsappSection" class="whatsapp-section" style="display:none;">
+            <div class="whatsapp-divider">
+              <span data-i18n="waNotifyTitle">Get notified on WhatsApp</span>
+            </div>
+            <p class="whatsapp-desc" data-i18n="waDesc">Confirm via WhatsApp to receive turn notifications. Tap the button below - it will open WhatsApp with a pre-filled message. Just hit send!</p>
+            <div class="whatsapp-ref">
+              <span class="ref-label" data-i18n="refCode">Your Reference Code</span>
+              <span class="ref-code" id="refCode">--</span>
+            </div>
+          </div>
+
+          <!-- Primary WhatsApp action button -->
+          <a id="whatsappBtn" href="#" class="wa-link-btn" target="_blank" rel="noopener noreferrer" style="display:none;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            <span id="whatsappBtnLabel" data-i18n="openWhatsApp">View Ticket on WhatsApp</span>
+          </a>
+          <p id="whatsappHint" class="whatsapp-hint" style="display:none;" data-i18n="waHint">You'll be redirected to WhatsApp. Send the message to confirm your spot and receive turn notifications.</p>
+
+          <div class="download-prompt" style="margin-top:20px;">
+            <p data-i18n="downloadPrompt">Download the TIQKETS app for real-time tracking, snooze, swap, and more!</p>
+            <div class="app-badges">
+              <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on App Store" class="app-badge" />
+              <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Get it on Google Play" class="app-badge" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="screen4" class="hidden">
+        <div class="success-screen">
+          <div class="queue-label" data-i18n="sessionClosed">Session Closed</div>
+          <div class="queue-info" id="expiredInfo" style="margin-top: 12px;">
+            <div class="queue-info-row">
+              <span class="queue-info-label" data-i18n="yourTicket">Your Ticket</span>
+              <span class="queue-info-value" id="expiredTicket">--</span>
+            </div>
+            <div class="queue-info-row" id="expiredRefRow" style="display:none;">
+              <span class="queue-info-label" data-i18n="reference">Reference</span>
+              <span class="queue-info-value" id="expiredRef">--</span>
+            </div>
+          </div>
+          <p style="margin: 18px 4px 6px; color: #555; line-height: 1.5;" data-i18n="sessionClosedDesc">
+            This page has been used for your queue request. Please continue in WhatsApp to confirm your registration and receive turn notifications.
+          </p>
+          <p style="margin: 6px 4px 18px; color: #555; line-height: 1.5;" data-i18n="scanAgain">
+            To register again, scan the QR code at the venue.
+          </p>
+          <a id="expiredWhatsappBtn" href="#" class="whatsapp-btn" target="_blank" rel="noopener noreferrer" style="display:none;">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="#fff">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            <span data-i18n="reopenWhatsApp">Reopen WhatsApp</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="loading-overlay hidden" id="loadingOverlay">
+    <div class="spinner"></div>
+  </div>
+  
+  <script>
+    // ── i18n ──────────────────────────────────────────────────────────────────
+    const TRANSLATIONS = {
+      en: {
+        selectService:       'Select a Service',
+        continue:            'Continue',
+        yourDetails:         'Your Details',
+        back:                'Back',
+        joinQueue:           'Join Queue',
+        yourQueueNumber:     'Your Queue Number',
+        bookingConfirmed:    'Booking Confirmed!',
+        bookingConfirmedSub: 'Your spot is reserved. Check your WhatsApp for details.',
+        bookingId:           'Booking ID',
+        guests:              'Guests',
+        waTicketSentTitle:   'Ticket sent to your WhatsApp',
+        waTicketSentDesc:    'Your booking details and QR code have been sent to your WhatsApp number. Show the QR code at the entrance.',
+        openWhatsApp:        'View Ticket on WhatsApp',
+        service:             'Service',
+        position:            'Position',
+        estWaitTime:         'Est. Wait Time',
+        waNotifyTitle:       'Get notified on WhatsApp',
+        waDesc:              'Confirm via WhatsApp to receive turn notifications. Tap the button below - it will open WhatsApp with a pre-filled message. Just hit send!',
+        refCode:             'Your Reference Code',
+        waConfirmBtn:        'Confirm via WhatsApp',
+        waHint:              "You'll be redirected to WhatsApp. Send the message to confirm your spot and receive turn notifications.",
+        downloadPrompt:      'Download the TIQKETS app for real-time tracking, snooze, swap, and more!',
+        sessionClosed:       'Session Closed',
+        yourTicket:          'Your Ticket',
+        reference:           'Reference',
+        sessionClosedDesc:   'This page has been used for your queue request. Please continue in WhatsApp to confirm your registration and receive turn notifications.',
+        scanAgain:           'To register again, scan the QR code at the venue.',
+        reopenWhatsApp:      'Reopen WhatsApp',
+        fieldName:           'Full Name',
+        fieldPhone:          'WhatsApp Number',
+        fieldPhoneHint:      'Your ticket & live updates will be sent here',
+        fieldPhonePH:        '98765 43210',
+        selectOption:        'Select an option',
+        enterPrefix:         'Enter',
+        minAvgWait:          'min avg wait',
+        inQueue:             'in queue',
+        errRequired:         'Please fill in all required fields',
+        errFieldRequired:    'is required',
+        errMustBeNumber:     'must be a number',
+        errMinVal:           'must be at least',
+        errMaxVal:           'must be at most',
+      },
+      ta: {
+        selectService:       'சேவையை தேர்வு செய்யுங்கள்',
+        continue:            'தொடரவும்',
+        yourDetails:         'உங்கள் விவரங்கள்',
+        back:                'திரும்பு',
+        joinQueue:           'வரிசையில் சேர்',
+        yourQueueNumber:     'உங்கள் வரிசை எண்',
+        bookingConfirmed:    'முன்பதிவு உறுதிப்படுத்தப்பட்டது!',
+        bookingConfirmedSub: 'உங்கள் இடம் ஒதுக்கப்பட்டது. WhatsApp-ல் விவரங்களை பரிசோதிக்கவும்.',
+        bookingId:           'முன்பதிவு எண்',
+        guests:              'விருந்தினர்கள்',
+        waTicketSentTitle:   'உங்கள் WhatsApp-ல் டிக்கெட் அனுப்பப்பட்டது',
+        waTicketSentDesc:    'உங்கள் முன்பதிவு விவரங்களும் QR குறியீடும் WhatsApp-ல் அனுப்பப்பட்டது. நுழைவில் QR குறியீட்டை காட்டுங்கள்.',
+        openWhatsApp:        'WhatsApp-ல் டிக்கெட் பார்க்கவும்',
+        service:             'சேவை',
+        position:            'நிலை',
+        estWaitTime:         'மதிப்பிட்ட காத்திருப்பு',
+        waNotifyTitle:       'WhatsApp-ல் அறிவிப்பு பெறுங்கள்',
+        waDesc:              'உங்கள் முறை அறிவிப்புகளைப் பெற WhatsApp மூலம் உறுதிப்படுத்துங்கள். கீழே உள்ள பொத்தானை அழுத்தவும் — WhatsApp திறக்கும், அனுப்பவும்!',
+        refCode:             'உங்கள் குறிப்பு குறியீடு',
+        waConfirmBtn:        'WhatsApp-ல் உறுதிப்படுத்துங்கள்',
+        waHint:              'WhatsApp-க்கு திரும்பி அனுப்பப்படுவீர்கள். உங்கள் இடத்தை உறுதிப்படுத்த செய்தியை அனுப்பவும்.',
+        downloadPrompt:      'நேரடி கண்காணிப்பு, ஒத்திவைப்பு, மாற்றம் மற்றும் பலவற்றிற்கு TIQKETS பயன்பாட்டை பதிவிறக்கவும்!',
+        sessionClosed:       'அமர்வு முடிந்தது',
+        yourTicket:          'உங்கள் டிக்கெட்',
+        reference:           'குறிப்பு',
+        sessionClosedDesc:   'இந்தப் பக்கம் உங்கள் வரிசை கோரிக்கைக்கு பயன்படுத்தப்பட்டது. பதிவை உறுதிப்படுத்தவும் அறிவிப்புகளைப் பெறவும் WhatsApp-ல் தொடரவும்.',
+        scanAgain:           'மீண்டும் பதிவு செய்ய, இடத்தில் உள்ள QR குறியீட்டை ஸ்கேன் செய்யுங்கள்.',
+        reopenWhatsApp:      'WhatsApp-ஐ திறக்கவும்',
+        fieldName:           'முழு பெயர்',
+        fieldPhone:          'WhatsApp எண்',
+        fieldPhoneHint:      'உங்கள் டிக்கெட் மற்றும் புதுப்பிப்புகள் இங்கே அனுப்பப்படும்',
+        fieldPhonePH:        '98765 43210',
+        selectOption:        'ஒரு விருப்பத்தை தேர்வு செய்யுங்கள்',
+        enterPrefix:         'உள்ளிடவும்',
+        minAvgWait:          'நி. சராசரி காத்திருப்பு',
+        inQueue:             'வரிசையில்',
+        errRequired:         'அனைத்து கட்டாய தகவல்களையும் நிரப்பவும்',
+        errFieldRequired:    'கட்டாயம்',
+        errMustBeNumber:     'எண்ணாக இருக்க வேண்டும்',
+        errMinVal:           'குறைந்தது',
+        errMaxVal:           'அதிகபட்சம்',
+      }
+    };
+
+    const LANG_KEY = 'tiqkets_lang';
+    let currentLang = localStorage.getItem(LANG_KEY) || 'en';
+
+    function t(key) {
+      return (TRANSLATIONS[currentLang] || TRANSLATIONS.en)[key] || TRANSLATIONS.en[key] || key;
+    }
+
+    function applyTranslations() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        el.textContent = t(key);
+      });
+      document.getElementById('langLabel').textContent = currentLang === 'ta' ? 'தமிழ்' : 'EN';
+      document.getElementById('langOptEn').className = currentLang === 'en' ? 'lang-active' : '';
+      document.getElementById('langOptTa').className = currentLang === 'ta' ? 'lang-active' : '';
+    }
+
+    function setLang(lang) {
+      currentLang = lang;
+      localStorage.setItem(LANG_KEY, lang);
+      applyTranslations();
+      // Re-render dynamic fields if we're on step 2
+      if (currentStep === 2) renderDynamicFields();
+      toggleLangMenu(null, true); // close menu
+    }
+
+    function toggleLangMenu(e, forceClose) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('langMenu');
+      if (forceClose) { menu.classList.remove('open'); return; }
+      menu.classList.toggle('open');
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('langPicker').contains(e.target)) {
+        document.getElementById('langMenu').classList.remove('open');
+      }
+    });
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const branchId = window.location.pathname.split('/').pop();
+    let branchData = null;
+    let selectedService = null;
+    let currentStep = 1;
+    let userLocation = null;
+    let locationWatchId = null;
+    const SESSION_KEY = `tiqkets_join_${branchId}`;
+
+    function loadSession() {
+      try {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function saveSession(data) {
+      try {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
+      } catch (e) {
+        // sessionStorage unavailable (private mode) — we still expire in-memory.
+      }
+    }
+
+    function markSessionConsumed() {
+      const session = loadSession();
+      if (!session) return;
+      if (session.consumed) return;
+      session.consumed = true;
+      session.consumedAt = Date.now();
+      saveSession(session);
+    }
+
+    function showExpiredScreen() {
+      const session = loadSession();
+      const ticketLabel = session && session.ticketNumber ? session.ticketNumber : '--';
+      const refLabel = session && session.refCode ? session.refCode : '';
+      const waUrl = session && session.whatsappUrl ? session.whatsappUrl : '';
+
+      document.getElementById('expiredTicket').textContent = ticketLabel;
+      if (refLabel) {
+        document.getElementById('expiredRef').textContent = refLabel;
+        document.getElementById('expiredRefRow').style.display = '';
+      } else {
+        document.getElementById('expiredRefRow').style.display = 'none';
+      }
+      const reopenBtn = document.getElementById('expiredWhatsappBtn');
+      if (waUrl) {
+        reopenBtn.href = waUrl;
+        reopenBtn.style.display = '';
+      } else {
+        reopenBtn.style.display = 'none';
+      }
+
+      goToStep(4);
+    }
+    
+    // Register Service Worker for PWA/App Clip experience
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+    
+    // Haversine formula to calculate distance between two coordinates
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3; // Earth's radius in meters
+      const phi1 = lat1 * Math.PI / 180;
+      const phi2 = lat2 * Math.PI / 180;
+      const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+      const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+      
+      const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                Math.cos(phi1) * Math.cos(phi2) *
+                Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      
+      return R * c; // Distance in meters
+    }
+    
+    // Format distance for display
+    function formatDistance(meters) {
+      if (meters < 1000) {
+        return Math.round(meters) + 'm';
+      }
+      return (meters / 1000).toFixed(1) + 'km';
+    }
+    
+    // Check if user is within range of the branch
+    function isWithinRange(branchLat, branchLon, perimeterMeters = 100) {
+      if (!userLocation) return null;
+      const distance = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        branchLat,
+        branchLon
+      );
+      return { inRange: distance <= perimeterMeters, distance };
+    }
+    
+    // Request location permission
+    async function requestLocation() {
+      if (!navigator.geolocation) return null;
+      
+      return new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            userLocation = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude
+            };
+            resolve(userLocation);
+          },
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      });
+    }
+    
+    function renderBranchInactive(reason) {
+      // Replace the entire card content with a clean, on-brand
+      // "branch not active" screen. We intentionally swap the whole
+      // .card innerHTML so the step indicator and form disappear too.
+      const card = document.querySelector('.card');
+      if (!card) return;
+      var headline = 'This branch is not active on TIQKETS';
+      var body = 'The business that runs this branch does not have an active TIQKETS subscription right now, so we can\u2019t add you to the queue.';
+      if (reason === 'trial_expired') {
+        body = 'The business that runs this branch is no longer on an active TIQKETS plan, so the queue is paused. Please check back later or contact the venue directly.';
+      } else if (reason === 'period_expired' || reason === 'expired') {
+        body = 'The TIQKETS subscription for this branch has expired, so the queue is currently unavailable. Please check back later or contact the venue directly.';
+      } else if (reason === 'cancelled') {
+        body = 'The TIQKETS subscription for this branch has been cancelled, so the queue is currently unavailable. Please contact the venue directly.';
+      } else if (reason === 'no_subscription') {
+        body = 'This branch hasn\u2019t set up an active TIQKETS subscription yet, so the queue isn\u2019t available. Please contact the venue directly.';
+      }
+      card.innerHTML =
+        '<div style="text-align:center;padding:24px 8px 8px;">' +
+          '<div style="width:72px;height:72px;border-radius:50%;background:#F3F4F6;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">' +
+            '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<circle cx="12" cy="12" r="10"></circle>' +
+              '<line x1="12" y1="8" x2="12" y2="12"></line>' +
+              '<line x1="12" y1="16" x2="12.01" y2="16"></line>' +
+            '</svg>' +
+          '</div>' +
+          '<h2 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 12px;line-height:1.3;">' + headline + '</h2>' +
+          '<p style="font-size:14px;color:#6B7280;line-height:1.6;margin:0 0 24px;max-width:320px;margin-left:auto;margin-right:auto;">' + body + '</p>' +
+          '<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:16px;text-align:left;">' +
+            '<div style="font-size:12px;font-weight:600;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">What you can do</div>' +
+            '<ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.7;">' +
+              '<li>Walk in and ask staff to add you to the queue manually.</li>' +
+              '<li>Check back later \u2014 the queue may reopen once the business renews.</li>' +
+            '</ul>' +
+          '</div>' +
+          '<div style="margin-top:24px;font-size:12px;color:#9CA3AF;">' +
+            'Powered by <strong style="color:#8c1867;">TIQKETS</strong>' +
+          '</div>' +
+        '</div>';
+    }
+
+    async function init() {
+      try {
+        showLoading();
+        const response = await fetch(`/api/join/${branchId}`);
+        if (!response.ok) throw new Error('Branch not found');
+
+        branchData = await response.json();
+        document.getElementById('orgName').textContent = branchData.organizationName + ' - ' + branchData.branchName;
+
+        // Subscription gate: org has no active plan (no subscription,
+        // trial expired, period ended, cancelled). Render a clean
+        // "branch not active on TIQKETS" screen INSTEAD of the join
+        // form so the customer never enters details only to be 402'd
+        // at submit time.
+        if (branchData.subscriptionInactive) {
+          renderBranchInactive(branchData.subscriptionReason);
+          hideLoading();
+          return;
+        }
+
+        const existingSession = loadSession();
+        if (existingSession && existingSession.consumed) {
+          hideLoading();
+          showExpiredScreen();
+          return;
+        }
+        
+        // Pre-fetch location if any service requires in-person
+        const hasInPersonService = branchData.services.some(s => s.requiresInPerson);
+        if (hasInPersonService) {
+          await requestLocation();
+        }
+        
+        renderServices();
+        applyTranslations();
+        hideLoading();
+      } catch (error) {
+        document.getElementById('orgName').textContent = 'Error loading branch';
+        hideLoading();
+        alert('Unable to load branch information. Please try scanning the QR code again.');
+      }
+    }
+    
+    function renderServices() {
+      const container = document.getElementById('serviceList');
+      container.innerHTML = '';
+
+      // ----- Branch-WIDE availability banners -----
+      // Working hours / holidays / breaks are now evaluated PER SERVICE (each
+      // service can set its own hours), so we no longer hide every service
+      // because the branch's default schedule says it's closed. Only two
+      // conditions block the whole branch here: the branch is deactivated, or
+      // staff have manually paused/ended the entire branch queue.
+      const makeBanner = (palette, message) => {
+        const banner = document.createElement('div');
+        banner.style.cssText = 'padding:16px;border-radius:12px;margin-bottom:16px;' +
+          'background:' + palette.bg + ';color:' + palette.fg + ';border:1px solid ' + palette.border + ';';
+        banner.innerHTML =
+          '<div style="font-size:24px;text-align:center;margin-bottom:6px;">' + palette.icon + '</div>' +
+          '<div style="font-weight:700;text-align:center;margin-bottom:4px;">' + palette.title + '</div>' +
+          '<div style="text-align:center;font-size:13px;line-height:1.5;">' + (message || '') + '</div>';
+        return banner;
+      };
+
+      const branchAvail = branchData.availability;
+      if (branchAvail && branchAvail.state === 'closed_inactive') {
+        container.appendChild(makeBanner(
+          { bg: '#F3F4F6', fg: '#374151', border: '#9CA3AF', icon: '⏸', title: 'Branch Unavailable' },
+          branchAvail.message || 'This branch is currently unavailable.'));
+        return;
+      }
+
+      // Manual branch-wide pause/end set by staff (independent of working hours).
+      const branchManual = branchData.manualQueueStatus;
+      if (branchManual === 'paused' || branchManual === 'ended') {
+        container.appendChild(branchManual === 'paused'
+          ? makeBanner({ bg: '#FEF3C7', fg: '#92400E', border: '#F59E0B', icon: '⏸', title: 'Queue Temporarily Paused' },
+              'This location is not accepting new customers right now. Please try again later.')
+          : makeBanner({ bg: '#FEE2E2', fg: '#991B1B', border: '#EF4444', icon: '🕒', title: 'Queue Closed' },
+              'This location is closed for the day. Please visit again tomorrow.'));
+        return;
+      }
+
+      const enabledEntries = [];
+
+      branchData.services.forEach(service => {
+        const div = document.createElement('div');
+        div.className = 'service-option';
+        
+        const serviceStatus = service.queueStatus || 'active';
+        // Per-service schedule: each service brings its own working hours /
+        // holidays / breaks (or inherits the branch's). open / on_break are
+        // joinable; outside-hours and holiday disable the tile.
+        const avail = service.availability || null;
+        const scheduleState = avail && avail.state ? avail.state : 'open';
+        const scheduleClosed = scheduleState === 'closed_outside_hours'
+          || scheduleState === 'closed_holiday'
+          || scheduleState === 'closed_inactive';
+        const onBreak = scheduleState === 'on_break';
+        let isDisabled = serviceStatus === 'paused' || serviceStatus === 'ended' || scheduleClosed;
+
+        let locationStatus = null;
+        if (!isDisabled && service.requiresInPerson && branchData.location) {
+          const perimeter = service.inPersonPerimeter || 100;
+          locationStatus = isWithinRange(
+            branchData.location.latitude,
+            branchData.location.longitude,
+            perimeter
+          );
+          if (locationStatus && !locationStatus.inRange) {
+            isDisabled = true;
+          }
+        }
+        
+        // Status line under the service name. Precedence: a manual pause/end on
+        // the service wins, then the service's own working-hours state.
+        let statusBadge = '';
+        if (serviceStatus === 'paused') {
+          statusBadge = '<div style="color:#F59E0B;font-size:12px;font-weight:600;margin-top:4px;">Temporarily paused</div>';
+        } else if (serviceStatus === 'ended') {
+          statusBadge = '<div style="color:#EF4444;font-size:12px;font-weight:600;margin-top:4px;">Closed for the day</div>';
+        } else if (scheduleState === 'closed_holiday') {
+          statusBadge = '<div style="color:#EF4444;font-size:12px;font-weight:600;margin-top:4px;">' + (avail.message || 'Closed for a holiday') + '</div>';
+        } else if (scheduleState === 'closed_outside_hours') {
+          statusBadge = '<div style="color:#EF4444;font-size:12px;font-weight:600;margin-top:4px;">Outside working hours</div>'
+            + (avail.message ? '<div style="color:#991B1B;font-size:12px;margin-top:2px;font-weight:400;">' + avail.message + '</div>' : '');
+        } else if (onBreak) {
+          statusBadge = '<div style="color:#F59E0B;font-size:12px;font-weight:600;margin-top:4px;">' + (avail.message || 'On a short break — you can still join the queue') + '</div>';
+        }
+
+        const inPersonBadge = service.requiresInPerson 
+          ? `<div class="in-person-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+              In-Person
+            </div>${locationStatus && !locationStatus.inRange 
+              ? `<div class="distance-text" style="color: #EF4444;">You are ${formatDistance(locationStatus.distance)} away</div>` 
+              : locationStatus && locationStatus.inRange 
+                ? `<div class="distance-text" style="color: #10B981;">You're nearby</div>` 
+                : ''}`
+          : '';
+        
+        div.innerHTML = `
+          <input type="radio" name="service" value="${service.id}" id="service-${service.id}" ${isDisabled ? 'disabled' : ''}>
+          <div class="service-name">${service.name}</div>
+          <div class="service-info">
+            <span>${service.avgWaitTime || 15} ${t('minAvgWait')}</span>
+            <span>${service.currentQueue || 0} ${t('inQueue')}</span>
+          </div>
+          ${statusBadge}
+          ${inPersonBadge}
+        `;
+        
+        if (isDisabled) {
+          div.style.opacity = '0.5';
+          div.style.cursor = 'not-allowed';
+        } else {
+          div.addEventListener('click', () => selectService(service, div));
+          enabledEntries.push({ service, element: div });
+        }
+        
+        container.appendChild(div);
+      });
+
+      // Auto-skip the "select a service" step only when the branch has exactly
+      // one active service and that service is currently selectable. If the
+      // branch has multiple services, keep step 1 visible even when only one is
+      // currently available, so customers can see and deliberately choose from
+      // the branch's service list.
+      // We still render the (now single) service tile so it is in the DOM —
+      // selectService() relies on the matching element existing — but the
+      // user never sees it because we immediately advance to step 2.
+      if (branchData.services.length === 1 && enabledEntries.length === 1) {
+        const only = enabledEntries[0];
+        selectService(only.service, only.element);
+        // Hide the Back button on the details step: there is no meaningful
+        // previous screen to return to when only one service exists.
+        const backBtn = document.getElementById('backBtn2');
+        if (backBtn) backBtn.style.display = 'none';
+        goToStep(2);
+      }
+    }
+    
+    function selectService(service, element) {
+      document.querySelectorAll('.service-option').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+      element.querySelector('input').checked = true;
+      selectedService = service;
+      document.getElementById('nextBtn1').disabled = false;
+    }
+    
+    function renderDynamicFields() {
+      const container = document.getElementById('dynamicFields');
+      container.innerHTML = '';
+      
+      const defaultFields = [
+        { id: 'name', label: t('fieldName'), type: 'text', required: true },
+        { id: 'whatsappPhone', label: t('fieldPhone'), type: 'tel', required: false, placeholder: t('fieldPhonePH'), hint: t('fieldPhoneHint') }
+      ];
+      
+      const customFields = selectedService.inputFields || [];
+      const allFields = [...defaultFields, ...customFields];
+      
+      allFields.forEach(field => {
+        const group = document.createElement('div');
+        group.className = 'form-group';
+        group.dataset.fieldId = field.id;
+        
+        if (field.type === 'checkbox') {
+          group.innerHTML = `
+            <div class="checkbox-group">
+              <input type="checkbox" id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''}>
+              <label for="field-${field.id}" class="checkbox-label">
+                ${field.label}${field.required ? ' <span class="required">*</span>' : ''}
+              </label>
+            </div>
+          `;
+        } else if (field.type === 'select' && field.options) {
+          group.innerHTML = `
+            <label for="field-${field.id}">${field.label}${field.required ? ' <span class="required">*</span>' : ''}</label>
+            <select id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''}>
+              <option value="">${t('selectOption')}</option>
+              ${field.options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+            </select>
+          `;
+        } else if (field.type === 'textarea') {
+          group.innerHTML = `
+            <label for="field-${field.id}">${field.label}${field.required ? ' <span class="required">*</span>' : ''}</label>
+            <textarea id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''} placeholder="${t('enterPrefix')} ${field.label.toLowerCase()}"></textarea>
+          `;
+        } else {
+          const inputType = field.type === 'phone' ? 'tel' : field.type || 'text';
+          const numAttrs = field.type === 'number'
+            ? `${typeof field.min === 'number' ? ` min="${field.min}"` : ''}${typeof field.max === 'number' ? ` max="${field.max}"` : ''} inputmode="numeric"`
+            : '';
+          const placeholder = field.placeholder || `Enter ${field.label.toLowerCase()}`;
+          const hintHtml = field.hint ? `<p style="font-size:12px;color:#888;margin:4px 0 0;">${field.hint}</p>` : '';
+          group.innerHTML = `
+            <label for="field-${field.id}">${field.label}${field.required ? ' <span class="required">*</span>' : ''}</label>
+            <input type="${inputType}"${numAttrs} id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''} placeholder="${placeholder}">
+            ${hintHtml}
+          `;
+        }
+        
+        container.appendChild(group);
+      });
+
+      // After all fields are in the DOM, apply initial visibility and wire the
+      // partySize input so Split/Share fields only show when guests >= 5.
+      syncTableFields();
+      const partySizeEl = document.getElementById('field-partySize');
+      if (partySizeEl) {
+        partySizeEl.addEventListener('input', syncTableFields);
+        partySizeEl.addEventListener('change', syncTableFields);
+      }
+    }
+
+    // Show Split group / Share table only when guest count >= 5.
+    function syncTableFields() {
+      const partySizeEl = document.getElementById('field-partySize');
+      const count = partySizeEl ? (parseInt(partySizeEl.value, 10) || 0) : 0;
+      const show = count >= 5;
+      ['splitGroup', 'shareTable'].forEach(function(id) {
+        const group = document.querySelector('[data-field-id="' + id + '"]');
+        if (group) group.style.display = show ? '' : 'none';
+      });
+    }
+    
+    function goToStep(step) {
+      currentStep = step;
+
+      document.getElementById('screen1').classList.toggle('hidden', step !== 1);
+      document.getElementById('screen2').classList.toggle('hidden', step !== 2);
+      document.getElementById('screen3').classList.toggle('hidden', step !== 3);
+      document.getElementById('screen4').classList.toggle('hidden', step !== 4);
+
+      // Step 4 (session-closed) reuses the success layout but should mark
+      // every indicator as completed so the user sees the flow as finished.
+      const indicatorStep = step === 4 ? 3 : step;
+      for (let i = 1; i <= 3; i++) {
+        const stepEl = document.getElementById(`step${i}`);
+        stepEl.classList.remove('active', 'completed');
+        if (step === 4 || i < indicatorStep) stepEl.classList.add('completed');
+        if (step !== 4 && i === indicatorStep) stepEl.classList.add('active');
+
+        if (i < 3) {
+          const lineEl = document.getElementById(`line${i}`);
+          lineEl.classList.toggle('completed', step === 4 || i < indicatorStep);
+        }
+      }
+
+      if (step === 2) {
+        renderDynamicFields();
+      }
+    }
+    
+    async function submitQueue() {
+      const form = document.getElementById('detailsForm');
+      const formData = new FormData(form);
+      const data = {};
+      
+      for (let [key, value] of formData.entries()) {
+        data[key] = value;
+      }
+      
+      if (!data.name) {
+        showError(t('errRequired'));
+        return;
+      }
+
+      // Validate custom fields: required + numeric min/max (e.g. Guests 1-20).
+      const fieldsToCheck = selectedService.inputFields || [];
+      for (const f of fieldsToCheck) {
+        const raw = data[f.id];
+        if (f.required) {
+          if (f.type === 'checkbox') {
+            const cb = document.getElementById('field-' + f.id);
+            if (!(cb && cb.checked)) { showError(f.label + ' ' + t('errFieldRequired')); return; }
+          } else if (!raw || !String(raw).trim()) {
+            showError(f.label + ' ' + t('errFieldRequired')); return;
+          }
+        }
+        if (raw && f.type === 'number') {
+          const n = Number(raw);
+          if (!Number.isFinite(n) || !/^\d+$/.test(String(raw).trim())) {
+            showError(f.label + ' ' + t('errMustBeNumber')); return;
+          }
+          if (typeof f.min === 'number' && n < f.min) { showError(f.label + ' ' + t('errMinVal') + ' ' + f.min); return; }
+          if (typeof f.max === 'number' && n > f.max) { showError(f.label + ' ' + t('errMaxVal') + ' ' + f.max); return; }
+        }
+      }
+      
+      try {
+        showLoading();
+        const response = await fetch(`/api/join/${branchId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            serviceId: selectedService.id,
+            customerName: data.name,
+            customerPhone: data.whatsappPhone || data.phone || "",
+            whatsappPhone: data.whatsappPhone || "",
+            preferredLanguage: currentLang,
+            customFields: data
+          })
+        });
+        
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to join queue');
+        }
+        
+        const result = await response.json();
+
+        // ── Determine flow type ──────────────────────────────────────────────
+        // dine-in / approved-template: ticket is already sent, no ref code needed.
+        // Regular queue: customer must confirm via WhatsApp bot (ref code flow).
+        const isDineInFlow = !result.whatsappRefCode;
+
+        // ── Populate success screen ──────────────────────────────────────────
+        document.getElementById('queueNumber').textContent = result.ticketNumber;
+        document.getElementById('confirmedService').textContent = selectedService.name;
+        document.getElementById('queuePosition').textContent = `#${result.position} of ${result.totalInQueue}`;
+        document.getElementById('estWaitTime').textContent = `~${result.estimatedWait} min`;
+
+        // Show guests row if a partySize / guests field was submitted
+        const partySize = data.partySize || data.guests || '';
+        if (partySize) {
+          const n = Number(partySize);
+          document.getElementById('confirmedGuests').textContent =
+            Number.isFinite(n) ? `${n} ${n === 1 ? 'Guest' : 'Guests'}` : partySize;
+          document.getElementById('guestsRow').style.display = '';
+        }
+
+        const sessionPayload = {
+          ticketNumber: result.ticketNumber,
+          refCode: result.whatsappRefCode || '',
+          whatsappUrl: result.whatsappUrl || '',
+          isDineIn: isDineInFlow,
+          consumed: false,
+          createdAt: Date.now(),
+        };
+        saveSession(sessionPayload);
+
+        if (isDineInFlow) {
+          // Dine-in: show "ticket sent" notice; offer WhatsApp link (no auto-redirect)
+          document.getElementById('waNoticeSection').style.display = 'flex';
+          if (result.whatsappUrl) {
+            const btn = document.getElementById('whatsappBtn');
+            const lbl = document.getElementById('whatsappBtnLabel');
+            btn.href = result.whatsappUrl;
+            btn.style.display = 'flex';
+            lbl.setAttribute('data-i18n', 'openWhatsApp');
+            lbl.textContent = t('openWhatsApp');
+          }
+        } else if (result.whatsappRefCode && result.whatsappUrl) {
+          // Regular queue: show confirmation section + button
+          document.getElementById('refCode').textContent = result.whatsappRefCode;
+          document.getElementById('whatsappSection').style.display = 'block';
+          const btn = document.getElementById('whatsappBtn');
+          const lbl = document.getElementById('whatsappBtnLabel');
+          const hint = document.getElementById('whatsappHint');
+          btn.href = result.whatsappUrl;
+          btn.style.display = 'flex';
+          hint.style.display = 'block';
+          lbl.setAttribute('data-i18n', 'waConfirmBtn');
+          lbl.textContent = t('waConfirmBtn');
+        }
+
+        hideLoading();
+        goToStep(3);
+      } catch (error) {
+        hideLoading();
+        showError(error.message || 'Failed to join queue. Please try again.');
+      }
+    }
+    
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      errorEl.textContent = message;
+      errorEl.classList.remove('hidden');
+    }
+    
+    function hideError() {
+      document.getElementById('errorMessage').classList.add('hidden');
+    }
+    
+    function showLoading() {
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+    }
+    
+    function hideLoading() {
+      document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+    
+    document.getElementById('nextBtn1').addEventListener('click', () => goToStep(2));
+    document.getElementById('backBtn2').addEventListener('click', () => goToStep(1));
+    document.getElementById('nextBtn2').addEventListener('click', () => {
+      hideError();
+      submitQueue();
+    });
+
+    // WhatsApp button tap: for confirmation flow only, mark session consumed so
+    // returning to the page shows the expired screen (prevents re-submission).
+    // Dine-in flow: just open the link, keep the success page visible.
+    document.getElementById('whatsappBtn').addEventListener('click', () => {
+      const session = loadSession();
+      if (session && !session.isDineIn) {
+        markSessionConsumed();
+        setTimeout(() => {
+          if (currentStep !== 4) showExpiredScreen();
+        }, 1500);
+      }
+    });
+
+    // If the user leaves the tab while on the success screen (typically to
+    // open WhatsApp) and then returns, lock the page to the expired view so
+    // they can't re-submit the form for a duplicate ticket.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      const session = loadSession();
+      if (session && session.consumed && currentStep !== 4) {
+        showExpiredScreen();
+      }
+    });
+
+    window.addEventListener('pageshow', () => {
+      const session = loadSession();
+      if (session && session.consumed && currentStep !== 4) {
+        showExpiredScreen();
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

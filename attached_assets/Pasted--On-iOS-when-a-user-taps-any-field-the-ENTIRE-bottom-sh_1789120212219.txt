@@ -1,0 +1,62 @@
+- On iOS, when a user taps any field, the ENTIRE bottom sheet modal itself
+  rises/shifts upward above the keyboard, so the field being edited ends
+  up positioned near the top of the visible area, clearly visible while
+  typing. This is the correct, expected behavior.
+- On Android, this does NOT happen. The bottom sheet modal stays fixed in
+  its original position on screen. The keyboard opens on top of it, and
+  the field being edited is covered by the keyboard with no part of the
+  modal shifting up to compensate. The user cannot see what they're
+  typing.
+
+The fix is NOT about scrolling content within a fixed-position modal — it
+is about making the modal container itself move/resize upward on Android
+the same way it already does on iOS, so the same field-visible-near-the-
+top result happens on both platforms.
+
+DIAGNOSE FIRST:
+1. Identify exactly how the modal is implemented (React Native `Modal`,
+   `react-native-modal`, `@gorhom/bottom-sheet`, or a custom Animated
+   View), and confirm whether its current keyboard-handling logic (if any)
+   is iOS-only or behaves differently per platform.
+2. Check whether the modal is wrapped in `KeyboardAvoidingView` — if so,
+   check the `behavior` prop. `"padding"` generally only produces the
+   "whole view rises" effect on iOS; on Android it usually needs
+   `behavior="height"` or no `KeyboardAvoidingView` at all combined with
+   the correct native window setting (see #3), otherwise Android will
+   just leave the modal in place, matching exactly the symptom described.
+3. Check `app.json`/`app.config` for Expo's `android.softwareKeyboardLayoutMode`
+   (or native `android:windowSoftInputMode` in a bare build). This needs
+   to be set to `resize` for Android to actually resize/shift the visible
+   window when the keyboard opens, which is what produces the "rises
+   above the keyboard" effect seen on iOS. If it's currently unset or set
+   to `pan`, that is very likely the root cause.
+4. If a bottom sheet library is used (e.g. `@gorhom/bottom-sheet`), check
+   for Android-specific keyboard props (`android_keyboardInputMode`,
+   `keyboardBehavior`, `keyboardBlurBehavior`) — some of these libraries
+   need an explicit Android setting to replicate iOS's automatic keyboard-
+   avoidance behavior, since Android and iOS handle this differently at
+   the OS level.
+
+FIX:
+- Configure Android so that when the keyboard opens on step 2 of this
+  modal, the modal container itself shifts/resizes upward (not just an
+  inner ScrollView), matching the iOS behavior exactly: the field being
+  edited should end up clearly visible, ideally near the top of the
+  visible modal area, not just barely peeking above the keyboard.
+- This should work correctly for all four fields (Full Name, WhatsApp
+  Number, Email, Extra Guests) regardless of which one is focused.
+- Do not change anything about how this looks or behaves on iOS — iOS
+  already works correctly and must remain unchanged.
+- Do not change field order, labels, validation, colors, spacing, or any
+  other part of the form/modal — only fix how the modal repositions
+  itself relative to the Android keyboard.
+
+TEST: On an Android emulator/device, open the Add Customer modal, go to
+step 2, and tap each of the four fields one at a time. Confirm the modal
+visibly rises and the focused field is clearly visible above the
+keyboard each time — matching the iOS behavior — and confirm iOS is
+unaffected.
+
+After implementing, explain exactly what was misconfigured for Android,
+what setting/prop change fixed it, and confirm no other screens, fields,
+styling, or functionality were affected.

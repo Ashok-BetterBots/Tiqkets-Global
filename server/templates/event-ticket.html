@@ -1,0 +1,1086 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Your Ticket - TIQKETS</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+
+  <!-- PWA / App Clip Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TIQKETS" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#9C1A5B" />
+  <meta name="application-name" content="TIQKETS" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <meta name="apple-touch-fullscreen" content="yes" />
+  <link rel="apple-touch-icon" href="/assets/icon-180.png" />
+  <link rel="manifest" href="/manifest.json" />
+
+  <meta property="og:title" content="Your Event Ticket - TIQKETS" />
+  <meta property="og:description" content="Your QR boarding pass" />
+  <meta property="og:type" content="website" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --brand-primary: #9C1A5B;
+      --brand-primary-dark: #741344;
+      --brand-tint: #fbf6f9;
+      --brand-tint-strong: #f3e6ee;
+      --brand-secondary: #1d499b;
+      --brand-accent: #ffd700;
+      --white: #ffffff;
+      --bg: #f7f6f9;
+      --surface: #ffffff;
+      --line: #ececf1;
+      --line-strong: #e2e2ea;
+      --text: #1a1a1f;
+      --text-secondary: #6b6b76;
+      --text-muted: #9a9aa6;
+      --light-gray: #f2f2f5;
+      --dark-gray: #272626;
+      --success: #10B981;
+      --error: #EF4444;
+      --shadow-sm: 0 1px 2px rgba(20, 12, 26, 0.04);
+      --shadow-md: 0 8px 24px rgba(20, 12, 26, 0.06);
+      --shadow-lg: 0 18px 48px -12px rgba(20, 12, 26, 0.12), 0 4px 12px rgba(20, 12, 26, 0.04);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background:
+        radial-gradient(1100px 520px at 50% -180px, rgba(156, 26, 91, 0.10) 0%, rgba(156, 26, 91, 0) 60%),
+        var(--bg);
+      min-height: 100vh;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      letter-spacing: -0.01em;
+    }
+
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 20px 20px 40px;
+      min-height: 100vh;
+    }
+
+    .safe-area-top { padding-top: env(safe-area-inset-top, 20px); }
+    .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 20px); }
+
+    .hidden { display: none !important; }
+
+    /* ---------- Boarding pass ---------- */
+    .pass {
+      background: var(--surface);
+      border-radius: 24px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid rgba(255,255,255,0.7);
+      overflow: hidden;
+    }
+
+    .pass-header {
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      color: #fff;
+      padding: 22px 22px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Banner photo — absolute fill, sits between background gradient and overlay */
+    .pass-banner-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+    }
+    .pass-header-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.45) 100%);
+    }
+    .pass-header-inner { position: relative; }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .brand-badge {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: rgba(255,255,255,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .brand-badge svg { width: 17px; height: 17px; color: #fff; }
+    .brand-wordmark {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.45), 0 0 18px rgba(200,200,200,0.18);
+    }
+
+    .pass-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 11px;
+      background: #fff;
+      padding: 3px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .pass-info-rows { display: flex; flex-direction: column; gap: 13px; }
+    .pass-info-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .pass-info-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.16);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .pass-info-icon svg { width: 15px; height: 15px; color: #fff; }
+    .pass-info-text {
+      font-size: 14.5px;
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: -0.01em;
+      padding-top: 5px;
+      word-break: break-word;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.45), 0 0 18px rgba(200,200,200,0.18);
+    }
+    .pass-info-text .sub {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      opacity: 0.82;
+      margin-top: 1px;
+    }
+
+    /* Perforation */
+    .perforation {
+      position: relative;
+      height: 24px;
+      background: var(--surface);
+    }
+    .perforation::before,
+    .perforation::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--bg);
+    }
+    .perforation::before { left: -12px; }
+    .perforation::after { right: -12px; }
+    .perforation .dash {
+      position: absolute;
+      top: 50%;
+      left: 18px;
+      right: 18px;
+      border-top: 2px dashed var(--line-strong);
+    }
+
+    .pass-body { padding: 4px 22px 30px; position: relative; }
+
+    /* Bottom tear notch — small cutout at the base of the ticket, echoing
+       a physical boarding-pass stub. */
+    .pass-notch {
+      position: absolute;
+      left: 50%;
+      bottom: -13px;
+      transform: translateX(-50%);
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--bg);
+    }
+
+    .qr-wrap {
+      text-align: center;
+      padding: 6px 0 16px;
+    }
+    .qr-img {
+      width: 220px;
+      height: 220px;
+      max-width: 70%;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      padding: 10px;
+      background: #fff;
+    }
+    .qr-hint {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 10px;
+    }
+
+    .booking-block { text-align: center; margin-bottom: 18px; }
+    .booking-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+    }
+    .booking-id {
+      font-family: monospace;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--brand-primary);
+      letter-spacing: 3px;
+      margin-top: 4px;
+    }
+
+    .detail-grid {
+      background: #f7f6f9;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 4px 16px;
+      margin-bottom: 18px;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 0;
+      font-size: 14px;
+      gap: 12px;
+    }
+    .detail-row:not(:last-child) { border-bottom: 1px solid var(--line); }
+    .detail-label { color: var(--text-secondary); font-weight: 500; }
+    .detail-value { font-weight: 600; color: var(--text); text-align: right; }
+    .detail-value-with-priority {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .priority-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border: 1px solid #f0bed5;
+      border-radius: 999px;
+      background: #fff1f7;
+      color: var(--brand-primary);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .priority-badge svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+    /* Timeline */
+    .timeline { margin-bottom: 18px; }
+    .timeline-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+    .tl-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      position: relative;
+      padding-bottom: 16px;
+    }
+    .tl-item:last-child { padding-bottom: 0; }
+    .tl-dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--light-gray);
+      border: 2px solid var(--line-strong);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      z-index: 1;
+      color: var(--text-muted);
+    }
+    .tl-item:not(:last-child)::before {
+      content: '';
+      position: absolute;
+      left: 12px;
+      top: 26px;
+      bottom: 0;
+      width: 2px;
+      background: var(--line-strong);
+    }
+    .tl-item.done .tl-dot {
+      background: var(--brand-primary);
+      border-color: var(--brand-primary);
+      color: #fff;
+    }
+    .tl-item.done:not(:last-child)::before { background: var(--brand-primary); }
+    .tl-item.current .tl-dot {
+      background: var(--brand-primary);
+      border-color: var(--brand-primary);
+      color: #fff;
+      box-shadow: 0 0 0 4px rgba(156,26,91,0.15);
+    }
+    .tl-content { padding-top: 3px; }
+    .tl-label { font-size: 14px; font-weight: 600; color: var(--text); }
+    .tl-item.pending .tl-label { color: var(--text-muted); font-weight: 500; }
+    .tl-time { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+
+    .maps-link { text-decoration: underline; text-underline-offset: 2px; }
+
+    /* Status timeline card (web view only — not part of the WhatsApp ticket image) */
+    .status-card {
+      background: var(--surface);
+      border-radius: 24px;
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--line);
+      padding: 20px 20px 6px;
+      margin-top: 20px;
+    }
+
+    .feedback-card {
+      background: var(--surface);
+      border-radius: 24px;
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--line);
+      padding: 24px 20px;
+      margin-top: 20px;
+    }
+    .feedback-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.02em; }
+    .feedback-subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
+
+    .rating-group { margin-bottom: 18px; }
+    .rating-label {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+      display: block;
+    }
+    .rating-label .required { color: var(--error); }
+    .stars { display: flex; gap: 6px; }
+    .star {
+      cursor: pointer;
+      color: var(--line-strong);
+      transition: color 140ms ease, transform 120ms ease;
+    }
+    .star:active { transform: scale(0.9); }
+    .star.filled { color: var(--brand-accent); }
+
+    textarea {
+      width: 100%;
+      padding: 13px 15px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--text);
+      resize: vertical;
+      min-height: 90px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--surface);
+    }
+    textarea:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 4px rgba(156,26,91,0.08);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 15px 18px;
+      border: none;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: -0.01em;
+      transition: background 180ms ease, transform 140ms ease;
+    }
+    .btn-primary {
+      background: var(--brand-primary);
+      color: #fff;
+      box-shadow: 0 8px 20px -8px rgba(156,26,91,0.55);
+    }
+    .btn-primary:hover { background: var(--brand-primary-dark); }
+    .btn-primary:active { transform: scale(0.985); }
+    .btn-primary:disabled { background: #e5e5ec; color: #a8a8b3; cursor: not-allowed; box-shadow: none; }
+
+    .thanks-box { text-align: center; padding: 12px 0; }
+    .thanks-icon {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 14px;
+    }
+    .thanks-icon svg { width: 30px; height: 30px; color: #fff; }
+    .thanks-box h3 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .thanks-box p { font-size: 13.5px; color: var(--text-secondary); }
+
+    /* Empty / error */
+    .empty-state { text-align: center; padding: 60px 28px; }
+    .empty-icon {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: #F3F4F6; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px;
+    }
+    .empty-state h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+    .empty-state p { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+
+    /* Toast */
+    .toast {
+      position: fixed; left: 50%; bottom: 28px;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--dark-gray); color: #fff;
+      padding: 13px 20px; border-radius: 12px;
+      font-size: 14px; font-weight: 500;
+      box-shadow: var(--shadow-lg); z-index: 200;
+      opacity: 0; transition: opacity 220ms ease, transform 220ms ease;
+      max-width: 90%; text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.error { background: #B91C1C; }
+
+    .loading-overlay {
+      position: fixed; inset: 0;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center; z-index: 100;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--line-strong);
+      border-top-color: var(--brand-primary);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .powered { text-align: center; margin-top: 26px; font-size: 12px; color: var(--text-muted); }
+    .powered strong { color: var(--brand-primary); }
+
+    /* Embed mode — used by the server-side screenshot renderer that turns
+       this page into the WhatsApp ticket image. Only the boarding-pass
+       card itself should be captured. */
+    .embed-mode body,
+    .embed-mode .container { background: transparent; }
+    .embed-mode .feedback-section,
+    .embed-mode #feedbackSection,
+    .embed-mode #supportRow,
+    .embed-mode #statusCard,
+    .embed-mode .powered,
+    .embed-mode .toast,
+    .embed-mode #loadingOverlay { display: none !important; }
+    .embed-mode .container { padding: 0; }
+    .embed-mode .pass { box-shadow: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+
+    /* ---------- Print modes ----------
+       ?print=normal  → full-page print of the boarding pass on regular paper.
+       ?print=thermal → narrow (58mm-ish) plain layout for thermal receipt
+       printers: no gradients/shadows, monochrome, large QR, stacked text. */
+    body.print-mode #loadingOverlay,
+    body.print-mode .toast,
+    body.print-mode #feedbackSection,
+    body.print-mode #supportRow,
+    body.print-mode .powered { display: none !important; }
+
+    @media print {
+      body.print-mode-normal .container { max-width: 480px; padding: 0; }
+      body.print-mode-normal .pass { box-shadow: none; border: 1px solid #ddd; }
+      body.print-mode-normal #statusCard { display: none !important; }
+    }
+
+    body.print-mode-thermal {
+      background: #fff;
+      width: 300px;
+      margin: 0 auto;
+    }
+    body.print-mode-thermal .container { max-width: 300px; padding: 8px; }
+    body.print-mode-thermal .pass { box-shadow: none; border: none; border-radius: 0; }
+    body.print-mode-thermal .pass-header { background: #fff !important; color: #000; padding: 4px 0 8px; }
+    body.print-mode-thermal .pass-banner-img,
+    body.print-mode-thermal .pass-header-overlay,
+    body.print-mode-thermal .pass-logo,
+    body.print-mode-thermal .brand-badge svg,
+    body.print-mode-thermal .pass-info-icon,
+    body.print-mode-thermal #statusCard { display: none !important; }
+    body.print-mode-thermal .brand-wordmark { color: #000; text-shadow: none; font-size: 16px; text-align: center; width: 100%; }
+    body.print-mode-thermal .brand-row { justify-content: center; }
+    body.print-mode-thermal .pass-info-text { color: #000; text-shadow: none; font-size: 13px; text-align: center; width: 100%; padding-top: 2px; }
+    body.print-mode-thermal .pass-info-row { justify-content: center; }
+    body.print-mode-thermal .perforation { display: none; }
+    body.print-mode-thermal .pass-body { padding: 4px 0; }
+    body.print-mode-thermal .qr-img { width: 200px; height: 200px; max-width: 90%; border: none; }
+    body.print-mode-thermal .booking-id { font-size: 20px; letter-spacing: 2px; }
+    body.print-mode-thermal .detail-grid { background: #fff; border: none; border-top: 1px dashed #000; border-bottom: 1px dashed #000; border-radius: 0; }
+    body.print-mode-thermal .detail-row:not(:last-child) { border-bottom: 1px dashed #ccc; }
+    body.print-mode-thermal .pass-notch { display: none; }
+    @media print {
+      body.print-mode-thermal { width: 58mm; }
+      body.print-mode-thermal .container { max-width: 58mm; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+  </div>
+
+  <div class="container safe-area-top safe-area-bottom">
+    <div id="emptyState" class="empty-state hidden">
+      <div class="empty-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+      <h2>Ticket not found</h2>
+      <p>We couldn't find this ticket. Please check the link or contact the venue for help.</p>
+      <div class="powered">Powered by <strong>TIQKETS</strong></div>
+    </div>
+
+    <div id="mainContent" class="hidden">
+      <div class="pass">
+        <div class="pass-header" id="passHeader">
+          <!-- Banner photo — shown only when ev.bannerUrl is set; sits behind the overlay -->
+          <img id="passBannerImg" class="pass-banner-img hidden" alt="" />
+          <div class="pass-header-overlay"></div>
+          <div class="pass-header-inner">
+            <div class="brand-row">
+              <img id="passLogo" class="pass-logo hidden" alt="" />
+              <div id="brandBadge" class="brand-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 8a2 2 0 0 1 2-2h4l2-2 2 2h4a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2h-4l-2 2-2-2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"></path>
+                  <line x1="12" y1="6" x2="12" y2="18" stroke-dasharray="2 2"></line>
+                </svg>
+              </div>
+              <div class="brand-wordmark" id="brandWordmark">TIQKETS</div>
+            </div>
+
+            <div class="pass-info-rows">
+              <div class="pass-info-row">
+                <div class="pass-info-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l1-5h16l1 5"></path>
+                    <path d="M4 9v10h16V9"></path>
+                    <path d="M4 9a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"></path>
+                    <path d="M9 21v-6h6v6"></path>
+                  </svg>
+                </div>
+                <div class="pass-info-text" id="passEventName">--</div>
+              </div>
+              <div class="pass-info-row">
+                <div class="pass-info-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="3"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                </div>
+                <div class="pass-info-text" id="passDateTime">--</div>
+              </div>
+              <div class="pass-info-row">
+                <div class="pass-info-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                </div>
+                <div class="pass-info-text" id="passCustomer">--</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="perforation"><div class="dash"></div></div>
+
+        <div class="pass-body">
+          <div class="qr-wrap">
+            <div id="qrHint" class="qr-hint hidden">Show this QR code at the entrance</div>
+            <img id="qrImg" class="qr-img hidden" alt="Your QR ticket" />
+          </div>
+
+          <div class="booking-block">
+            <div class="booking-label">Booking ID</div>
+            <div class="booking-id" id="bookingId">--</div>
+          </div>
+
+          <div class="detail-grid">
+            <div class="detail-row">
+              <span class="detail-label">Guests</span>
+              <span class="detail-value detail-value-with-priority">
+                <span id="guests">--</span>
+                <span id="priorityBadge" class="priority-badge hidden" aria-label="Priority access">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 3l2.6 5.3 5.9.9-4.3 4.2 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.2 5.9-.9L12 3z"></path>
+                  </svg>
+                  Priority access
+                </span>
+              </span>
+            </div>
+            <div id="advanceRow" class="detail-row hidden">
+              <span class="detail-label">Amount paid</span>
+              <span class="detail-value" id="advanceAmount">--</span>
+            </div>
+            <div id="venueRow" class="detail-row hidden">
+              <span class="detail-label">Venue</span>
+              <span class="detail-value" id="venueText">--</span>
+            </div>
+            <div id="supportRow" class="detail-row hidden">
+              <span class="detail-label">Need help?</span>
+              <span class="detail-value"><a id="supportContact" href="#" style="color:inherit;text-decoration:none;"></a></span>
+            </div>
+          </div>
+
+
+          <div class="pass-notch"></div>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div id="statusCard" class="status-card hidden">
+        <div class="timeline">
+          <div class="timeline-title">Status</div>
+          <div id="timelineItems"></div>
+        </div>
+      </div>
+
+      <!-- Feedback -->
+      <div id="feedbackSection" class="feedback-card hidden">
+        <!-- Thanks -->
+        <div id="feedbackThanks" class="thanks-box hidden">
+          <div class="thanks-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h3>Thanks for your feedback!</h3>
+          <p>We appreciate you taking the time to help us improve.</p>
+        </div>
+
+        <!-- Form -->
+        <div id="feedbackForm">
+          <div class="feedback-title">How was your experience?</div>
+          <div class="feedback-subtitle">Your feedback helps the organizer improve future events.</div>
+
+          <div class="rating-group">
+            <label class="rating-label">Overall <span class="required">*</span></label>
+            <div class="stars" data-key="overallRating"></div>
+          </div>
+          <div class="rating-group">
+            <label class="rating-label">Crowd management</label>
+            <div class="stars" data-key="crowdManagementRating"></div>
+          </div>
+          <div class="rating-group">
+            <label class="rating-label">Staff behaviour</label>
+            <div class="stars" data-key="staffBehaviorRating"></div>
+          </div>
+          <div class="rating-group">
+            <label class="rating-label">Organization</label>
+            <div class="stars" data-key="organizationRating"></div>
+          </div>
+          <div class="rating-group">
+            <label class="rating-label">Billing</label>
+            <div class="stars" data-key="billingRating"></div>
+          </div>
+          <div class="rating-group">
+            <label class="rating-label" for="suggestions">Suggestions</label>
+            <textarea id="suggestions" placeholder="Anything you'd like to share?"></textarea>
+          </div>
+
+          <button class="btn btn-primary" id="feedbackSubmit">Submit feedback</button>
+        </div>
+      </div>
+
+      <div class="powered">Powered by <strong>TIQKETS</strong></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    var qrToken = location.pathname.split("/").pop();
+    if (qrToken) qrToken = qrToken.replace(/#.*$/, "");
+    var forceFeedback = location.hash === "#feedback";
+    var embedMode = /(^|[?&])embed=1(&|$)/.test(location.search);
+    if (embedMode) document.documentElement.classList.add("embed-mode");
+    var pollTimer = null;
+    var submittingFeedback = false;
+    var ratings = {
+      overallRating: 0,
+      crowdManagementRating: 0,
+      staffBehaviorRating: 0,
+      organizationRating: 0,
+      billingRating: 0
+    };
+
+    function $(id) { return document.getElementById(id); }
+    function showLoading() { $("loadingOverlay").classList.remove("hidden"); }
+    function hideLoading() { $("loadingOverlay").classList.add("hidden"); }
+
+    var toastTimer = null;
+    function toast(msg, isError) {
+      var t = $("toast");
+      t.textContent = msg;
+      t.className = "toast show" + (isError ? " error" : "");
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { t.className = "toast"; }, 3600);
+    }
+
+    var STATUS_ORDER = ["ticket_generated", "arrived", "checked_in", "exited"];
+
+    function stageIndexFor(status) {
+      if (status === "feedback_submitted") return STATUS_ORDER.indexOf("exited");
+      var i = STATUS_ORDER.indexOf(status);
+      // registration_started / payment_completed -> ticket not yet marked but ticket exists
+      if (i < 0) return 0;
+      return i;
+    }
+
+    function formatTime(iso) {
+      if (!iso) return "";
+      try {
+        return new Date(iso).toLocaleString("en-IN", {
+          day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true
+        });
+      } catch (e) { return ""; }
+    }
+
+    async function load() {
+      if (!qrToken) { showEmpty(); return; }
+      try {
+        var res = await fetch("/api/event/ticket/" + encodeURIComponent(qrToken) + "?t=" + Date.now());
+        if (res.status === 404) { hideLoading(); showEmpty(); return; }
+        if (!res.ok) throw new Error("Failed");
+        var data = await res.json();
+        hideLoading();
+        render(data);
+        return data;
+      } catch (err) {
+        hideLoading();
+        if (!$("mainContent").classList.contains("hidden")) {
+          // Already rendered once; a poll failed. Keep the current view.
+          return null;
+        }
+        showEmpty();
+        return null;
+      }
+    }
+
+    function showEmpty() {
+      $("mainContent").classList.add("hidden");
+      $("emptyState").classList.remove("hidden");
+      if (embedMode) document.body.setAttribute("data-ready", "1");
+    }
+
+    function render(data) {
+      var reg = data.registration || {};
+      var ev = data.event || {};
+      $("mainContent").classList.remove("hidden");
+
+      // Header banner — use an actual <img> so Playwright's
+      // markReadyWhenImagesLoad() waits for it to load before screenshotting.
+      if (ev.bannerUrl) {
+        var bi = $("passBannerImg");
+        bi.src = ev.bannerUrl;
+        bi.classList.remove("hidden");
+      }
+      // Event logo — only hide the default brand badge once the logo has
+      // actually loaded; if the URL is broken, keep the badge visible.
+      if (ev.logoUrl) {
+        var lg = $("passLogo");
+        lg.onload = function () {
+          $("brandBadge").classList.add("hidden");
+        };
+        lg.onerror = function () {
+          lg.classList.add("hidden"); // hide broken img, badge stays visible
+        };
+        lg.src = ev.logoUrl;
+        lg.classList.remove("hidden");
+      }
+
+      var guestCount = 1 + (reg.familyMembersCount || 0);
+      var dateLabel = data.slotDateLabel || reg.slotDate || "--";
+      var timeLabel = data.slotTimeLabel || reg.slotTime || "";
+
+      if (data.orgName) $("brandWordmark").textContent = data.orgName;
+      $("passEventName").textContent = ev.name || "Event";
+      $("passDateTime").textContent = timeLabel ? (dateLabel + " \u00B7 " + timeLabel) : dateLabel;
+      $("passCustomer").innerHTML = "";
+      $("passCustomer").appendChild(document.createTextNode(reg.customerName || "--"));
+      var custSub = document.createElement("span");
+      custSub.className = "sub";
+      custSub.textContent = guestCount > 1 ? (guestCount + " guests") : "1 guest";
+      $("passCustomer").appendChild(custSub);
+
+      // QR
+      if (data.qrImageUrl) {
+        var qi = $("qrImg");
+        qi.src = data.qrImageUrl;
+        qi.classList.remove("hidden");
+        $("qrHint").classList.remove("hidden");
+      }
+
+      // Details
+      $("bookingId").textContent = reg.bookingId || "--";
+      $("guests").textContent = String(guestCount);
+      $("priorityBadge").classList.toggle("hidden", !reg.priorityAccess);
+
+      // Advance
+      if ((reg.amountPaid || 0) > 0) {
+        $("advanceAmount").textContent = data.amountPaidLabel || ("\u20B9" + ((reg.amountPaid || 0) / 100).toLocaleString("en-IN"));
+        $("advanceRow").classList.remove("hidden");
+      }
+
+      // Timeline
+      renderTimeline(reg);
+      $("statusCard").classList.remove("hidden");
+
+      // Venue
+      if (ev.venue) {
+        $("venueText").textContent = ev.venue;
+        $("venueRow").classList.remove("hidden");
+      }
+
+      // Support
+      if (ev.supportContact) {
+        var sc = $("supportContact");
+        sc.textContent = ev.supportContact;
+        var digits = String(ev.supportContact).replace(/[^0-9+]/g, "");
+        sc.href = digits.length >= 6 ? "tel:" + digits : "#";
+        $("supportRow").classList.remove("hidden");
+      }
+
+      // Feedback
+      var status = reg.status;
+      var showFeedback = status === "exited" || status === "feedback_submitted" || forceFeedback;
+      if (showFeedback && !embedMode) {
+        $("feedbackSection").classList.remove("hidden");
+        if (data.feedbackSubmitted) {
+          $("feedbackForm").classList.add("hidden");
+          $("feedbackThanks").classList.remove("hidden");
+        } else {
+          $("feedbackThanks").classList.add("hidden");
+          $("feedbackForm").classList.remove("hidden");
+        }
+      }
+
+      if (embedMode) markReadyWhenImagesLoad();
+    }
+
+    // Signals the server-side screenshot renderer (see server/ticket-image.ts)
+    // that the card is fully painted, including the QR image, so it doesn't
+    // capture a blank/half-loaded frame.
+    function markReadyWhenImagesLoad() {
+      var imgs = Array.prototype.slice.call(document.querySelectorAll(".pass img:not(.hidden)"));
+      var pending = imgs.filter(function (img) { return !img.complete; });
+      if (pending.length === 0) {
+        document.body.setAttribute("data-ready", "1");
+        return;
+      }
+      var remaining = pending.length;
+      function onDone() {
+        remaining -= 1;
+        if (remaining <= 0) document.body.setAttribute("data-ready", "1");
+      }
+      pending.forEach(function (img) {
+        img.addEventListener("load", onDone, { once: true });
+        img.addEventListener("error", onDone, { once: true });
+      });
+    }
+
+    function renderTimeline(reg) {
+      var steps = [
+        { key: "ticket_generated", label: "Ticket generated", time: null },
+        { key: "arrived", label: "Arrived", time: reg.arrivedAt },
+        { key: "checked_in", label: "Checked in", time: reg.checkedInAt },
+        { key: "exited", label: "Exited", time: reg.exitedAt }
+      ];
+      var current = stageIndexFor(reg.status);
+      var wrap = $("timelineItems");
+      wrap.innerHTML = "";
+      steps.forEach(function (step, i) {
+        var item = document.createElement("div");
+        var cls = "tl-item ";
+        if (i < current) cls += "done";
+        else if (i === current) cls += "current";
+        else cls += "pending";
+        item.className = cls;
+
+        var dot = document.createElement("div");
+        dot.className = "tl-dot";
+        if (i <= current) {
+          dot.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg>';
+        } else {
+          var num = document.createElement("span");
+          num.style.cssText = "font-size:11px;font-weight:700;";
+          num.textContent = String(i + 1);
+          dot.appendChild(num);
+        }
+        item.appendChild(dot);
+
+        var content = document.createElement("div");
+        content.className = "tl-content";
+        var lbl = document.createElement("div");
+        lbl.className = "tl-label";
+        lbl.textContent = step.label;
+        content.appendChild(lbl);
+        var tm = formatTime(step.time);
+        if (tm) {
+          var tEl = document.createElement("div");
+          tEl.className = "tl-time";
+          tEl.textContent = tm;
+          content.appendChild(tEl);
+        }
+        item.appendChild(content);
+        wrap.appendChild(item);
+      });
+    }
+
+    function initStars() {
+      var groups = document.querySelectorAll(".stars");
+      groups.forEach(function (group) {
+        var key = group.getAttribute("data-key");
+        for (var i = 1; i <= 5; i++) {
+          (function (val) {
+            var star = document.createElement("span");
+            star.className = "star";
+            star.innerHTML = '<svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>';
+            star.addEventListener("click", function () {
+              ratings[key] = val;
+              updateStars(group, val);
+            });
+            group.appendChild(star);
+          })(i);
+        }
+      });
+    }
+
+    function updateStars(group, val) {
+      var stars = group.querySelectorAll(".star");
+      stars.forEach(function (s, idx) {
+        if (idx < val) s.classList.add("filled");
+        else s.classList.remove("filled");
+      });
+    }
+
+    async function submitFeedback() {
+      if (submittingFeedback) return;
+      if (!ratings.overallRating) { toast("Please give an overall rating", true); return; }
+      submittingFeedback = true;
+      var btn = $("feedbackSubmit");
+      btn.disabled = true;
+      btn.textContent = "Submitting...";
+      try {
+        var res = await fetch("/api/event/feedback/" + encodeURIComponent(qrToken), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            overallRating: ratings.overallRating,
+            crowdManagementRating: ratings.crowdManagementRating || null,
+            staffBehaviorRating: ratings.staffBehaviorRating || null,
+            organizationRating: ratings.organizationRating || null,
+            billingRating: ratings.billingRating || null,
+            suggestions: $("suggestions").value.trim() || null
+          })
+        });
+        if (res.status === 409) {
+          $("feedbackForm").classList.add("hidden");
+          $("feedbackThanks").classList.remove("hidden");
+          toast("Feedback was already submitted for this ticket.");
+          return;
+        }
+        if (!res.ok) {
+          var err = null;
+          try { err = await res.json(); } catch (e) {}
+          submittingFeedback = false;
+          btn.disabled = false;
+          btn.textContent = "Submit feedback";
+          toast((err && err.error) || "Could not submit feedback. Please try again.", true);
+          return;
+        }
+        $("feedbackForm").classList.add("hidden");
+        $("feedbackThanks").classList.remove("hidden");
+        toast("Thanks for your feedback!");
+      } catch (err) {
+        submittingFeedback = false;
+        btn.disabled = false;
+        btn.textContent = "Submit feedback";
+        toast("Network error. Please try again.", true);
+      }
+    }
+
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(function () { load(); }, 15000);
+    }
+
+    // Staff print flow — ?print=normal or ?print=thermal, opened from the
+    // dashboard's registration table / manual-registration success screen.
+    // We wait for the QR image to actually load before firing window.print()
+    // so the printed page never shows a blank QR box.
+    var printMode = /(^|[?&])print=thermal(&|$)/.test(location.search) ? "thermal"
+      : (/(^|[?&])print=normal(&|$)/.test(location.search) ? "normal" : null);
+    if (printMode) {
+      document.body.classList.add("print-mode", "print-mode-" + printMode);
+      document.title = "Ticket - Print";
+    }
+
+    (async function () {
+      initStars();
+      $("feedbackSubmit").addEventListener("click", submitFeedback);
+      await load();
+      if (!embedMode) startPolling();
+      if (printMode) {
+        var qi = $("qrImg");
+        var fireIfReady = function () {
+          setTimeout(function () { window.print(); }, 200);
+        };
+        if (qi.complete && qi.naturalWidth > 0) fireIfReady();
+        else qi.addEventListener("load", fireIfReady, { once: true });
+      }
+    })();
+  </script>
+</body>
+</html>

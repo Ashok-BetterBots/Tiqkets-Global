@@ -1,0 +1,20 @@
+Redesign the UI of this multi-step event registration form (Details → Schedule → Review → Ticket) to match a cleaner, more premium design system. Keep all existing functionality, fields, and logic — this is a visual/styling pass only.
+
+DESIGN SYSTEM TO APPLY:
+- Background: soft neutral (light gray/lavender, e.g. #F6F5F8) instead of black — the card should float on a light page, not a dark one.
+- Card: white, rounded-2xl (24px radius), subtle soft shadow, generous internal padding (32-40px).
+- Typography: one clean sans-serif family (Inter or similar) throughout. Section titles bold and 24-28px, centered. Labels medium-weight, dark gray, with a small red asterisk for required fields only.
+- Brand color: keep the maroon/red (#9C1A5B or existing brand red) as the single accent — used only for active states, CTAs, and the step indicator. Remove extra reds/yellows elsewhere.
+- Step indicator: numbered circles (36-40px), filled brand color when active/complete, light gray/outline when upcoming, connected by a thin line. Keep the DETAILS/SCHEDULE/REVIEW labels underneath but make them small, uppercase, muted gray — not competing with the circles.
+- Remove the colored icon-square + heading pattern (e.g. red square with a person icon next to "Your details"). Replace with just a clean centered or left-aligned section title and one-line subtitle in muted gray — no icon boxes.
+- Inputs & selects: consistent rounded-xl (12-14px) fields, 1px light gray border (#E0E0E0), 14-16px vertical padding, light gray placeholder text. On focus: border changes to brand color with a subtle colored ring/glow. Dropdowns should look identical to text inputs, just with a chevron.
+- Category selection chips (Senior Citizen, Pregnant Women, Infants, Specially Abled): keep the 2x2 grid but restyle each as a rounded-xl card with icon + label, light gray border by default, brand-color border + light brand-tint fill when selected. Even spacing, no drop shadow.
+- Guest counter: minimal circular +/- buttons with light gray border, brand color only on hover/press, centered count in bold.
+- "Surprise gift" banner: convert from bright yellow box to a soft brand-tinted or neutral info banner (light background tint of the brand color, rounded-xl, no harsh yellow), same padding/radius as other cards.
+- Buttons: primary CTA (Continue/Verify/Pay) full-width or right-aligned, solid brand color, white bold text, rounded-xl, 16-18px vertical padding, no border. Disabled state = light gray fill, gray text. "Back" should be a plain text link or ghost/outline button, not a filled gray button.
+- Review screen: keep the icon + label/value + Edit-link row layout, but use thin dividers, consistent 16px vertical rhythm, and align "Edit" links in brand color.
+- Order summary card: restyle to match the same white/rounded-xl card style as the rest of the flow, with a thin top accent border in brand color instead of a heavy red border box.
+- Ticket/QR confirmation screen: keep the ticket banner header (with notch/perforation cutouts) and QR code layout, but tighten typography and spacing to match the rest of the flow. Restyle the 4-step status tracker (Ticket generated → Arrived → Checked in → Exited) using the same circle style as the top step indicator, not plain gray dots.
+- Overall: reduce visual noise — no more than one accent color, one border-radius scale (inputs=12px, cards=24px, buttons=full/12px), one shadow style, consistent spacing scale (8/16/24/32px) throughout all three steps and the ticket page.
+
+Do not change field names, validation logic, or step order — only the visual styling, spacing, colors, and component treatment.

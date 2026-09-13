@@ -1,0 +1,174 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1784230456765,
+      "tag": "0000_minor_red_shift",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784717950968,
+      "tag": "0001_premium_shadowcat",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787000000000,
+      "tag": "0002_self_host_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787100000000,
+      "tag": "0003_performance_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787200000000,
+      "tag": "0004_razorpay_route_payouts",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787300000000,
+      "tag": "0005_route_documentation_alignment",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787400000000,
+      "tag": "0006_route_internal_reference",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787500000000,
+      "tag": "0007_preprinted_ticket_artwork",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787777000000,
+      "tag": "0008_preprinted_backpage_designer",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787900000000,
+      "tag": "0009_event_settings_controls",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788000000000,
+      "tag": "0010_event_registration_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788100000000,
+      "tag": "0011_announcer_user_id_capacity",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788200000000,
+      "tag": "0012_event_checkout_alert",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788300000000,
+      "tag": "0013_event_otp_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788400000000,
+      "tag": "0014_event_refund_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1788500000000,
+      "tag": "0015_event_registration_fee_text",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788600000000,
+      "tag": "0016_experimental_form_builder",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788700000000,
+      "tag": "0017_event_registration_product_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788750000000,
+      "tag": "0018_event_registration_category_selections",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788770000000,
+      "tag": "0019_event_preprinted_ticket_prefix",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788800000000,
+      "tag": "0020_event_payment_checkouts",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788900000000,
+      "tag": "0021_checkout_intent_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789000000000,
+      "tag": "0022_payments_provider_id_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789100000000,
+      "tag": "0023_event_payment_links",
+      "breakpoints": true
+    }
+  ]
+}

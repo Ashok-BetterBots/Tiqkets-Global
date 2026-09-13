@@ -1,0 +1,22 @@
+Here's a cleaned-up, properly scoped prompt for Replit:
+
+---
+
+**Prompt to give Replit:**
+
+> The app is now working correctly. I need two UI/UX fixes in this version — please implement both carefully without impacting any existing functionality, WhatsApp triggers, or other screens.
+>
+> **1. Responsive screen sizing across devices**
+> Review all screens and ensure the layout adjusts properly across different Android and iPhone screen sizes (small phones, large phones, different aspect ratios, notches/safe areas). Specifically:
+> - Use responsive units (percentage-based widths, flexbox, `Dimensions`/`useWindowDimensions`, or safe-area-aware layout) instead of hardcoded pixel values where they cause overflow or misalignment on smaller/larger screens.
+> - Test against at least a small screen (e.g., iPhone SE-size), a standard screen, and a large/tall screen (e.g., Android with tall aspect ratio) to confirm no clipped content, overlapping elements, or excessive whitespace.
+> - Respect safe area insets (notch, status bar, home indicator) on both platforms.
+>
+> **2. Keyboard-aware bottom sheet/modal editing**
+> Go through every bottom sheet / modal in the app that contains input fields, and fix keyboard overlap issues. Specifically:
+> - When a user taps a field to edit it, that field (and ideally the label above it) must remain visible above the keyboard — not hidden behind it.
+> - Use proper keyboard-avoiding behavior (e.g., `KeyboardAvoidingView`, `react-native-keyboard-aware-scroll-view`, or the equivalent for the modal library in use) rather than fixed offsets, so it works correctly across different keyboard heights and screen sizes.
+> - Check this individually for every bottom modal in the app (list them out before fixing, so nothing is missed) — including forms with multiple fields, where scrolling to the next field while typing should also keep it visible.
+> - Confirm behavior on both Android and iOS, since keyboard behavior differs between the two platforms.
+>
+> Please first list out all the screens and all the bottom modals in the app that need to be reviewed for each of these two fixes, so I can confirm scope before you start making changes. Then implement the fixes one at a time, and report which screens/modals were changed for each fix.

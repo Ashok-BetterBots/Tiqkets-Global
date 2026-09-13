@@ -1,0 +1,61 @@
+## New database tables (do not alter existing tables)
+1. `form_configs`
+   - `id`, `client_id`, `form_name`, `schema` (JSON), `is_active`, `created_at`, `updated_at`
+2. `form_submissions`
+   - `id`, `form_config_id`, `client_id`, `answers` (JSON, keyed by field id), `submitted_at`
+
+## Field type library (reusable renderer components — build each once)
+- `label` — static text/banner (e.g. offers, notices)
+- `text` / `textarea` — free text input
+- `dropdown` — single-select from options
+- `radio_icon` — single-select choice group where each option has an icon
+- `checkbox_icon` — multi-select version of the above
+- `image` — display an image or accept an image upload
+- `date` / `time` — date/time picker
+- `phone` / `email` / `currency` / `number` — typed inputs with basic validation
+- `toggle` — yes/no boolean
+
+Each field in a form's `schema` has: `id`, `type`, `label` (support `{ "en": "...", "ta": "..." }` for bilingual labels), `required`, `order`, `options` (if applicable), and an optional `rules` array.
+
+## Rules engine (generic, not hardcoded per client)
+Support this shape for every field:
+```
+"rules": [
+  {
+    "trigger": "onChange" | "onSubmit" | "onLoad",
+    "condition": "equals" | "not_equals" | "in" | "not_in" | "is_empty" | "greater_than",
+    "compareTo": "<static value or another field's id>",
+    "action": "showPopup" | "showField" | "hideField" | "setRequired" | "blockSubmit",
+    "actionPayload": { "title": "...", "message": "..." }
+  }
+]
+```
+
+## Generic renderer
+Build one `FormRenderer` component that:
+1. Fetches a `form_configs` row by `client_id` (or form id)
+2. Loops through `schema.fields` sorted by `order`
+3. Renders the matching field-type component for each
+4. Evaluates any attached `rules` on the specified trigger
+5. On submit, validates required fields and saves to `form_submissions` as JSON
+
+## Admin builder UI (new, separate screen — e.g. `/admin/form-builder`)
+A simple screen where I can, per client:
+- Add/remove/reorder fields from the field type library
+- Set each field's label (English + Tamil), options, icon, and required flag
+- Attach a rule (trigger/condition/action) to a field via a simple form — no code
+- Save, which writes to `form_configs.schema`
+- Preview the form as it will render before publishing
+
+## Test data — seed one working example form
+Create one seeded `form_configs` row using this exact schema so I can verify everything end-to-end:
+- A `label` field: "🎉 Flash early exit will be gifted!"
+- A `dropdown` field "Product Category": Electronics, Furniture, Home Appliances, Vessels
+- A `date` field "Preferred Visit Date" with a rule: onChange → if value not_in `["2026-09-15","2026-09-16"]` → showPopup with message "This is not a special category date. Standard entry rules apply."
+- A `radio_icon` field "Special Category (optional)": Senior Citizen, Pregnant Women, Infant, Specially Abled Person — each with an icon
+
+## Scope / boundaries
+- New routes only, new components only, new tables only
+- No changes to existing forms, existing tables, or existing submission flows
+- Keep this behind a clearly separate URL path so we can test it without affecting production traffic
+- Multi-tenant from day one: `client_id` on every table so this can later support other clients beyond this first one

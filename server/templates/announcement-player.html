@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>TIQKETS - Announcement Player</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #312e81 100%); color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif; min-height: 100vh; }
+    .pulse-dot { width: 10px; height: 10px; border-radius: 9999px; display: inline-block; }
+    .pulse-dot.live { background: #34d399; box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7); animation: pulse-glow 1.6s infinite; }
+    .pulse-dot.idle { background: #94a3b8; }
+    .pulse-dot.error { background: #f87171; }
+    @keyframes pulse-glow { 0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, .55); } 70% { box-shadow: 0 0 0 14px rgba(52, 211, 153, 0); } 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); } }
+    .glass { background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .ticket-display { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+    .speaking-ring { position: absolute; inset: -8px; border-radius: 9999px; border: 3px solid rgba(52, 211, 153, 0.6); animation: ring-pulse 1.4s ease-out infinite; }
+    @keyframes ring-pulse { 0% { transform: scale(0.95); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
+    .marquee-fade { mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
+    [dir="rtl"] .ticket-display { direction: ltr; }
+  </style>
+</head>
+<body x-data="player()" x-init="init()" :dir="lang === 'ar' ? 'rtl' : 'ltr'">
+
+  <!-- Top status bar -->
+  <header class="px-6 py-4 flex items-center justify-between glass border-b border-white/5">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-lg">
+        <i class="fa-solid fa-volume-high"></i>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-widest text-white/50 font-semibold">TIQKETS Announcement Device</p>
+        <p class="text-base font-bold" x-text="deviceName || 'Connecting...'"></p>
+      </div>
+    </div>
+    <div class="flex items-center gap-4">
+      <!-- Volume -->
+      <div class="hidden md:flex items-center gap-2 text-xs text-white/70">
+        <i class="fa-solid fa-volume-low"></i>
+        <input type="range" min="0" max="1" step="0.05" x-model.number="volume" class="w-24 accent-emerald-400" />
+        <span class="w-8 text-right" x-text="Math.round(volume * 100) + '%'"></span>
+      </div>
+      <!-- Connection state -->
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5">
+        <span class="pulse-dot" :class="connectionState"></span>
+        <span class="text-xs font-bold uppercase tracking-wide" x-text="connectionLabel()"></span>
+      </div>
+      <!-- Mute -->
+      <button @click="toggleMute()" class="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm font-bold transition" :class="muted ? 'text-amber-300' : 'text-white/80'">
+        <i class="fa-solid" :class="muted ? 'fa-volume-xmark' : 'fa-volume-high'"></i>
+        <span class="ml-1" x-text="muted ? (lang==='ar' ? 'مكتوم' : 'Muted') : (lang==='ar' ? 'يعمل' : 'Live')"></span>
+      </button>
+    </div>
+  </header>
+
+  <main class="px-6 py-10 max-w-5xl mx-auto space-y-8">
+    <!-- Audio activation gate -->
+    <div x-show="!audioUnlocked" x-cloak class="glass rounded-2xl p-6 flex items-center justify-between gap-4 border-amber-300/30">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl bg-amber-400/15 text-amber-300 flex items-center justify-center text-xl">
+          <i class="fa-solid fa-circle-play"></i>
+        </div>
+        <div>
+          <p class="font-bold" x-text="lang==='ar' ? 'تفعيل الصوت' : 'Activate audio'"></p>
+          <p class="text-xs text-white/60" x-text="lang==='ar' ? 'انقر مرة واحدة لمنح المتصفح إذن التشغيل' : 'Click once to give the browser permission to play sound'"></p>
+        </div>
+      </div>
+      <button @click="unlockAudio()" class="px-5 py-2.5 rounded-xl bg-emerald-400 text-emerald-950 font-bold hover:bg-emerald-300 transition">
+        <i class="fa-solid fa-play mr-2"></i><span x-text="lang==='ar' ? 'ابدأ' : 'Start'"></span>
+      </button>
+    </div>
+
+    <!-- Now calling -->
+    <div class="glass rounded-3xl p-8 md:p-12 text-center relative overflow-hidden">
+      <p class="text-xs uppercase tracking-[0.2em] text-emerald-300 font-bold" x-text="lang==='ar' ? 'النداء الحالي' : 'Now Calling'"></p>
+
+      <template x-if="!current">
+        <div class="mt-8 mb-2 flex flex-col items-center gap-4 text-white/70">
+          <div class="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center text-3xl text-white/40">
+            <i class="fa-solid fa-bell-slash"></i>
+          </div>
+          <p class="text-2xl font-bold text-white/80" x-text="lang==='ar' ? 'بانتظار النداء التالي' : 'Waiting for next call'"></p>
+          <p class="text-sm text-white/40" x-text="lang==='ar' ? 'سيتم تشغيل الإعلانات تلقائياً عند استدعاء العملاء' : 'Announcements play automatically when staff call customers'"></p>
+        </div>
+      </template>
+
+      <template x-if="current">
+        <div class="mt-6">
+          <div class="inline-flex items-center justify-center relative mb-4">
+            <div class="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-4xl text-white shadow-2xl shadow-emerald-500/30">
+              <i class="fa-solid fa-bell"></i>
+            </div>
+            <template x-if="isSpeaking">
+              <div class="speaking-ring"></div>
+            </template>
+          </div>
+          <p class="ticket-display text-7xl md:text-9xl font-black text-white mt-2" x-text="current.ticketNumber || '—'"></p>
+          <p class="text-2xl text-white/80 mt-2" x-text="current.customerName || ''"></p>
+          <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <template x-if="current.deskName">
+              <span class="px-4 py-2 rounded-xl bg-white/10 border border-white/10 text-sm font-bold">
+                <i class="fa-solid fa-location-arrow mr-2 text-emerald-300"></i>
+                <span x-text="current.deskName"></span>
+              </span>
+            </template>
+            <template x-if="current.tableNumber">
+              <span class="px-4 py-2 rounded-xl bg-white/10 border border-white/10 text-sm font-bold">
+                <i class="fa-solid fa-utensils mr-2 text-amber-300"></i>
+                <span x-text="(lang==='ar' ? 'طاولة ' : 'Table ') + current.tableNumber"></span>
+              </span>
+            </template>
+            <template x-if="current.serviceName">
+              <span class="px-4 py-2 rounded-xl bg-white/5 border border-white/5 text-xs text-white/60" x-text="current.serviceName"></span>
+            </template>
+          </div>
+          <div class="mt-6 marquee-fade">
+            <p class="text-sm md:text-base text-white/70 italic" x-text="'\u201C' + (current.spokenText || '') + '\u201D'"></p>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Up next queue -->
+    <div class="glass rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs uppercase tracking-widest text-white/50 font-bold" x-text="lang==='ar' ? 'قائمة الانتظار' : 'Up Next'"></p>
+        <span class="text-xs text-white/40" x-text="queue.length + ' ' + (lang==='ar' ? 'في الانتظار' : 'queued')"></span>
+      </div>
+      <template x-if="queue.length === 0">
+        <p class="text-sm text-white/40 text-center py-3" x-text="lang==='ar' ? 'لا توجد إعلانات قيد الانتظار' : 'No announcements waiting'"></p>
+      </template>
+      <template x-if="queue.length > 0">
+        <ul class="divide-y divide-white/5">
+          <template x-for="(ev, idx) in queue.slice(0, 5)" :key="idx">
+            <li class="flex items-center justify-between py-3">
+              <div class="flex items-center gap-3">
+                <span class="w-8 h-8 rounded-lg bg-white/5 text-xs font-bold flex items-center justify-center" x-text="idx + 1"></span>
+                <div>
+                  <p class="ticket-display font-extrabold text-white" x-text="ev.ticketNumber"></p>
+                  <p class="text-xs text-white/50" x-text="ev.customerName || ev.serviceName || ''"></p>
+                </div>
+              </div>
+              <span class="text-xs text-white/40" x-text="ev.deskName || ev.tableNumber || ''"></span>
+            </li>
+          </template>
+        </ul>
+      </template>
+    </div>
+
+    <!-- Recent history -->
+    <div class="glass rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs uppercase tracking-widest text-white/50 font-bold" x-text="lang==='ar' ? 'الأخيرة' : 'Recent'"></p>
+        <button @click="testAnnouncement()" class="text-xs px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 font-bold transition">
+          <i class="fa-solid fa-vial mr-1"></i><span x-text="lang==='ar' ? 'تجربة' : 'Test sound'"></span>
+        </button>
+      </div>
+      <template x-if="history.length === 0">
+        <p class="text-sm text-white/40 text-center py-3" x-text="lang==='ar' ? 'لا يوجد سجل بعد' : 'No history yet'"></p>
+      </template>
+      <template x-if="history.length > 0">
+        <ul class="space-y-2">
+          <template x-for="(ev, i) in history" :key="ev._id">
+            <li class="flex items-center justify-between text-sm p-2 rounded-lg hover:bg-white/5 transition">
+              <div class="flex items-center gap-3">
+                <i class="fa-solid fa-check-circle text-emerald-400/80"></i>
+                <div>
+                  <span class="ticket-display font-bold text-white" x-text="ev.ticketNumber"></span>
+                  <span class="text-white/40 ml-2" x-text="ev.deskName || ev.tableNumber || ''"></span>
+                </div>
+              </div>
+              <span class="text-[11px] text-white/40" x-text="ev._when"></span>
+            </li>
+          </template>
+        </ul>
+      </template>
+    </div>
+  </main>
+
+  <footer class="text-center text-xs text-white/30 py-6">
+    <p>TIQKETS &middot; <span x-text="lang==='ar' ? 'الفرع' : 'Branch'"></span>: <span x-text="branchId.slice(0,8)"></span></p>
+  </footer>
+
+  <script>
+    function player() {
+      return {
+        deviceToken: '',
+        deviceId: '',
+        deviceName: '',
+        branchId: '',
+        lang: 'en',
+        volume: parseFloat(localStorage.getItem('tiqkets_announce_volume') || '1'),
+        muted: localStorage.getItem('tiqkets_announce_muted') === 'true',
+        audioUnlocked: false,
+        connectionState: 'idle',
+        sse: null,
+        reconnectTimer: null,
+        backoffMs: 1000,
+        queue: [],
+        history: [],
+        current: null,
+        isSpeaking: false,
+        playing: false,
+        voicesLoaded: false,
+        toneEl: null,
+
+        connectionLabel() {
+          if (this.connectionState === 'live') return this.lang === 'ar' ? 'متصل' : 'Live';
+          if (this.connectionState === 'error') return this.lang === 'ar' ? 'إعادة الاتصال' : 'Reconnecting';
+          return this.lang === 'ar' ? 'في الانتظار' : 'Idle';
+        },
+
+        init() {
+          const parts = location.pathname.split('/').filter(Boolean);
+          this.deviceToken = parts[parts.length - 1] || '';
+          if (!this.deviceToken) {
+            document.body.innerHTML = '<div style="padding:40px;color:#fff;font-family:sans-serif"><h1>Invalid player URL</h1><p>Missing device token.</p></div>';
+            return;
+          }
+          this.toneEl = new Audio('/public/alert-tone.wav');
+          this.toneEl.preload = 'auto';
+          // Pre-load voice list
+          if (window.speechSynthesis) {
+            window.speechSynthesis.getVoices();
+            window.speechSynthesis.onvoiceschanged = () => { this.voicesLoaded = true; };
+          }
+          this.connect();
+          window.addEventListener('beforeunload', () => this.disconnect());
+        },
+
+        connect() {
+          this.disconnect();
+          this.connectionState = 'idle';
+          try {
+            const url = '/api/announcement-player/stream?token=' + encodeURIComponent(this.deviceToken);
+            this.sse = new EventSource(url);
+            this.sse.addEventListener('ready', (e) => {
+              try {
+                const meta = JSON.parse(e.data);
+                this.deviceId = meta.deviceId || '';
+                this.deviceName = meta.deviceName || '';
+                this.branchId = meta.branchId || '';
+                this.lang = meta.language || 'en';
+                this.connectionState = 'live';
+                this.backoffMs = 1000;
+              } catch (err) {}
+            });
+            this.sse.onmessage = (e) => {
+              try {
+                const ev = JSON.parse(e.data);
+                ev._id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+                this.queue.push(ev);
+                this.processQueue();
+              } catch (err) {}
+            };
+            this.sse.onerror = () => {
+              this.connectionState = 'error';
+              this.scheduleReconnect();
+            };
+          } catch (err) {
+            this.connectionState = 'error';
+            this.scheduleReconnect();
+          }
+        },
+
+        disconnect() {
+          if (this.sse) { try { this.sse.close(); } catch {} this.sse = null; }
+        },
+
+        scheduleReconnect() {
+          this.disconnect();
+          if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+          const delay = Math.min(this.backoffMs, 15000);
+          this.backoffMs = Math.min(this.backoffMs * 2, 15000);
+          this.reconnectTimer = setTimeout(() => this.connect(), delay);
+        },
+
+        unlockAudio() {
+          // Browsers require a user gesture before any audio. Play a silent priming sound.
+          try {
+            const u = new SpeechSynthesisUtterance(' ');
+            u.volume = 0;
+            window.speechSynthesis.speak(u);
+          } catch {}
+          if (this.toneEl) {
+            const orig = this.toneEl.volume;
+            this.toneEl.volume = 0;
+            this.toneEl.play().then(() => {
+              this.toneEl.pause();
+              this.toneEl.currentTime = 0;
+              this.toneEl.volume = orig;
+            }).catch(() => {});
+          }
+          this.audioUnlocked = true;
+          // If announcements arrived before the user clicked Start, the
+          // queue silently piled up — flush it now that audio is allowed.
+          if (this.queue.length > 0) this.processQueue();
+        },
+
+        toggleMute() {
+          this.muted = !this.muted;
+          localStorage.setItem('tiqkets_announce_muted', this.muted ? 'true' : 'false');
+        },
+
+        async testAnnouncement() {
+          if (!this.audioUnlocked) this.unlockAudio();
+          const sample = this.lang === 'ar'
+            ? { ticketNumber: 'A100', customerName: '', deskName: 'العداد 1', spokenText: 'التذكرة رقم ١٠٠، يرجى التوجه إلى العداد ١', _id: 'test-' + Date.now() }
+            : { ticketNumber: 'A100', customerName: '', deskName: 'Counter 1', spokenText: 'Ticket A100, please proceed to Counter 1', _id: 'test-' + Date.now() };
+          this.queue.push(sample);
+          this.processQueue();
+        },
+
+        async processQueue() {
+          if (this.playing) return;
+          if (this.queue.length === 0) return;
+          if (!this.audioUnlocked) return; // wait until user unlocks
+          this.playing = true;
+          while (this.queue.length > 0) {
+            const ev = this.queue.shift();
+            this.current = ev;
+            try {
+              if (!this.muted) {
+                // Per-mode custom alert sound (uploaded by Super Admin)
+                // is delivered as ev.alertSoundUrl. Falls back to the
+                // bundled tone if missing or fails to load.
+                await this.playTone(ev);
+                this.isSpeaking = true;
+                // Prefer the server-rendered text in the player's chosen
+                // language, then the language-specific spoken fields,
+                // then any provided text.
+                const primary = ev.spokenText
+                  || (this.lang === 'ar' ? ev.spokenTextAr : ev.spokenTextEn)
+                  || ev.spokenTextEn
+                  || ev.spokenTextAr
+                  || '';
+                const primaryLang = ev.languageBcp47 || ev.language || (this.lang === 'ar' ? 'ar-SA' : 'en-US');
+                const fallback = (ev.fallbackText && String(ev.fallbackText).trim()) ? ev.fallbackText : '';
+                const fallbackLang = ev.fallbackLanguageBcp47 || ev.fallbackLanguage || 'en-US';
+                if (primary) await this.speak(primary, primaryLang);
+                await this.sleep(900);
+                if (fallback) await this.speak(fallback, fallbackLang);
+                else if (primary) await this.speak(primary, primaryLang);
+                this.isSpeaking = false;
+              }
+            } catch (err) {
+              this.isSpeaking = false;
+            }
+            ev._when = new Date().toLocaleTimeString();
+            this.history.unshift(ev);
+            if (this.history.length > 8) this.history.length = 8;
+            await this.sleep(this.queue.length > 0 ? 1500 : 600);
+          }
+          this.playing = false;
+        },
+
+        playTone(ev) {
+          return new Promise((resolve) => {
+            try {
+              // Resolve a custom URL when present, falling back to the
+              // bundled alert tone on any failure.
+              let url = '/public/alert-tone.wav';
+              const customUrl = ev && ev.alertSoundUrl;
+              if (customUrl) {
+                try {
+                  url = (/^https?:\/\//i).test(customUrl)
+                    ? customUrl
+                    : new URL(customUrl, window.location.origin).toString();
+                } catch (e) { /* keep default */ }
+              }
+              // The pre-loaded toneEl is only valid for the bundled URL —
+              // create a fresh element for custom sounds.
+              const isDefault = url === '/public/alert-tone.wav';
+              const audio = isDefault && this.toneEl ? this.toneEl : new Audio(url);
+              audio.currentTime = 0;
+              audio.volume = Math.max(0, Math.min(1, this.volume));
+              const cleanup = () => resolve();
+              audio.onended = cleanup;
+              audio.onerror = () => {
+                if (!isDefault) {
+                  // Custom sound failed — try bundled fallback once so
+                  // the player is never silent on the alert step.
+                  try {
+                    const fb = this.toneEl || new Audio('/public/alert-tone.wav');
+                    fb.currentTime = 0;
+                    fb.volume = Math.max(0, Math.min(1, this.volume));
+                    fb.onended = cleanup;
+                    fb.onerror = cleanup;
+                    fb.play().catch(cleanup);
+                    return;
+                  } catch (_) { /* fall through */ }
+                }
+                cleanup();
+              };
+              audio.play().catch(cleanup);
+            } catch { resolve(); }
+          });
+        },
+
+        speak(text, langHint) {
+          return new Promise((resolve) => {
+            if (!window.speechSynthesis || !text) { resolve(); return; }
+            try {
+              window.speechSynthesis.cancel();
+              const u = new SpeechSynthesisUtterance(text);
+              u.rate = 0.9;
+              u.pitch = 1.05;
+              u.volume = Math.max(0, Math.min(1, this.volume));
+              const voices = window.speechSynthesis.getVoices();
+              // Prefer a female voice within the requested language to
+              // match the brand's announcer tone, then fall through to
+              // any voice in that language, then to a generic fallback.
+              const lang = (langHint || (this.lang === 'ar' ? 'ar-SA' : 'en-US')).toLowerCase();
+              const langPrefix = lang.split('-')[0];
+              const femaleRe = /female|samantha|karen|victoria|zira|susan|hazel|moira|tessa|fiona|serena|allison|ava|ellen|amira|laila|hoda|rania|salma|asma|nadia|sara|google\s+(uk|us|arabic).*female/i;
+              const isFemale = (v) => femaleRe.test(v.name || '');
+              const matchesExact = (v) => (v.lang || '').toLowerCase() === lang;
+              const matchesPrefix = (v) => (v.lang || '').toLowerCase().startsWith(langPrefix);
+              const chosen = voices.find(v => matchesExact(v) && isFemale(v))
+                || voices.find(v => matchesPrefix(v) && isFemale(v))
+                || voices.find(matchesExact)
+                || voices.find(matchesPrefix)
+                || voices.find(isFemale)
+                || voices.find(v => (v.lang || '').toLowerCase().startsWith('en'));
+              if (chosen) {
+                u.voice = chosen;
+                u.lang = chosen.lang || lang;
+              } else {
+                u.lang = lang;
+              }
+              const safety = setTimeout(() => resolve(), 12000);
+              u.onend = () => { clearTimeout(safety); resolve(); };
+              u.onerror = () => { clearTimeout(safety); resolve(); };
+              window.speechSynthesis.speak(u);
+            } catch { resolve(); }
+          });
+        },
+
+        sleep(ms) { return new Promise(r => setTimeout(r, ms)); },
+      };
+    }
+  </script>
+</body>
+</html>
