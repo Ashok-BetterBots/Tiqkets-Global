@@ -17,7 +17,10 @@ async function ensureAudioMode(): Promise<void> {
   try {
     await Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
-      staysActiveInBackground: false,
+      // expo-audio owns one app-wide audio session. Keep the declared iOS
+      // background playback mode intact when scan tones use that session.
+      // Android retains the existing foreground-only behavior.
+      staysActiveInBackground: Platform.OS === "ios",
       playsInSilentModeIOS: true,
       shouldDuckAndroid: true,
       playThroughEarpieceAndroid: false,
