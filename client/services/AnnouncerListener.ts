@@ -156,8 +156,6 @@ class AnnouncerListenerImpl {
   private currentSig = "";
   private currentUserId: string | null = null;
   private alertSound: Audio.Sound | null = null;
-  private audioModeReady = false;
-  private repeatTimer: ReturnType<typeof setTimeout> | null = null;
   private generation = 0;
   private reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private webVoiceCache: Record<string, SpeechSynthesisVoice | null> = {};
@@ -268,11 +266,6 @@ class AnnouncerListenerImpl {
     this.reconnectTimers.forEach((t) => clearTimeout(t));
     this.reconnectTimers.clear();
 
-    if (this.repeatTimer) {
-      clearTimeout(this.repeatTimer);
-      this.repeatTimer = null;
-    }
-
     if (this.alertSound) {
       const s = this.alertSound;
       this.alertSound = null;
@@ -298,15 +291,10 @@ class AnnouncerListenerImpl {
   }
 
   private async ensureAudioMode() {
-    if (this.audioModeReady) return;
-    // Try first with background audio enabled so the alert tone keeps
-    // playing even when the app is backgrounded (the screen is off or
-    // the user has switched apps). This requires the iOS "audio"
-    // background mode to be declared in app.json — see
-    // expo.ios.infoPlist.UIBackgroundModes. If the runtime refuses
-    // (e.g. running in plain Expo Go without the capability), we fall
-    // back to foreground-only mode so we never throw and silently
-    // disable announcements.
+    // Audio mode is process-global and can be changed by other short sounds,
+    // so re-apply the announcer's mode for every announcement phase instead
+    // of caching a stale "ready" flag. Background playback requires the iOS
+    // "audio" mode already declared in app.json.
     const baseMode = {
       allowsRecordingIOS: false,
       playsInSilentModeIOS: true,
@@ -323,7 +311,6 @@ class AnnouncerListenerImpl {
         interruptionModeIOS: Audio.InterruptionModeIOS?.DuckOthers,
         interruptionModeAndroid: Audio.InterruptionModeAndroid?.DuckOthers,
       } as any);
-      this.audioModeReady = true;
       return;
     } catch {
       // Background audio not available (likely Expo Go without the
@@ -337,7 +324,6 @@ class AnnouncerListenerImpl {
     } catch {
       // ignore
     }
-    this.audioModeReady = true;
   }
 
   private async fire(payload: AnnouncementPayload, gen: number) {
@@ -466,7 +452,7 @@ class AnnouncerListenerImpl {
     return out;
   }
 
-  private speak(payload: AnnouncementPayload, gen: number) {
+  private async speak(payload: AnnouncementPayload, gen: number) {
     if (gen !== this.generation) return;
     const utterances = this.resolveUtterances(payload);
     if (!utterances.length) return;
@@ -494,6 +480,12 @@ class AnnouncerListenerImpl {
       return;
     }
 
+    // expo-speech must use the background-enabled application audio session
+    // on iOS. Re-apply it after the alert tone in case another app sound
+    // changed the process-global session while the announcement was queued.
+    await this.ensureAudioMode();
+    if (gen !== this.generation) return;
+
     const speakOne = (u: { text: string; lang: string; bcp47: string }) => {
       const voice = this.getNativeVoice(u.lang);
       try {
@@ -502,24 +494,21 @@ class AnnouncerListenerImpl {
           voice: voice?.identifier,
           rate: 0.92,
           pitch: 1.05,
+          useApplicationAudioSession: Platform.OS === "ios",
         });
       } catch {
         // ignore
       }
     };
 
-    const run = () => {
+    const run = async () => {
       try {
-        Speech.stop();
-        speakOne(utterances[0]);
-        if (this.repeatTimer) clearTimeout(this.repeatTimer);
-        if (utterances.length > 1) {
-          this.repeatTimer = setTimeout(() => {
-            this.repeatTimer = null;
-            if (gen !== this.generation) return;
-            speakOne(utterances[1]);
-          }, 1500);
-        }
+        await Speech.stop();
+        if (gen !== this.generation) return;
+        // AVSpeechSynthesizer queues consecutive utterances natively. Queue
+        // both now rather than using a JS timer, which iOS suspends shortly
+        // after the app enters the background.
+        for (const utterance of utterances) speakOne(utterance);
       } catch {
         // ignore
       }
