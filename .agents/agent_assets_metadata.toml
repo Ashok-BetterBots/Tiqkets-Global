@@ -17,3 +17,18 @@ id = "49kZa0PVl1_6VGY5ouEPc"
 uri = "file://DEPLOYMENT.md"
 type = "text"
 title = "TIQKETS Deployment Guide"
+logical_id = "c8f44dfb-89ba-4993-b35b-4d15f9880bcd"
+
+[[outputs]]
+id = "0_KlaAg1vv2AxnuW4jiB0"
+uri = "file://generated/tiqkets-expo-android-qr.png"
+type = "image"
+title = "Fresh TIQKETS Expo Go QR"
+description = "Scan this from Expo Go on Android. It uses the current HTTPS tunnel instead of the failing Replit development packager URL."
+logical_id = "29794462-0ee7-415f-aeed-4a205bee6613"
+content_hash = "sha256:dfe01f42a2bcbacaa14b9ccdbcaf15892e3882a3b81c1efade3a8e1e51b0eb12"
+size = 9013
+mtime_ms = 1789390033474
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d51db51a-4520-4822-a057-a8067df5fb96/29794462-0ee7-415f-aeed-4a205bee6613/a8296700-765f-4298-a79e-e2afb2fed293"
+storage_version_token = "1789390040455427"
+content_type = "image/png"
