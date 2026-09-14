@@ -48,13 +48,6 @@ function AppContent() {
   const { isOrgAuthenticated, isSuperAdmin, orgLoginMode, isHydratingSession, customerLoginFlagHydrated } = useOrganization();
   const isMobile = Platform.OS !== "web";
 
-  useEffect(() => {
-    if (!isHydratingSession) {
-      SplashScreen.hideAsync().catch(() => {});
-      notificationService.initializeChannels();
-    }
-  }, [isHydratingSession]);
-
   // Wait for the org context to finish hydrating from AsyncStorage +
   // validating the session cookie before rendering any navigator. Without
   // this gate, signed-in org users see a brief flash of the customer
@@ -162,6 +155,13 @@ export default function App() {
   }, []);
 
   const fontsReady = fontsLoaded || !!fontError || fontTimeout;
+
+  useEffect(() => {
+    if (fontsReady && iconFontLoaded) {
+      SplashScreen.hideAsync().catch(() => {});
+      notificationService.initializeChannels();
+    }
+  }, [fontsReady, iconFontLoaded]);
 
   if (!fontsReady || !iconFontLoaded) {
     return null;

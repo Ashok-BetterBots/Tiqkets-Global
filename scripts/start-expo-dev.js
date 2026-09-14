@@ -10,9 +10,9 @@ if (!domain) {
 const env = {
   ...process.env,
   EXPO_PUBLIC_DOMAIN: `${domain}:5000`,
-  EXPO_PACKAGER_PROXY_URL: `https://${domain}`,
-  REACT_NATIVE_PACKAGER_HOSTNAME: domain,
 };
+delete env.EXPO_PACKAGER_PROXY_URL;
+delete env.REACT_NATIVE_PACKAGER_HOSTNAME;
 delete env.EXPO_NO_QR_CODE;
 
 let stopped = false;
@@ -23,13 +23,17 @@ const maxAttempts = 5;
 
 function startExpo() {
   attempt += 1;
-  console.log(`Starting Expo through Replit proxy (attempt ${attempt}/${maxAttempts})...`);
+  const tunnelSubdomain = `tiqkets-${Date.now().toString(36)}-${process.pid}-${attempt}`;
+  console.log(`Starting Expo tunnel (attempt ${attempt}/${maxAttempts})...`);
 
   expo = spawn(
     process.platform === "win32" ? "npx.cmd" : "npx",
-    ["expo", "start", "--localhost"],
+    ["expo", "start", "--tunnel"],
     {
-      env,
+      env: {
+        ...env,
+        EXPO_TUNNEL_SUBDOMAIN: tunnelSubdomain,
+      },
       stdio: "inherit",
     },
   );
