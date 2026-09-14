@@ -1137,9 +1137,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         const enabled = data.customerAppLoginEnabled !== false;
         setCustomerLoginEnabled(enabled);
-        // If customer login was just disabled while the user is sitting on
-        // the customer screen, push them into the org area immediately.
-        if (!enabled) setOrgLoginModeState(true);
       } catch {
         // Fail open: keep the previous (or default true) value.
       } finally {

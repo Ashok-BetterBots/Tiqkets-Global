@@ -15,10 +15,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { BrandColors, headingFont, bodyFont } from "@/constants/theme";
 import { ONBOARDING_SEEN_KEY } from "@/constants/storageKeys";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 import slide1 from "../assets/images/onboarding/onboarding-1.jpg";
 import slide2 from "../assets/images/onboarding/onboarding-2.jpg";
@@ -59,9 +61,11 @@ const TITLE_COLOR = "#FEFEFE";
 const SUBTITLE_COLOR = "#E3E9ED";
 const INACTIVE_DOT = "#BFC6CC";
 
-export default function OnboardingScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, "Onboarding">;
+
+export default function OnboardingScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { setOrgLoginMode } = useOrganization();
+  const { customerLoginEnabled, setOrgLoginMode } = useOrganization();
   const { width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
@@ -79,7 +83,11 @@ export default function OnboardingScreen() {
     } catch {
       // Non-fatal: onboarding will simply show again next launch.
     }
-    setOrgLoginMode(true);
+    if (customerLoginEnabled) {
+      navigation.replace("Login");
+    } else {
+      setOrgLoginMode(true);
+    }
   };
 
   const handlePrimary = (slideIndex: number) => {
