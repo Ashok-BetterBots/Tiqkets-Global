@@ -15,7 +15,9 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { BrandColors, bodyFont } from "@/constants/theme";
 import {
   CUSTOMER_LOGIN_REQUESTED_KEY,
+  ONBOARDING_SEEN_KEY,
 } from "@/constants/storageKeys";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import logoWhite from "../assets/images/logo/logo-white-bottom-text.png";
 
@@ -25,6 +27,7 @@ const SPLASH_DURATION = 2800;
 
 export default function SplashScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { setOrgLoginMode } = useOrganization();
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.8)).current;
   const translateY = useRef(new Animated.Value(16)).current;
@@ -63,20 +66,24 @@ export default function SplashScreen({ navigation }: Props) {
     loop.start();
 
     const timer = setTimeout(async () => {
+      let seen = false;
       let customerLoginRequested = false;
       try {
+        seen = (await AsyncStorage.getItem(ONBOARDING_SEEN_KEY)) === "true";
         customerLoginRequested =
           (await AsyncStorage.getItem(CUSTOMER_LOGIN_REQUESTED_KEY)) === "1";
         if (customerLoginRequested) {
           await AsyncStorage.removeItem(CUSTOMER_LOGIN_REQUESTED_KEY);
         }
       } catch {
-        customerLoginRequested = false;
+        seen = false;
       }
-      if (customerLoginRequested) {
+      if (!seen) {
+        navigation.replace("Onboarding");
+      } else if (customerLoginRequested) {
         navigation.replace("Login");
       } else {
-        navigation.replace("Onboarding");
+        setOrgLoginMode(true);
       }
     }, SPLASH_DURATION);
 
@@ -84,7 +91,7 @@ export default function SplashScreen({ navigation }: Props) {
       clearTimeout(timer);
       loop.stop();
     };
-  }, [navigation, opacity, scale, translateY, spin]);
+  }, [navigation, setOrgLoginMode, opacity, scale, translateY, spin]);
 
   const rotate = spin.interpolate({
     inputRange: [0, 1],
