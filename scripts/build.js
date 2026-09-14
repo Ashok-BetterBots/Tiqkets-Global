@@ -457,6 +457,38 @@ function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
     manifest.extra.expoGo.debuggerHost = packagerHost;
     manifest.extra.expoGo.packagerOpts.dev = false;
 
+    const useCanonicalOrigin = (url) => {
+      if (!url) return url;
+      try {
+        const parsed = new URL(url);
+        return `${baseUrl}${parsed.pathname}${parsed.search}`;
+      } catch {
+        return url;
+      }
+    };
+    const copyManifestImage = (configuredPath) => {
+      if (!configuredPath) return null;
+      const relativePath = configuredPath.replace(/^\.\//, "");
+      const sourcePath = path.resolve(process.cwd(), relativePath);
+      const publicRoot = path.resolve(process.cwd(), "static-build", "assets");
+      const destinationPath = path.resolve(publicRoot, relativePath);
+      if (!destinationPath.startsWith(`${publicRoot}${path.sep}`)) {
+        exitWithError(`Invalid manifest image path: ${configuredPath}`);
+      }
+      fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+      fs.copyFileSync(sourcePath, destinationPath);
+      return `${baseUrl}/assets/${relativePath.split(path.sep).join("/")}`;
+    };
+    manifest.extra.expoClient.iconUrl =
+      copyManifestImage(manifest.extra.expoClient.icon) ||
+      useCanonicalOrigin(manifest.extra.expoClient.iconUrl);
+    const adaptiveIcon = manifest.extra.expoClient.android?.adaptiveIcon;
+    if (adaptiveIcon?.foregroundImageUrl) {
+      adaptiveIcon.foregroundImageUrl =
+        copyManifestImage(adaptiveIcon.foregroundImage) ||
+        useCanonicalOrigin(adaptiveIcon.foregroundImageUrl);
+    }
+
     if (manifest.assets && manifest.assets.length > 0) {
       manifest.assets.forEach((asset) => {
         if (!asset.url) return;
