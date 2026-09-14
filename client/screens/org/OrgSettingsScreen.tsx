@@ -653,7 +653,9 @@ export default function OrgSettingsScreen() {
   };
 
   const handleCopyTVUrl = async () => {
-    await Clipboard.setStringAsync(`https://tiqkets.app/tv/${organization.id}`);
+    await Clipboard.setStringAsync(
+      new URL(`/tv/${organization.id}`, getApiUrl()).toString(),
+    );
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert("Copied", "TV display URL copied to clipboard");
   };
@@ -1107,7 +1109,9 @@ export default function OrgSettingsScreen() {
               onPress={handleCopyTVUrl}
             >
               <ThemedText style={[styles.tvUrl, { color: colors.textSecondary }]} numberOfLines={1}>
-                tiqkets.app/tv/{organization.id}
+                {new URL(`/tv/${organization.id}`, getApiUrl())
+                  .toString()
+                  .replace(/^https?:\/\//, "")}
               </ThemedText>
               <Feather name="copy" size={16} color={BrandColors.primary} />
             </Pressable>

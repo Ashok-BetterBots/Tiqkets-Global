@@ -81,3 +81,4 @@
 - [Expo browser landing precedence](expo-browser-landing-precedence.md) — Replit may add expo-platform to Safari requests; explicit text/html on / must win over native manifest routing.
 - [Event payment adapter persistence](event-payment-adapter-persistence.md) — Route and Direct share ticket completion, but each checkout must freeze its adapter/order/amount; Direct credentials stay in Replit Secrets.
 - [Razorpay test customer validation](razorpay-test-customer-validation.md) — Payment Links reject synthetic contacts with recurring digits; use a varied, non-recurring test number.
+- [Primary backend domain](backend-primary-domain.md) — use tiqketsglobal.replit.app as the intentional primary/default origin; never substitute queue.tiqkets.in.
