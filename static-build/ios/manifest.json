@@ -1,11 +1,11 @@
 {
-  "id": "ca89f1cd-a0ea-4a60-a472-06aabc8aae10",
-  "createdAt": "2026-09-07T19:22:26.722Z",
+  "id": "eea67c81-b732-4979-94e6-e3c3a559cc13",
+  "createdAt": "2026-09-14T11:18:53.665Z",
   "runtimeVersion": "exposdk:57.0.0",
   "launchAsset": {
-    "key": "bundle-1788808946722-5176",
+    "key": "bundle-1789384733665-1926",
     "contentType": "application/javascript",
-    "url": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/1788808946722-5176/_expo/static/js/ios/bundle.js"
+    "url": "https://tiqketsglobal.replit.app/1789384733665-1926/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -40,9 +40,10 @@
         "adaptiveIcon": {
           "backgroundColor": "#8c1867",
           "foregroundImage": "./assets/images/icon.png",
-          "foregroundImageUrl": "http://tiqkets-mtrlkcqg-3969-1.ngrok.io/assets/./assets/images/icon.png"
+          "foregroundImageUrl": "http://tiqkets-mu157vm5-1636-1.ngrok.io/assets/./assets/images/icon.png"
         },
         "predictiveBackGestureEnabled": false,
+        "softwareKeyboardLayoutMode": "resize",
         "package": "com.tiqkets.app",
         "blockedPermissions": [
           "android.permission.RECORD_AUDIO",
@@ -189,11 +190,11 @@
         "android",
         "web"
       ],
-      "iconUrl": "http://tiqkets-mtrlkcqg-3969-1.ngrok.io/assets/./assets/images/icon.png",
-      "hostUri": "d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev"
+      "iconUrl": "http://tiqkets-mu157vm5-1636-1.ngrok.io/assets/./assets/images/icon.png",
+      "hostUri": "tiqketsglobal.replit.app"
     },
     "expoGo": {
-      "debuggerHost": "d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev",
+      "debuggerHost": "tiqketsglobal.replit.app",
       "developer": {
         "tool": "expo-cli",
         "projectRoot": "/home/runner/workspace"
@@ -204,6 +205,6 @@
       "mainModuleName": "client/index",
       "username": "thiagu.r"
     },
-    "scopeKey": "@anonymous/tiqkets-bfffd236-12c0-4006-80d9-6c361a90ea32"
+    "scopeKey": "@anonymous/tiqkets-fee425b3-85d8-4fad-8de4-318f5dbf4c9a"
   }
 }
