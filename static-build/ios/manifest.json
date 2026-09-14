@@ -1,11 +1,11 @@
 {
-  "id": "eea67c81-b732-4979-94e6-e3c3a559cc13",
-  "createdAt": "2026-09-14T11:18:53.665Z",
+  "id": "09041d27-a811-4639-b572-cf483297eba1",
+  "createdAt": "2026-09-14T12:06:51.351Z",
   "runtimeVersion": "exposdk:57.0.0",
   "launchAsset": {
-    "key": "bundle-1789384733665-1926",
+    "key": "bundle-1789387611351-898",
     "contentType": "application/javascript",
-    "url": "https://tiqketsglobal.replit.app/1789384733665-1926/_expo/static/js/ios/bundle.js"
+    "url": "https://tiqketsglobal.replit.app/1789387611351-898/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -40,7 +40,7 @@
         "adaptiveIcon": {
           "backgroundColor": "#8c1867",
           "foregroundImage": "./assets/images/icon.png",
-          "foregroundImageUrl": "http://tiqkets-mu157vm5-1636-1.ngrok.io/assets/./assets/images/icon.png"
+          "foregroundImageUrl": "https://tiqketsglobal.replit.app/assets/assets/images/icon.png"
         },
         "predictiveBackGestureEnabled": false,
         "softwareKeyboardLayoutMode": "resize",
@@ -190,7 +190,7 @@
         "android",
         "web"
       ],
-      "iconUrl": "http://tiqkets-mu157vm5-1636-1.ngrok.io/assets/./assets/images/icon.png",
+      "iconUrl": "https://tiqketsglobal.replit.app/assets/assets/images/icon.png",
       "hostUri": "tiqketsglobal.replit.app"
     },
     "expoGo": {
@@ -205,6 +205,6 @@
       "mainModuleName": "client/index",
       "username": "thiagu.r"
     },
-    "scopeKey": "@anonymous/tiqkets-fee425b3-85d8-4fad-8de4-318f5dbf4c9a"
+    "scopeKey": "@anonymous/tiqkets-e4efa49c-970c-4dc8-a84e-5f995f2428eb"
   }
 }

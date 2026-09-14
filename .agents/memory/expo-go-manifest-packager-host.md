@@ -14,3 +14,9 @@ For Expo Go development on Replit, route Metro through the stable HTTPS Replit p
 **Why:** An Android device repeatedly failed with `java.io.IOException: Failed to download remote update` while the manifest delegated its launch asset to a temporary ngrok host. Serving the same manifest and bundle through the Replit host returned HTTP 200 with no redirect and removed the extra DNS/tunnel dependency.
 
 **How to apply:** Verify the development manifest's launch asset, `hostUri`, and `debuggerHost` contain the same bare Replit host and no ngrok host. Preserve Metro's cache on routine restarts; clear it only during targeted cache troubleshooting.
+
+Production validation must include nested manifest URLs, especially `extra.expoClient.iconUrl` and Android `adaptiveIcon.foregroundImageUrl`, and verify their files exist in the static output.
+
+**Why:** Android's Expo Go updater failed after the main bundle was reachable because the adaptive icon still used an expired HTTP tunnel URL; after hostname rewriting, the uncopied canonical icon path would still have returned 404.
+
+**How to apply:** Canonicalize all manifest-level URLs, explicitly copy configured app/adaptive icons into their advertised static paths, and fetch every Android manifest URL end-to-end before publishing.

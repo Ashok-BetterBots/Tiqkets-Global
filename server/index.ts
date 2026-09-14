@@ -221,6 +221,17 @@ function serveExpoManifest(platform: string, req: Request, res: Response) {
     if (manifest.extra?.expoGo?.debuggerHost) {
       manifest.extra.expoGo.debuggerHost = actualHost;
     }
+    if (manifest.extra?.expoClient?.iconUrl) {
+      manifest.extra.expoClient.iconUrl = patchUrl(
+        manifest.extra.expoClient.iconUrl,
+      );
+    }
+    const adaptiveIcon = manifest.extra?.expoClient?.android?.adaptiveIcon;
+    if (adaptiveIcon?.foregroundImageUrl) {
+      adaptiveIcon.foregroundImageUrl = patchUrl(
+        adaptiveIcon.foregroundImageUrl,
+      );
+    }
 
     res.send(JSON.stringify(manifest));
   } catch {
@@ -313,6 +324,19 @@ function configureExpoAndLanding(app: express.Application) {
     log("Serving static Expo files with dynamic manifest routing");
   }
 
+  const appIconPath = path.resolve(
+    process.cwd(),
+    "assets",
+    "images",
+    "icon.png",
+  );
+  app.get(
+    ["/assets/images/icon.png", "/assets/assets/images/icon.png"],
+    (_req: Request, res: Response) => {
+      res.sendFile(appIconPath);
+    },
+  );
+
   // Path prefixes that always belong to Metro (bundler / HMR / asset / debug
   // surfaces). In dev, requests matching these short-circuit to the Metro
   // proxy. In prod they fall through to the static-build/ asset middleware.
@@ -354,7 +378,7 @@ function configureExpoAndLanding(app: express.Application) {
         METRO_PATH_PREFIXES.some((p) => req.path.startsWith(p)) ||
         req.path.endsWith(".bundle") ||
         req.path.endsWith(".map") ||
-        (req.path.startsWith("/assets/") && typeof req.query.platform === "string");
+        req.path.startsWith("/assets/");
       if (isMetroPath) {
         return metroProxy(req, res, next);
       }
