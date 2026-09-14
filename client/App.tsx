@@ -51,7 +51,7 @@ function AppContent() {
   const startupReady =
     !isHydratingSession &&
     !isCustomerSessionLoading &&
-    (isMobile || customerLoginFlagHydrated || isOrgAuthenticated || isSuperAdmin);
+    customerLoginFlagHydrated;
 
   useEffect(() => {
     if (!startupReady) return;
