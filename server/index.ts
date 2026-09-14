@@ -11,17 +11,6 @@ import * as path from "path";
 
 const app = express();
 const log = console.log;
-const canonicalBackendConfig = JSON.parse(
-  fs.readFileSync(
-    path.resolve(process.cwd(), "config", "backend.json"),
-    "utf-8",
-  ),
-) as { defaultHost?: string };
-const canonicalBackendHost = canonicalBackendConfig.defaultHost?.trim();
-
-if (!canonicalBackendHost) {
-  throw new Error("config/backend.json must define defaultHost");
-}
 
 declare module "http" {
   interface IncomingMessage {
@@ -221,17 +210,6 @@ function serveExpoManifest(platform: string, req: Request, res: Response) {
     if (manifest.extra?.expoGo?.debuggerHost) {
       manifest.extra.expoGo.debuggerHost = actualHost;
     }
-    if (manifest.extra?.expoClient?.iconUrl) {
-      manifest.extra.expoClient.iconUrl = patchUrl(
-        manifest.extra.expoClient.iconUrl,
-      );
-    }
-    const adaptiveIcon = manifest.extra?.expoClient?.android?.adaptiveIcon;
-    if (adaptiveIcon?.foregroundImageUrl) {
-      adaptiveIcon.foregroundImageUrl = patchUrl(
-        adaptiveIcon.foregroundImageUrl,
-      );
-    }
 
     res.send(JSON.stringify(manifest));
   } catch {
@@ -241,16 +219,12 @@ function serveExpoManifest(platform: string, req: Request, res: Response) {
 }
 
 function getPublicHost(req: Request): { protocol: string; host: string } {
-  // Production Expo manifests and launch pages must use the same canonical
-  // backend as native API requests and static bundle generation. APP_DOMAIN can
-  // remain stale in an older deployment and must not redirect update downloads
-  // to a retired host.
-  if (process.env.NODE_ENV === "production") {
-    return { protocol: "https", host: canonicalBackendHost };
+  // In Replit production the real public hostname is available via env vars.
+  // Never trust proxy headers alone — they can resolve to an internal address
+  // (e.g. 127.0.0.1:1104) that phones can't reach.
+  if (process.env.APP_DOMAIN) {
+    return { protocol: "https", host: process.env.APP_DOMAIN };
   }
-
-  // In development, prefer the current Replit preview host so Expo can reach
-  // the running workspace rather than the published production application.
   if (process.env.REPLIT_DOMAINS) {
     const first = process.env.REPLIT_DOMAINS.split(",")[0].trim();
     if (first) return { protocol: "https", host: first };
@@ -324,19 +298,6 @@ function configureExpoAndLanding(app: express.Application) {
     log("Serving static Expo files with dynamic manifest routing");
   }
 
-  const appIconPath = path.resolve(
-    process.cwd(),
-    "assets",
-    "images",
-    "icon.png",
-  );
-  app.get(
-    ["/assets/images/icon.png", "/assets/assets/images/icon.png"],
-    (_req: Request, res: Response) => {
-      res.sendFile(appIconPath);
-    },
-  );
-
   // Path prefixes that always belong to Metro (bundler / HMR / asset / debug
   // surfaces). In dev, requests matching these short-circuit to the Metro
   // proxy. In prod they fall through to the static-build/ asset middleware.
@@ -378,7 +339,7 @@ function configureExpoAndLanding(app: express.Application) {
         METRO_PATH_PREFIXES.some((p) => req.path.startsWith(p)) ||
         req.path.endsWith(".bundle") ||
         req.path.endsWith(".map") ||
-        req.path.startsWith("/assets/");
+        (req.path.startsWith("/assets/") && typeof req.query.platform === "string");
       if (isMetroPath) {
         return metroProxy(req, res, next);
       }
