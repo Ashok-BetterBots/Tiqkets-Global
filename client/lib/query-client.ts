@@ -1,15 +1,15 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import backendConfig from "../../config/backend.json";
 
 /**
  * Gets the base URL for the Express API server (e.g., "http://localhost:3000")
  * @returns {string} The API base URL
  */
 export function getApiUrl(): string {
-  let host = process.env.EXPO_PUBLIC_DOMAIN || process.env.EXPO_PUBLIC_API_URL;
-
-  if (!host) {
-    throw new Error("EXPO_PUBLIC_DOMAIN is not set. Set it to your server's domain:port (e.g., yourdomain.com or localhost:5000)");
-  }
+  let host =
+    process.env.EXPO_PUBLIC_DOMAIN ||
+    process.env.EXPO_PUBLIC_API_URL ||
+    backendConfig.defaultHost;
 
   // Replit-hosted domains (*.replit.dev, *.repl.co, *.replit.app, *.kirk.replit.dev,
   // *.riker.replit.dev, *.spock.replit.dev, ...) only expose the workflow's
