@@ -82,4 +82,3 @@
 - [Event payment adapter persistence](event-payment-adapter-persistence.md) — Route and Direct share ticket completion, but each checkout must freeze its adapter/order/amount; Direct credentials stay in Replit Secrets.
 - [Razorpay test customer validation](razorpay-test-customer-validation.md) — Payment Links reject synthetic contacts with recurring digits; use a varied, non-recurring test number.
 - [Primary backend domain](backend-primary-domain.md) — use tiqketsglobal.replit.app as the intentional primary/default origin; never substitute queue.tiqkets.in.
-- [Onboarding destination follows customer-app setting](onboarding-destination-setting.md) — reuse onboarding in both states; Continue opens customer login when enabled, organization login when disabled.
