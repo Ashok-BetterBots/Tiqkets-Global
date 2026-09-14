@@ -116,15 +116,19 @@ export function ProfileModal({
       setIsPickingImage(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (!permissionResult.granted) {
-        Alert.alert(
-          "Permission Required",
-          "Please allow access to your photo library to change your profile picture.",
-          [{ text: "OK" }]
-        );
-        return;
+      // Android's system photo picker grants access only to the selected
+      // image, so the app does not need broad photo-library access.
+      if (Platform.OS === "ios") {
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (!permissionResult.granted) {
+          Alert.alert(
+            "Permission Required",
+            "Please allow access to your photo library to change your profile picture.",
+            [{ text: "OK" }]
+          );
+          return;
+        }
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({

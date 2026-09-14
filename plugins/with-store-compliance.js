@@ -2,6 +2,7 @@ const { AndroidConfig } = require("expo/config-plugins");
 
 const UNUSED_ANDROID_PERMISSIONS = [
   "android.permission.RECORD_AUDIO",
+  "android.permission.READ_MEDIA_IMAGES",
   "android.permission.READ_MEDIA_VIDEO",
   "android.permission.READ_MEDIA_AUDIO",
   "android.permission.SYSTEM_ALERT_WINDOW",

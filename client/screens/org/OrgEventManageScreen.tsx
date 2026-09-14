@@ -471,10 +471,14 @@ export default function OrgEventManageScreen() {
 
   const pickCheckoutIcon = async () => {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Permission required", "Allow photo access to upload a checkout icon.");
-        return;
+      // Android uses the system photo picker, which exposes only the image
+      // selected by the user and needs no broad media-library permission.
+      if (Platform.OS === "ios") {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert("Permission required", "Allow photo access to upload a checkout icon.");
+          return;
+        }
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
