@@ -1,11 +1,11 @@
 {
-  "id": "ca89f1cd-a0ea-4a60-a472-06aabc8aae10",
-  "createdAt": "2026-09-07T19:22:26.722Z",
+  "id": "6a69a04e-4e34-4d9b-b778-f961cbb39a9b",
+  "createdAt": "2026-09-14T12:58:34.557Z",
   "runtimeVersion": "exposdk:57.0.0",
   "launchAsset": {
-    "key": "bundle-1788808946722-5176",
+    "key": "bundle-1789390714557-1586",
     "contentType": "application/javascript",
-    "url": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/1788808946722-5176/_expo/static/js/ios/bundle.js"
+    "url": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/1789390714557-1586/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -40,9 +40,10 @@
         "adaptiveIcon": {
           "backgroundColor": "#8c1867",
           "foregroundImage": "./assets/images/icon.png",
-          "foregroundImageUrl": "http://tiqkets-mtrlkcqg-3969-1.ngrok.io/assets/./assets/images/icon.png"
+          "foregroundImageUrl": "http://tiqkets-mu18hygm-919-1.ngrok.io/assets/./assets/images/icon.png"
         },
         "predictiveBackGestureEnabled": false,
+        "softwareKeyboardLayoutMode": "resize",
         "package": "com.tiqkets.app",
         "blockedPermissions": [
           "android.permission.RECORD_AUDIO",
@@ -189,7 +190,7 @@
         "android",
         "web"
       ],
-      "iconUrl": "http://tiqkets-mtrlkcqg-3969-1.ngrok.io/assets/./assets/images/icon.png",
+      "iconUrl": "http://tiqkets-mu18hygm-919-1.ngrok.io/assets/./assets/images/icon.png",
       "hostUri": "d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev"
     },
     "expoGo": {
@@ -204,6 +205,6 @@
       "mainModuleName": "client/index",
       "username": "thiagu.r"
     },
-    "scopeKey": "@anonymous/tiqkets-bfffd236-12c0-4006-80d9-6c361a90ea32"
+    "scopeKey": "@anonymous/tiqkets-3e2a4776-e27d-4095-85af-fa46aebc98d7"
   }
 }

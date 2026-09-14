@@ -32,7 +32,7 @@ import RootStackNavigator from "@/navigation/RootStackNavigator";
 import OrgStackNavigator from "@/navigation/OrgStackNavigator";
 import SuperAdminStackNavigator from "@/navigation/SuperAdminStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { QueueProvider } from "@/contexts/QueueContext";
 import { AppointmentProvider } from "@/contexts/AppointmentContext";
 import { OrganizationProvider, useOrganization } from "@/contexts/OrganizationContext";
@@ -46,7 +46,18 @@ function NotificationWrapper({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const { isOrgAuthenticated, isSuperAdmin, orgLoginMode, isHydratingSession, customerLoginFlagHydrated } = useOrganization();
+  const { isLoading: isCustomerSessionLoading } = useAuth();
   const isMobile = Platform.OS !== "web";
+  const startupReady =
+    !isHydratingSession &&
+    !isCustomerSessionLoading &&
+    (isMobile || customerLoginFlagHydrated || isOrgAuthenticated || isSuperAdmin);
+
+  useEffect(() => {
+    if (!startupReady) return;
+    SplashScreen.hideAsync().catch(() => {});
+    notificationService.initializeChannels();
+  }, [startupReady]);
 
   // Wait for the org context to finish hydrating from AsyncStorage +
   // validating the session cookie before rendering any navigator. Without
@@ -155,13 +166,6 @@ export default function App() {
   }, []);
 
   const fontsReady = fontsLoaded || !!fontError || fontTimeout;
-
-  useEffect(() => {
-    if (fontsReady && iconFontLoaded) {
-      SplashScreen.hideAsync().catch(() => {});
-      notificationService.initializeChannels();
-    }
-  }, [fontsReady, iconFontLoaded]);
 
   if (!fontsReady || !iconFontLoaded) {
     return null;
