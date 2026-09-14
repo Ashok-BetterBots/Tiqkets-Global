@@ -995,7 +995,7 @@ async function sendDineInApprovedTemplate(
   }
   // For URL buttons the CTA parameter must be the full ticket URL so that
   // the "Visit Website" button in WhatsApp opens the live ticket page.
-  // Example: https://tiqketsglobal.replit.app/ticket/<qrToken>
+  // Example: <public-base-url>/ticket/<qrToken>
   if (template.hasCTAUrl && row.qrToken && base) {
     opts.ctaUrlParam = `${base}/ticket/${row.qrToken as string}`;
   }

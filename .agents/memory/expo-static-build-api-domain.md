@@ -3,8 +3,8 @@ name: Expo static-build API domain
 description: Domain precedence for embedding the backend API URL in static Expo bundles deployed on Replit.
 ---
 
-Static Expo builds must prefer `REPLIT_INTERNAL_APP_DOMAIN` over a manually configured `APP_DOMAIN`.
+Static Expo production builds use the project's explicitly selected canonical API domain rather than whichever Replit domain is injected into the build environment.
 
-**Why:** A legacy custom `APP_DOMAIN` can remain configured after its DNS name is retired. Giving it priority embeds an unreachable API host into the mobile bundle, causing every native request to fail even though the current Replit deployment is healthy.
+**Why:** The user explicitly confirmed that `tiqketsglobal.replit.app` is the intentional primary backend. Build-environment domains must not silently substitute another attached domain into native bundles.
 
-**How to apply:** Keep the current Replit deployment domain first in production build-time resolution. Treat manually configured domains as a fallback, while development continues to use `REPLIT_DEV_DOMAIN`.
+**How to apply:** Keep one canonical host in shared backend configuration and have production bundle generation consume it directly. Development may still inject its proxied development host.
