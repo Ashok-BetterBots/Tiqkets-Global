@@ -134,7 +134,7 @@ const EMPTY_FORM: EmptyForm = {
   paymentMode: "offline_paid",
   paymentReason: "",
   amountCollected: "",
-  ticketMethod: "preprinted",
+  ticketMethod: "generate",
   preprintedTicketCode: "",
   productCategories: [],
   selectedSpecialCategories: [],
@@ -1027,7 +1027,7 @@ export function EventManualRegModal({
                   <Field label="Ticket method">
                     <View style={{ flexDirection: "row", gap: Spacing.sm }}>
                       {([
-                        ["generate", "Generate new"],
+                        ["generate", "Generate New"],
                         ["preprinted", "Assign pre-printed"],
                       ] as const).map(([value, label]) => {
                         const selected = form.ticketMethod === value;
