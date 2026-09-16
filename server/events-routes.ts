@@ -1164,6 +1164,7 @@ function regShape(r: EventRegistration) {
     exitedAt: r.exitedAt,
     visitDurationMinutes: r.visitDurationMinutes,
     checkoutAlertSnapshot: r.checkoutAlertSnapshot,
+    collectedAt: r.collectedAt,
     invalidScanAttempts: r.invalidScanAttempts,
     duplicateEntryAttempts: r.duplicateEntryAttempts,
     createdAt: r.createdAt,
@@ -4847,6 +4848,61 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
       res.json({ success: true });
     } catch (e) {
       console.error("[events] resend failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Mark an eligible, timely checkout as collected. The saved checkout alert
+  // snapshot is the immutable proof that checkout occurred within the event's
+  // configured time limit; do not recalculate eligibility from current settings.
+  app.post("/api/dashboard/events/support/mark-collected", requirePermission("org.events.support"), async (req: Request, res: Response) => {
+    try {
+      const registrationId = String(req.body?.registrationId || "");
+      if (!registrationId) return res.status(400).json({ error: "registrationId is required" });
+
+      const scoped = await findOrgRegistration(req, registrationId);
+      if (!scoped) return res.status(404).json({ error: "Registration not found" });
+      if (scoped.reg.collectedAt) {
+        return res.json({ success: true, registration: regShape(scoped.reg) });
+      }
+      if (scoped.reg.status !== "exited" || !scoped.reg.checkoutAlertSnapshot) {
+        return res.status(409).json({ error: "Only tickets checked out within the time limit can be marked as collected" });
+      }
+
+      const by = getRequestUserId(req) || "support";
+      const collectedAt = new Date();
+      const updated = await db.transaction(async (tx) => {
+        const [row] = await tx.update(eventRegistrations)
+          .set({ collectedAt, updatedAt: collectedAt })
+          .where(and(
+            eq(eventRegistrations.id, scoped.reg.id),
+            eq(eventRegistrations.status, "exited"),
+            isNotNull(eventRegistrations.checkoutAlertSnapshot),
+            isNull(eventRegistrations.collectedAt),
+          ))
+          .returning();
+        if (!row) return null;
+        await tx.insert(eventStageLog).values({
+          registrationId: row.id,
+          stage: "collected",
+          metadata: { by },
+        });
+        return row;
+      });
+
+      if (!updated) {
+        const [current] = await db.select().from(eventRegistrations)
+          .where(eq(eventRegistrations.id, scoped.reg.id))
+          .limit(1);
+        if (current?.collectedAt) {
+          return res.json({ success: true, registration: regShape(current) });
+        }
+        return res.status(409).json({ error: "This ticket is no longer eligible to be marked as collected" });
+      }
+
+      res.json({ success: true, registration: regShape(updated) });
+    } catch (e) {
+      console.error("[events] support mark-collected failed:", e);
       res.status(500).json({ error: "Internal server error" });
     }
   });

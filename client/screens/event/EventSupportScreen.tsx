@@ -53,6 +53,7 @@ interface RegResult {
     elapsedMinutes: number;
     capturedAt: string;
   } | null;
+  collectedAt?: string | null;
 }
 
 interface StageLogRow {
@@ -112,6 +113,7 @@ const STAGE_META: Record<string, { icon: React.ComponentProps<typeof Feather>["n
   arrived: { icon: "navigation", label: "Arrived at Venue", color: "#3B82F6" },
   checked_in: { icon: "log-in", label: "Checked In", color: SUCCESS },
   exited: { icon: "log-out", label: "Exited", color: "#6B7280" },
+  collected: { icon: "check-circle", label: "Collected", color: SUCCESS },
   feedback_submitted: { icon: "star", label: "Feedback Submitted", color: WARN },
   ticket_resent: { icon: "send", label: "Ticket Resent", color: BRAND },
   support_edit: { icon: "edit-2", label: "Support Edit", color: "#6B7280" },
@@ -594,6 +596,7 @@ export default function EventSupportScreen() {
   const [logLoading, setLogLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
+  const [markingCollected, setMarkingCollected] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const editPanelY = useRef(0);
@@ -704,6 +707,31 @@ export default function EventSupportScreen() {
     loadLog(updated.id);
     notifyEventDataChanged();
   }, [loadLog]);
+
+  const handleMarkCollected = useCallback(async () => {
+    if (!selected || markingCollected) return;
+    setMarkingCollected(true);
+    setError(null);
+    try {
+      const res = await apiRequest("POST", "/api/dashboard/events/support/mark-collected", {
+        registrationId: selected.id,
+      });
+      const data = await res.json();
+      const updated: RegResult = data.registration;
+      setSelected(updated);
+      setResults((current) => current.map((row) => row.id === updated.id ? { ...row, ...updated } : row));
+      loadLog(updated.id);
+      notifyEventDataChanged();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSuccessTone();
+    } catch (e: any) {
+      setError(e?.message || "Failed to mark ticket as collected");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playErrorTone();
+    } finally {
+      setMarkingCollected(false);
+    }
+  }, [selected, markingCollected, loadLog]);
 
   const baseUrl = getApiUrl().replace(/\/$/, "");
 
@@ -915,6 +943,26 @@ export default function EventSupportScreen() {
                 <ThemedText type="small" style={[styles.transparentText, { color: theme.textSecondary, marginTop: Spacing.sm }]}>
                   {selected.checkoutAlertSnapshot.elapsedMinutes} min since check-in · {selected.checkoutAlertSnapshot.maxDurationMinutes} min limit
                 </ThemedText>
+                {selected.collectedAt ? (
+                  <View style={styles.collectedBadge} testID="support-collected-status">
+                    <Feather name="check-circle" size={20} color={SUCCESS} />
+                    <ThemedText type="body" style={{ color: SUCCESS, fontWeight: "700" }}>Collected</ThemedText>
+                  </View>
+                ) : selected.status === "exited" ? (
+                  <Pressable
+                    onPress={handleMarkCollected}
+                    disabled={markingCollected}
+                    style={[styles.markDoneButton, { backgroundColor: SUCCESS }]}
+                    testID="button-mark-collected"
+                  >
+                    {markingCollected ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Feather name="check" size={18} color="#fff" />
+                    )}
+                    <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>Mark as Done</ThemedText>
+                  </Pressable>
+                ) : null}
               </View>
             ) : null}
 
@@ -1129,6 +1177,15 @@ const styles = StyleSheet.create({
   },
   transparentText: {
     backgroundColor: "transparent",
+  },
+  markDoneButton: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: Spacing.sm, height: 46, borderRadius: BorderRadius.lg, marginTop: Spacing.lg,
+  },
+  collectedBadge: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: Spacing.sm, minHeight: 46, borderRadius: BorderRadius.lg,
+    backgroundColor: SUCCESS + "14", marginTop: Spacing.lg,
   },
   resultRow: {
     flexDirection: "row", alignItems: "center", gap: Spacing.md,
