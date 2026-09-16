@@ -1,11 +1,11 @@
 {
-  "id": "6a69a04e-4e34-4d9b-b778-f961cbb39a9b",
-  "createdAt": "2026-09-14T12:58:34.557Z",
+  "id": "09fc2a71-7cd4-4618-9a39-d690bf7851c7",
+  "createdAt": "2026-09-16T19:19:32.152Z",
   "runtimeVersion": "exposdk:57.0.0",
   "launchAsset": {
-    "key": "bundle-1789390714557-1586",
+    "key": "bundle-1789586372152-1087",
     "contentType": "application/javascript",
-    "url": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/1789390714557-1586/_expo/static/js/ios/bundle.js"
+    "url": "https://d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev/1789586372152-1087/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -30,17 +30,14 @@
           "NSCameraUsageDescription": "Tiqkets uses your camera to scan queue and ticket QR codes.",
           "NSLocationWhenInUseUsageDescription": "Tiqkets uses your location to show nearby queues and services and verify in-person access.",
           "NSPhotoLibraryUsageDescription": "Tiqkets accesses your photos so you can set profile and event images.",
-          "NSPhotoLibraryAddUsageDescription": "Tiqkets saves ticket QR codes to your photo library when you choose to save them.",
-          "UIBackgroundModes": [
-            "audio"
-          ]
+          "NSPhotoLibraryAddUsageDescription": "Tiqkets saves ticket QR codes to your photo library when you choose to save them."
         }
       },
       "android": {
         "adaptiveIcon": {
           "backgroundColor": "#8c1867",
           "foregroundImage": "./assets/images/icon.png",
-          "foregroundImageUrl": "http://tiqkets-mu18hygm-919-1.ngrok.io/assets/./assets/images/icon.png"
+          "foregroundImageUrl": "http://127.0.0.1:8081/assets/./assets/images/icon.png"
         },
         "predictiveBackGestureEnabled": false,
         "softwareKeyboardLayoutMode": "resize",
@@ -55,9 +52,7 @@
           "android.permission.CAMERA",
           "android.permission.ACCESS_COARSE_LOCATION",
           "android.permission.ACCESS_FINE_LOCATION",
-          "android.permission.MODIFY_AUDIO_SETTINGS",
-          "android.permission.FOREGROUND_SERVICE",
-          "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+          "android.permission.MODIFY_AUDIO_SETTINGS"
         ]
       },
       "web": {
@@ -116,7 +111,7 @@
             "microphonePermission": false,
             "recordAudioAndroid": false,
             "enableBackgroundRecording": false,
-            "enableBackgroundPlayback": true
+            "enableBackgroundPlayback": false
           }
         ],
         [
@@ -190,7 +185,7 @@
         "android",
         "web"
       ],
-      "iconUrl": "http://tiqkets-mu18hygm-919-1.ngrok.io/assets/./assets/images/icon.png",
+      "iconUrl": "http://127.0.0.1:8081/assets/./assets/images/icon.png",
       "hostUri": "d51db51a-4520-4822-a057-a8067df5fb96-00-1o38ftr5pwcvl.riker.replit.dev"
     },
     "expoGo": {
@@ -205,6 +200,6 @@
       "mainModuleName": "client/index",
       "username": "thiagu.r"
     },
-    "scopeKey": "@anonymous/tiqkets-3e2a4776-e27d-4095-85af-fa46aebc98d7"
+    "scopeKey": "@anonymous/tiqkets-30dc06c8-9eb8-492a-96f5-878a5d78e64e"
   }
 }
