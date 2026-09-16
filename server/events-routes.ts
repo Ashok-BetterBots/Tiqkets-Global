@@ -390,6 +390,7 @@ export type LocationEventConfig = {
   maxCapacityPerSlot: number;
   slotCapacityOverrides: Record<string, number>;
   registrationFee: number;
+  registrationFeeOverride?: boolean;
   registrationFeeCustomText: string;
   refundable: boolean;
   refundMessage: string;
@@ -440,7 +441,10 @@ export function resolveLocationConfig(ev: Event, svc: any | null | undefined): L
     slotDurationMinutes: Math.max(5, num(s.slotDurationMinutes, ev.slotDurationMinutes)),
     maxCapacityPerSlot: Math.max(0, num(s.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
     slotCapacityOverrides: overrides,
-    registrationFee: Math.max(0, num(s.registrationFee, ev.registrationFee)),
+    registrationFee: s.registrationFeeOverride === false
+      ? Math.max(0, ev.registrationFee)
+      : Math.max(0, num(s.registrationFee, ev.registrationFee)),
+    registrationFeeOverride: s.registrationFeeOverride === true,
     registrationFeeCustomText: hasLocationFeeText
       ? s.registrationFeeCustomText.trim()
       : ev.registrationFeeCustomText || "",
@@ -3636,7 +3640,39 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
         }
         patch.slotCapacityOverrides = clean;
       }
-      const [updated] = await db.update(events).set(patch as any).where(eq(events.id, ev.id)).returning();
+      const [updated] = await db.transaction(async (tx) => {
+        const [savedEvent] = await tx.update(events).set(patch as any).where(eq(events.id, ev.id)).returning();
+
+        // Older location saves materialized the event fee into serviceSettings,
+        // making an inherited value look like a permanent override. When the
+        // event fee changes, move every linked location without an explicit
+        // override marker back onto the event default. Explicitly different
+        // location fees remain untouched.
+        if (patch.registrationFee !== undefined && patch.registrationFee !== ev.registrationFee) {
+          const branchLocations = await tx.select().from(services).where(eq(services.branchId, ev.branchId));
+          for (const location of branchLocations) {
+            const settings = (location.serviceSettings as any) || {};
+            const eventSettings = settings.event;
+            if (!eventSettings || typeof eventSettings !== "object") continue;
+            const linkedEventId = String(eventSettings.eventId || ev.id);
+            if (linkedEventId !== ev.id || eventSettings.registrationFeeOverride === true) continue;
+            await tx.update(services)
+              .set({
+                serviceSettings: {
+                  ...settings,
+                  event: {
+                    ...eventSettings,
+                    registrationFee: patch.registrationFee,
+                    registrationFeeOverride: false,
+                  },
+                },
+                updatedAt: new Date(),
+              } as any)
+              .where(eq(services.id, location.id));
+          }
+        }
+        return [savedEvent];
+      });
       res.json({ event: updated });
     } catch (e) {
       console.error("[events] update failed:", e);
@@ -3682,13 +3718,17 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
       } catch (e) {
         return res.status(400).json({ error: (e as Error).message });
       }
+      const requestedRegistrationFee = feeReady
+        ? Math.max(0, num(c.registrationFee, ev.registrationFee))
+        : 0;
       const cfg: LocationEventConfig = {
         operatingHoursStart: timeRe.test(String(c.operatingHoursStart)) ? String(c.operatingHoursStart) : ev.operatingHoursStart,
         operatingHoursEnd: timeRe.test(String(c.operatingHoursEnd)) ? String(c.operatingHoursEnd) : ev.operatingHoursEnd,
         slotDurationMinutes: Math.max(5, num(c.slotDurationMinutes, ev.slotDurationMinutes)),
         maxCapacityPerSlot: Math.max(0, num(c.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
         // Fail closed if adapter readiness changes while editing.
-        registrationFee: feeReady ? Math.max(0, num(c.registrationFee, ev.registrationFee)) : 0,
+        registrationFee: requestedRegistrationFee,
+        registrationFeeOverride: feeReady && requestedRegistrationFee !== ev.registrationFee,
          registrationFeeCustomText: normalizeRegistrationFeeCustomText(
            c.registrationFeeCustomText,
            ev.registrationFeeCustomText,
