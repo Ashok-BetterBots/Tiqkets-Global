@@ -15,13 +15,16 @@ test("rejects prefixes that cannot fit the global booking ID format", () => {
   }
 });
 
-test("generated and pre-printed booking IDs retain global registry reservation", () => {
+test("customer, staff-generated, and pre-printed booking IDs use the correct prefixes and retain global registry reservation", () => {
   const routes = readFileSync("server/events-routes.ts", "utf8");
   const schema = readFileSync("shared/schema.ts", "utf8");
   const dashboard = readFileSync("server/templates/dashboard.html", "utf8");
 
   assert.match(routes, /return `TIQ-\$\{s\}`/);
   assert.match(routes, /return `\$\{normalizePreprintedTicketPrefix\(prefix\)\}-\$\{s\}`/);
+  assert.match(routes, /reg\.registrationSource === "store"\s*\?\s*ev\.preprintedTicketPrefix\s*:\s*undefined/);
+  assert.match(routes, /reserveGeneratedTicketId\(tx, ev\.id, staffTicketPrefix\)/);
+  assert.match(routes, /staffTicketPrefix\s*\?\s*makePreprintedTicketId\(staffTicketPrefix\)\s*:\s*makeBookingId\(\)/);
   assert.match(routes, /ticketPrefix = normalizePreprintedTicketPrefix\(ev\.preprintedTicketPrefix\)/);
   assert.match(routes, /preprintedTicketPrefix,/);
   assert.match(routes, /tx\.insert\(eventTicketIdentifiers\)/);

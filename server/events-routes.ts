@@ -212,11 +212,19 @@ function makePreprintedBatchCode(): string {
   return `BATCH-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
-async function reserveGeneratedTicketId(tx: any, eventId: string): Promise<string> {
+async function reserveGeneratedTicketId(
+  tx: any,
+  eventId: string,
+  staffTicketPrefix?: string,
+): Promise<string> {
   // Existing tickets created before the registry migration are checked in both
   // source tables. New tickets are protected atomically by the registry PK.
   for (let attempt = 0; attempt < 20; attempt++) {
-    const ticketId = makeBookingId();
+    // Public customer registrations keep the TIQ namespace. Registrations
+    // created by event staff use the organizer's configured event prefix.
+    const ticketId = staffTicketPrefix
+      ? makePreprintedTicketId(staffTicketPrefix)
+      : makeBookingId();
     const [existingRegistration] = await tx.select({ id: eventRegistrations.id })
       .from(eventRegistrations)
       .where(eq(eventRegistrations.bookingId, ticketId))
@@ -869,9 +877,12 @@ export async function issueTicket(
     // the state change and the outbox entry.
     try {
       reg = await db.transaction(async (tx) => {
+        const staffTicketPrefix = reg.registrationSource === "store"
+          ? ev.preprintedTicketPrefix
+          : undefined;
         const bookingId = reg.bookingId
           ? (await ensurePreprintedTicketIdReserved(tx, ev.id, reg.bookingId), reg.bookingId)
-          : await reserveGeneratedTicketId(tx, ev.id);
+          : await reserveGeneratedTicketId(tx, ev.id, staffTicketPrefix);
         const [updated] = await tx
           .update(eventRegistrations)
           .set({ bookingId, qrToken, ticketImageUrl, status: "ticket_generated", updatedAt: new Date() })
