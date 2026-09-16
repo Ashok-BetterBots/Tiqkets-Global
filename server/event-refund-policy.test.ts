@@ -80,6 +80,51 @@ test("location refund values override event defaults and otherwise fall back", (
   assert.equal(explicitlyCleared.refundMessage, "");
 });
 
+test("location fees inherit event edits unless explicitly overridden", () => {
+  const freeEvent = {
+    operatingHoursStart: "09:00",
+    operatingHoursEnd: "21:00",
+    slotDurationMinutes: 30,
+    maxCapacityPerSlot: 50,
+    registrationFee: 0,
+    refundable: false,
+    refundMessage: "",
+  } as any;
+
+  const inherited = resolveLocationConfig(freeEvent, {
+    serviceSettings: {
+      event: {
+        registrationFee: 100000,
+        registrationFeeOverride: false,
+      },
+    },
+  });
+  assert.equal(inherited.registrationFee, 0);
+
+  const explicitOverride = resolveLocationConfig(freeEvent, {
+    serviceSettings: {
+      event: {
+        registrationFee: 100000,
+        registrationFeeOverride: true,
+      },
+    },
+  });
+  assert.equal(explicitOverride.registrationFee, 100000);
+
+  const legacyLocation = resolveLocationConfig(freeEvent, {
+    serviceSettings: { event: { registrationFee: 100000 } },
+  });
+  assert.equal(legacyLocation.registrationFee, 100000);
+});
+
+test("event fee edits synchronize inherited linked locations but preserve explicit overrides", () => {
+  const routes = readFileSync("server/events-routes.ts", "utf8");
+  assert.match(routes, /patch\.registrationFee !== undefined && patch\.registrationFee !== ev\.registrationFee/);
+  assert.match(routes, /linkedEventId !== ev\.id \|\| eventSettings\.registrationFeeOverride === true/);
+  assert.match(routes, /registrationFee: patch\.registrationFee,\s*registrationFeeOverride: false/);
+  assert.match(routes, /registrationFeeOverride: feeReady && requestedRegistrationFee !== ev\.registrationFee/);
+});
+
 test("public landing carries refund policy without duplicating it in the fee summary", () => {
   const routes = readFileSync("server/events-routes.ts", "utf8");
   const landing = readFileSync("server/templates/event-landing.html", "utf8");
