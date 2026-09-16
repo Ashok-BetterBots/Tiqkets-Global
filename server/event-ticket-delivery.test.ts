@@ -1,6 +1,7 @@
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
 import type { Request, Response } from "express";
 import { eq } from "drizzle-orm";
 import { db, pool } from "./db";
@@ -137,6 +138,18 @@ async function cleanupRegistration(
 }
 
 describe("event ticket WhatsApp delivery", () => {
+  test("keeps banner details on a transparent overlay", () => {
+    const template = readFileSync("server/templates/event-ticket.html", "utf8");
+    assert.match(
+      template,
+      /\.pass-header-overlay\s*\{[^}]*background:\s*transparent;[^}]*\}/,
+    );
+    assert.doesNotMatch(
+      template,
+      /\.pass-header-overlay\s*\{[^}]*linear-gradient[^}]*\}/,
+    );
+  });
+
   test("stores the Object Storage URL before sending the WhatsApp trigger", async () => {
     const qrToken = crypto.randomBytes(20).toString("hex");
     const localUrl = `${baseUrl}/event-ticket-image/${qrToken}.png`;
