@@ -83,3 +83,4 @@
 - [Razorpay test customer validation](razorpay-test-customer-validation.md) — Payment Links reject synthetic contacts with recurring digits; use a varied, non-recurring test number.
 - [Primary backend domain](backend-primary-domain.md) — use tiqketsglobal.replit.app as the intentional primary/default origin; never substitute queue.tiqkets.in.
 - [Foreground-only ticket audio](foreground-only-ticket-audio.md) — iOS ticket-call sounds only while active; never re-add audio background mode or background playback sessions.
+- [Event registration fee lock](event-registration-fee-lock.md) — lock the saved paise amount server-side across event and location routes; payout readiness remains a separate gate.

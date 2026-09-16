@@ -90,6 +90,7 @@ interface EventRow {
   maxCapacityPerSlot?: number;
   slotCapacityOverrides?: Record<string, number> | null;
   registrationFee: number;
+  registrationFeeLocked?: boolean;
   registrationFeeCustomText?: string | null;
   supportContact?: string | null;
   parkingTotalSpaces: number;
@@ -436,9 +437,11 @@ export default function OrgEventManageScreen() {
         operatingHoursEnd: form.operatingHoursEnd.trim() || "21:00",
         slotDurationMinutes: parseInt(form.slotDurationMinutes, 10) || 30,
         maxCapacityPerSlot: parseInt(form.maxCapacityPerSlot, 10) || 50,
-        registrationFee: !registrationFeesReady
-          ? 0
-          : Math.max(0, Math.round((parseFloat(form.registrationFee) || 0) * 100)),
+        registrationFee: editing?.registrationFeeLocked
+          ? editing.registrationFee
+          : !registrationFeesReady
+            ? 0
+            : Math.max(0, Math.round((parseFloat(form.registrationFee) || 0) * 100)),
         registrationFeeCustomText: form.registrationFeeCustomText.trim(),
         refundable: form.refundable,
         refundMessage: form.refundMessage.trim(),
@@ -467,6 +470,43 @@ export default function OrgEventManageScreen() {
     } catch (e) {
       setFormError(getErrorMessage(e, "Failed to save event"));
     } finally { setSaving(false); }
+  };
+
+  const toggleRegistrationFeeLock = () => {
+    if (!editing) return;
+    const nextLocked = !editing.registrationFeeLocked;
+    const formFee = Math.max(0, Math.round((parseFloat(form.registrationFee) || 0) * 100));
+    if (nextLocked && formFee !== editing.registrationFee) {
+      Alert.alert("Save fee first", "Save the changed registration fee before locking it.");
+      return;
+    }
+    Alert.alert(
+      nextLocked ? "Lock registration fee?" : "Unlock registration fee?",
+      nextLocked
+        ? `Protect ${fmtRupeesFromPaise(editing.registrationFee)} from event and location updates until an organizer or admin unlocks it.`
+        : "The registration fee can be edited again after unlocking.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: nextLocked ? "Lock fee" : "Unlock fee",
+          style: nextLocked ? "default" : "destructive",
+          onPress: async () => {
+            setSaving(true);
+            setFormError(null);
+            try {
+              const response = await apiRequest("POST", `/api/dashboard/events/${editing.id}/registration-fee-lock`, { locked: nextLocked });
+              const body = await response.json();
+              setEditing(body.event);
+              await invalidate();
+            } catch (e) {
+              setFormError(getErrorMessage(e, `Failed to ${nextLocked ? "lock" : "unlock"} registration fee`));
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const pickCheckoutIcon = async () => {
@@ -648,10 +688,10 @@ export default function OrgEventManageScreen() {
           <View style={{ flex: 1 }}>
             <Field
               label={"Fee (\u20B9)"}
-              value={!registrationFeesReady ? "0" : form.registrationFee}
+              value={editing?.registrationFeeLocked ? form.registrationFee : !registrationFeesReady ? "0" : form.registrationFee}
               onChangeText={(t) => setForm((f) => ({ ...f, registrationFee: t }))}
               keyboardType="decimal-pad"
-              editable={registrationFeesReady}
+              editable={registrationFeesReady && !editing?.registrationFeeLocked}
               testID="input-event-fee"
             />
           </View>
@@ -665,6 +705,19 @@ export default function OrgEventManageScreen() {
                 ? "Checking payout setup before enabling registration fees..."
                 : "Create Payout setup before adding fee details. A valid Razorpay Product ID is required."}
             </ThemedText>
+          </View>
+        ) : null}
+        {editing ? (
+          <View style={[styles.payoutSetupNotice, { borderColor: editing.registrationFeeLocked ? "#F59E0B" : theme.border, backgroundColor: editing.registrationFeeLocked ? "#FFFBEB" : theme.surface }]}>
+            <Feather name={editing.registrationFeeLocked ? "lock" : "unlock"} size={18} color={editing.registrationFeeLocked ? "#B45309" : theme.textSecondary} />
+            <ThemedText type="small" style={{ color: editing.registrationFeeLocked ? "#92400E" : theme.textSecondary, flex: 1, fontWeight: "700" }}>
+              {editing.registrationFeeLocked ? "This saved amount is protected from event and location updates." : "Lock the fee to prevent accidental changes."}
+            </ThemedText>
+            <Pressable onPress={toggleRegistrationFeeLock} testID="button-event-fee-lock">
+              <ThemedText type="small" style={{ color: BRAND, fontWeight: "800" }}>
+                {editing.registrationFeeLocked ? "Unlock" : "Lock"}
+              </ThemedText>
+            </Pressable>
           </View>
         ) : null}
         <Field

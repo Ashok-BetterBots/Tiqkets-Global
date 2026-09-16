@@ -143,6 +143,23 @@ function requireEventsManageOrBilling() {
   (fn as any).__permissionKey = "org.events.manage or org.events.billing";
   return fn;
 }
+
+function requireEventFeeLockManager() {
+  const fn = async (req: Request, res: Response, next: NextFunction) => {
+    if (isSuperAdminRequest(req)) return next();
+    const userId = getRequestUserId(req);
+    if (!userId) return res.status(401).json({ error: "Authentication required" });
+    const result = await getPermissionsForUser(userId);
+    if (!result) return res.status(401).json({ error: "Unknown user" });
+    if (
+      ["admin", "organizer"].includes(result.roleKey) &&
+      result.permissions.includes("org.events.manage")
+    ) return next();
+    return res.status(403).json({ error: "Only an organizer or admin can lock or unlock the registration fee" });
+  };
+  (fn as any).__permissionKey = "org.events.manage (admin/organizer only)";
+  return fn;
+}
 import { renderWaMessage, type WaVars } from "./wa-templates";
 import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTemplateMessage, sendWhatsAppOTP, normalizeIndianPhone } from "./whatsapp";
 import { getPublicBaseUrl, sendEventTicketEmail } from "./mailer";
@@ -3543,6 +3560,13 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
       if (b.maxCapacityPerSlot !== undefined) patch.maxCapacityPerSlot = Math.max(1, parseInt(String(b.maxCapacityPerSlot), 10) || 50);
       if (b.maxGuestsPerRegistration !== undefined) patch.maxGuestsPerRegistration = Math.max(1, parseInt(String(b.maxGuestsPerRegistration), 10) || 10);
       if (b.registrationFee !== undefined) {
+        const requestedRegistrationFee = Math.max(0, parseInt(String(b.registrationFee), 10) || 0);
+        if (ev.registrationFeeLocked && requestedRegistrationFee !== ev.registrationFee) {
+          return res.status(409).json({
+            error: "Registration fee is locked. Unlock it before changing the amount.",
+            code: "REGISTRATION_FEE_LOCKED",
+          });
+        }
         const [payoutProfile] = await db.select({
           providerProductId: organizerPayoutProfiles.providerProductId,
           productStatus: organizerPayoutProfiles.productStatus,
@@ -3550,9 +3574,11 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
           .where(eq(organizerPayoutProfiles.organizationId, ev.organizationId))
           .limit(1);
         const paymentMethod = await getEventPaymentMethod();
-        patch.registrationFee = canConfigureEventRegistrationFeeForMethod(paymentMethod, payoutProfile)
-          ? Math.max(0, parseInt(String(b.registrationFee), 10) || 0)
-          : 0;
+        patch.registrationFee = ev.registrationFeeLocked
+          ? ev.registrationFee
+          : canConfigureEventRegistrationFeeForMethod(paymentMethod, payoutProfile)
+            ? requestedRegistrationFee
+            : 0;
       }
       if ("registrationFeeCustomText" in b) {
         try {
@@ -3680,6 +3706,24 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
     }
   });
 
+  app.post("/api/dashboard/events/:eventId/registration-fee-lock", requireEventFeeLockManager(), async (req: Request, res: Response) => {
+    try {
+      const ev = await assertEventOwnership(req, res, String(req.params.eventId));
+      if (!ev) return;
+      if (typeof req.body?.locked !== "boolean") {
+        return res.status(400).json({ error: "locked must be a boolean" });
+      }
+      const [updated] = await db.update(events)
+        .set({ registrationFeeLocked: req.body.locked, updatedAt: new Date() })
+        .where(eq(events.id, ev.id))
+        .returning();
+      res.json({ event: updated });
+    } catch (e) {
+      console.error("[events] registration fee lock update failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Per-"Location" event config: time slots, capacity (+ per-slot overrides),
   // registration fee, and custom input fields. Locations are `services` rows;
   // the event-specific config lives in serviceSettings.event. `applyToAll`
@@ -3718,9 +3762,19 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
       } catch (e) {
         return res.status(400).json({ error: (e as Error).message });
       }
-      const requestedRegistrationFee = feeReady
-        ? Math.max(0, num(c.registrationFee, ev.registrationFee))
-        : 0;
+      const existingServiceEvent = ((svc.serviceSettings as any) || {}).event || {};
+      const existingServiceFee = Math.max(0, num(existingServiceEvent.registrationFee, ev.registrationFee));
+      const requestedRegistrationFee = ev.registrationFeeLocked
+        ? Math.max(0, num(c.registrationFee, existingServiceFee))
+        : feeReady
+          ? Math.max(0, num(c.registrationFee, ev.registrationFee))
+          : 0;
+      if (ev.registrationFeeLocked && requestedRegistrationFee !== existingServiceFee) {
+        return res.status(409).json({
+          error: "Registration fee is locked. Unlock it from the Event page before changing the amount.",
+          code: "REGISTRATION_FEE_LOCKED",
+        });
+      }
       const cfg: LocationEventConfig = {
         operatingHoursStart: timeRe.test(String(c.operatingHoursStart)) ? String(c.operatingHoursStart) : ev.operatingHoursStart,
         operatingHoursEnd: timeRe.test(String(c.operatingHoursEnd)) ? String(c.operatingHoursEnd) : ev.operatingHoursEnd,
@@ -3779,6 +3833,20 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
       const targets = applyToAll
         ? await loadEventLocations(svc.branchId)
         : [svc];
+
+      if (ev.registrationFeeLocked) {
+        const wouldChangeLockedFee = targets.some((target) => {
+          const targetEventSettings = ((target.serviceSettings as any) || {}).event || {};
+          const targetFee = Math.max(0, num(targetEventSettings.registrationFee, ev.registrationFee));
+          return targetFee !== requestedRegistrationFee;
+        });
+        if (wouldChangeLockedFee) {
+          return res.status(409).json({
+            error: "Registration fee is locked. Apply to all cannot overwrite saved location fees.",
+            code: "REGISTRATION_FEE_LOCKED",
+          });
+        }
+      }
 
       // Validate slot overrides against each target's current usage first, so a
       // conflict on any target aborts the whole operation atomically.
