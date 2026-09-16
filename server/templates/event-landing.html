@@ -1813,9 +1813,26 @@
       display: none;
     }
     .hero.has-banner .hero-content {
-      position: relative;
+      position: absolute;
+      inset: 0;
       min-height: 0;
-      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      padding: 12px 16px 14px;
+      background: transparent;
+    }
+    .hero.has-banner .hero-logo {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      margin-bottom: 7px;
+    }
+    .hero.has-banner .hero-title {
+      font-size: clamp(17px, 4.5vw, 21px);
+      line-height: 1.15;
+    }
+    .hero.has-banner .hero-meta {
+      margin-top: 6px;
+      gap: 3px;
+      font-size: 11px;
     }
     .hero-overlay {
       background: linear-gradient(180deg, rgba(35, 15, 29, .04), rgba(35, 15, 29, .68));
