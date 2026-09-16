@@ -1650,6 +1650,7 @@ export const eventRegistrations = pgTable("event_registrations", {
   exitedAt: timestamp("exited_at"),
   visitDurationMinutes: integer("visit_duration_minutes"),
   checkoutAlertSnapshot: jsonb("checkout_alert_snapshot").$type<EventCheckoutAlertSnapshot>(),
+  collectedAt: timestamp("collected_at"),
   invalidScanAttempts: integer("invalid_scan_attempts").default(0).notNull(),
   duplicateEntryAttempts: integer("duplicate_entry_attempts").default(0).notNull(),
   // One-shot flags so the reminder scheduler never double-sends.
