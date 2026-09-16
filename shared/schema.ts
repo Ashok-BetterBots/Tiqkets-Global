@@ -1528,6 +1528,8 @@ export const events = pgTable("events", {
   maxGuestsPerRegistration: integer("max_guests_per_registration").default(10).notNull(),
   // Registration fee (advance amount) in paise, matching payments.amount.
   registrationFee: integer("registration_fee").default(0).notNull(),
+  // When locked, all event and location update routes must preserve the saved fee.
+  registrationFeeLocked: boolean("registration_fee_locked").default(false).notNull(),
   // Optional customer-facing text shown below the registration fee.
   registrationFeeCustomText: text("registration_fee_custom_text").default("").notNull(),
   // Customer-facing refund guidance only. This does not change payment

@@ -15,11 +15,28 @@ describe("event registration slot display", () => {
     const dashboard = readFileSync("server/templates/dashboard.html", "utf8");
     const routes = readFileSync("server/events-routes.ts", "utf8");
 
-    assert.match(mobile, /editable=\{registrationFeesReady\}/);
-    assert.match(mobile, /registrationFee: !registrationFeesReady\s*\?\s*0/);
-    assert.match(dashboard, /:disabled="!eventRegistrationFeesReady\(\)"/);
-    assert.match(dashboard, /registrationFee: !this\.eventRegistrationFeesReady\(\)\s*\?\s*0/);
-    assert.match(routes, /patch\.registrationFee = canConfigureEventRegistrationFeeForMethod\(paymentMethod, payoutProfile\)/);
+    assert.match(mobile, /editable=\{registrationFeesReady && !editing\?\.registrationFeeLocked\}/);
+    assert.match(mobile, /registrationFee: editing\?\.registrationFeeLocked[\s\S]*?\?\s*editing\.registrationFee[\s\S]*?: !registrationFeesReady/);
+    assert.match(dashboard, /:disabled="!eventRegistrationFeesReady\(\) \|\| eventForm\.registrationFeeLocked"/);
+    assert.match(dashboard, /registrationFee: f\.registrationFeeLocked[\s\S]*?: !this\.eventRegistrationFeesReady\(\)/);
+    assert.match(routes, /patch\.registrationFee = ev\.registrationFeeLocked[\s\S]*?: canConfigureEventRegistrationFeeForMethod\(paymentMethod, payoutProfile\)/);
+  });
+
+  test("persists and enforces the event registration fee lock", () => {
+    const schema = readFileSync("shared/schema.ts", "utf8");
+    const routes = readFileSync("server/events-routes.ts", "utf8");
+    const dashboard = readFileSync("server/templates/dashboard.html", "utf8");
+    const mobile = readFileSync("client/screens/org/OrgEventManageScreen.tsx", "utf8");
+
+    assert.match(schema, /registrationFeeLocked: boolean\("registration_fee_locked"\)\.default\(false\)\.notNull\(\)/);
+    assert.match(routes, /REGISTRATION_FEE_LOCKED/);
+    assert.match(routes, /\/api\/dashboard\/events\/:eventId\/registration-fee-lock/);
+    assert.match(routes, /requireEventFeeLockManager\(\)/);
+    assert.match(routes, /ev\.registrationFeeLocked && requestedRegistrationFee !== ev\.registrationFee/);
+    assert.match(dashboard, /toggleEventRegistrationFeeLock\(\)/);
+    assert.match(dashboard, /Save the registration fee before locking it/);
+    assert.match(mobile, /toggleRegistrationFeeLock/);
+    assert.match(mobile, /Save the changed registration fee before locking it/);
   });
 
   test("keeps both registration surfaces as dropdown selectors", () => {
