@@ -1800,6 +1800,23 @@
       border-radius: 0 0 30px 30px;
       box-shadow: 0 12px 30px rgba(47, 31, 43, .12);
     }
+    .hero-banner {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .hero.has-banner {
+      min-height: 0;
+      background: none;
+    }
+    .hero.has-banner .hero-overlay {
+      display: none;
+    }
+    .hero.has-banner .hero-content {
+      position: relative;
+      min-height: 0;
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+    }
     .hero-overlay {
       background: linear-gradient(180deg, rgba(35, 15, 29, .04), rgba(35, 15, 29, .68));
     }
@@ -1980,6 +1997,7 @@
     <!-- Main content -->
     <div id="mainContent" class="hidden">
       <div id="hero" class="hero">
+        <img id="heroBanner" class="hero-banner hidden" alt="" />
         <div class="hero-overlay"></div>
         <div class="hero-content">
           <img id="heroLogo" class="hero-logo hidden" alt="" />
@@ -2961,7 +2979,16 @@
 
       // Hero
       if (ev.bannerUrl) {
-        $("hero").style.backgroundImage = "url('" + ev.bannerUrl.replace(/'/g, "%27") + "')";
+        var banner = $("heroBanner");
+        banner.src = ev.bannerUrl;
+        banner.onload = function () {
+          $("hero").classList.add("has-banner");
+          banner.classList.remove("hidden");
+        };
+        banner.onerror = function () {
+          $("hero").classList.remove("has-banner");
+          banner.classList.add("hidden");
+        };
       }
       if (ev.logoUrl) {
         var lg = $("heroLogo");
