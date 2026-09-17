@@ -4963,7 +4963,7 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
   // Mark an eligible, timely checkout as collected. The saved checkout alert
   // snapshot is the immutable proof that checkout occurred within the event's
   // configured time limit; do not recalculate eligibility from current settings.
-  app.post("/api/dashboard/events/support/mark-collected", requirePermission("org.events.support"), async (req: Request, res: Response) => {
+  const markCheckoutCollected = async (req: Request, res: Response) => {
     try {
       const registrationId = String(req.body?.registrationId || "");
       if (!registrationId) return res.status(400).json({ error: "registrationId is required" });
@@ -5010,10 +5010,21 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
 
       res.json({ success: true, registration: regShape(updated) });
     } catch (e) {
-      console.error("[events] support mark-collected failed:", e);
+      console.error("[events] mark-collected failed:", e);
       res.status(500).json({ error: "Internal server error" });
     }
-  });
+  };
+
+  app.post(
+    "/api/dashboard/events/scan/mark-collected",
+    requirePermission("org.events.security"),
+    markCheckoutCollected,
+  );
+  app.post(
+    "/api/dashboard/events/support/mark-collected",
+    requirePermission("org.events.support"),
+    markCheckoutCollected,
+  );
 
   // ── Support: request OTP to authorise a batch of booking edits ───────────
   app.post("/api/dashboard/events/support/request-edit", requirePermission("org.events.support"), async (req: Request, res: Response) => {

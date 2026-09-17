@@ -10,7 +10,8 @@ test("support collection is restricted to timely exited tickets and persists ind
 
   assert.match(schema, /collectedAt: timestamp\("collected_at"\)/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS "collected_at" timestamp/);
-  assert.match(routes, /support\/mark-collected", requirePermission\("org\.events\.support"\)/);
+  assert.match(routes, /events\/scan\/mark-collected"[\s\S]*requirePermission\("org\.events\.security"\)/);
+  assert.match(routes, /events\/support\/mark-collected"[\s\S]*requirePermission\("org\.events\.support"\)/);
   assert.match(routes, /status !== "exited" \|\| !scoped\.reg\.checkoutAlertSnapshot/);
   assert.match(routes, /isNotNull\(eventRegistrations\.checkoutAlertSnapshot\)/);
   assert.match(routes, /isNull\(eventRegistrations\.collectedAt\)/);
@@ -19,4 +20,15 @@ test("support collection is restricted to timely exited tickets and persists ind
   assert.match(screen, /selected\.status === "exited"/);
   assert.match(screen, />Mark as Done</);
   assert.match(screen, /name="check-circle"[\s\S]*>Collected</);
+});
+
+test("timely checkout modal can mark the gift collected or skip", () => {
+  const checkout = readFileSync("client/screens/event/EventCheckOutScreen.tsx", "utf8");
+  const modal = readFileSync("client/components/event/TicketScanResultModal.tsx", "utf8");
+
+  assert.match(checkout, /events\/scan\/mark-collected/);
+  assert.match(modal, /testID="button-checkout-gift-collected"/);
+  assert.match(modal, />Collected</);
+  assert.match(modal, /testID="button-checkout-gift-skip"/);
+  assert.match(modal, />Skip</);
 });
