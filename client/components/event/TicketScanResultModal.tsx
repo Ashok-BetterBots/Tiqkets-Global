@@ -44,6 +44,7 @@ export interface ScanResponseData {
     capturedAt: string;
   } | null;
   registration?: {
+    id?: string;
     eventId?: string;
     bookingId?: string;
     customerName?: string;
@@ -200,6 +201,8 @@ interface Props {
   /** Called with the (possibly adjusted) familyMembersCount when staff confirms check-in */
   onConfirm?: (familyMembersCount: number) => void;
   confirming?: boolean;
+  onCollected?: () => void;
+  collecting?: boolean;
 }
 
 export function TicketScanResultModal({
@@ -210,6 +213,8 @@ export function TicketScanResultModal({
   onClose,
   onConfirm,
   confirming = false,
+  onCollected,
+  collecting = false,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -573,6 +578,30 @@ export function TicketScanResultModal({
                 >
                   <ThemedText style={styles.btnFillText}>Proceed</ThemedText>
                   <Feather name="arrow-right" size={16} color="#FFFFFF" />
+                </Pressable>
+              </View>
+            ) : showCheckoutSurprise && onCollected ? (
+              <View style={styles.btnRow}>
+                <Pressable
+                  onPress={onClose}
+                  style={[styles.btnOutline, { borderColor: theme.border }]}
+                  disabled={collecting}
+                  testID="button-checkout-gift-skip"
+                >
+                  <ThemedText style={[styles.btnOutlineText, { color: theme.textSecondary }]}>Skip</ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={onCollected}
+                  style={[styles.btnFill, { backgroundColor: BRAND, opacity: collecting ? 0.7 : 1 }]}
+                  disabled={collecting}
+                  testID="button-checkout-gift-collected"
+                >
+                  {collecting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Feather name="gift" size={16} color="#fff" />
+                  )}
+                  <ThemedText style={styles.btnFillText}>Collected</ThemedText>
                 </Pressable>
               </View>
             ) : suppressValidBanner && !data.checkoutAlert ? null : mode === "preview" && onConfirm ? (

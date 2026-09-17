@@ -73,6 +73,7 @@ function ExitScanPanel() {
   const [modalVisible, setModalVisible] = useState(false);
   const [pendingValue, setPendingValue] = useState<string>("");
   const [confirming, setConfirming] = useState(false);
+  const [collecting, setCollecting] = useState(false);
   const selectionGenerationRef = useRef(0);
 
   useEffect(() => {
@@ -82,6 +83,7 @@ function ExitScanPanel() {
     setPendingValue("");
     setCameraOpen(false);
     setConfirming(false);
+    setCollecting(false);
     setSearching(false);
     setManualQuery("");
     setScanned(false);
@@ -201,6 +203,37 @@ function ExitScanPanel() {
     }
     if (selectionGeneration === selectionGenerationRef.current) setConfirming(false);
   }, [pendingValue, confirming, modalData, closeModal]);
+
+  const handleCollected = useCallback(async () => {
+    const registrationId = modalData?.registration?.id;
+    if (!registrationId || collecting) return;
+    const selectionGeneration = selectionGenerationRef.current;
+    setCollecting(true);
+    try {
+      const res = await apiRequest("POST", "/api/dashboard/events/scan/mark-collected", {
+        registrationId,
+      });
+      const data = await res.json();
+      notifyEventDataChanged(data.registration?.eventId);
+      if (selectionGeneration !== selectionGenerationRef.current) return;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSuccessTone();
+      setRecentRefreshKey((k) => k + 1);
+      closeModal();
+      setModalData(null);
+    } catch (e: any) {
+      if (selectionGeneration !== selectionGenerationRef.current) return;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playErrorTone();
+      setModalData((current) => current ? {
+        ...current,
+        success: false,
+        error: e instanceof ApiError ? e.message : "Failed to mark gift as collected",
+      } : current);
+    } finally {
+      if (selectionGeneration === selectionGenerationRef.current) setCollecting(false);
+    }
+  }, [modalData?.registration?.id, collecting, closeModal]);
 
   const handleBarCodeScanned = useCallback(
     async (scanEvent: { data: string }) => {
@@ -345,6 +378,12 @@ function ExitScanPanel() {
           onClose={closeModal}
           onConfirm={modalMode === "preview" ? handleConfirm : undefined}
           confirming={confirming}
+          onCollected={
+            modalMode === "result" && !!modalData?.checkoutAlert
+              ? handleCollected
+              : undefined
+          }
+          collecting={collecting}
         />
       </ThemedView>
     </KeyboardAvoidingView>
