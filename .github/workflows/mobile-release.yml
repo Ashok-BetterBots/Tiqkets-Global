@@ -128,6 +128,8 @@ jobs:
           ruby-version: "3.3"
           bundler-cache: true
       - run: npm ci --no-audit --no-fund
+      - name: Apply maintained native dependency patches
+        run: npx patch-package
       - run: node scripts/generate-release-notes.mjs release-output/release.json "$ANDROID_VERSION_CODE"
       - name: Generate native Android app
         run: npx expo prebuild --platform android --clean --no-install
@@ -215,6 +217,8 @@ jobs:
           ruby-version: "3.3"
           bundler-cache: true
       - run: npm ci --no-audit --no-fund
+      - name: Apply maintained native dependency patches
+        run: npx patch-package
       # Expo builds this Swift/C++ bridge on every fresh runner. Its own hash
       # file invalidates the cached framework when the Expo, React Native,
       # Pods, or selected Xcode inputs change, so cache only the final product
@@ -223,7 +227,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules/expo-modules-jsi/apple/Products/ExpoModulesJSI.xcframework
-          key: expo-jsi-${{ runner.os }}-xcode26-${{ hashFiles('package-lock.json') }}
+          key: expo-jsi-${{ runner.os }}-xcode26-${{ hashFiles('package-lock.json', 'patches/expo-modules-jsi+57.0.8.patch') }}
       - run: node scripts/generate-release-notes.mjs release-output/release.json "$ANDROID_VERSION_CODE"
       - name: Generate native iOS app and install pods
         run: |
