@@ -1,0 +1,14 @@
+TIQKETS helps businesses manage queues, tokens, appointments and event check-ins from one dashboard. Customers can join using a QR code or WhatsApp and receive updates without installing the business app.
+
+KEEP YOUR LINE MOVING
+• Call, serve, skip and transfer customers with simple queue controls.
+• Manage first-come-first-served queues, dine-in seating, takeaway orders and multi-stage services.
+• Send WhatsApp updates when it is a customer's turn.
+
+MANAGE EVENTS AND YOUR TEAM
+• Scan QR codes to verify tickets and check in attendees.
+• Manage staff, counters and organization settings.
+• View queue activity, wait times, footfall and service reports.
+• Support customers in multiple languages.
+
+Designed for retail stores, restaurants, service counters, clinics and events. An account with a participating TIQKETS organization is required for business management features.

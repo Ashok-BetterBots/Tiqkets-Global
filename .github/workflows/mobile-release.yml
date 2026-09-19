@@ -1,0 +1,235 @@
+name: Publish mobile apps
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub Release tag (v1.0.0)
+        required: true
+        type: string
+      destination:
+        description: Build only for first manual upload, or submit to stores
+        default: build
+        type: choice
+        options: [build, testing, production]
+      platforms:
+        description: Platforms to run (also allows retrying one failed store)
+        default: both
+        type: choice
+        options: [both, android, ios]
+
+# Serialize store submissions across tags to avoid out-of-order version uploads.
+concurrency:
+  group: tiqkets-store-publishing
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+  FASTLANE_SKIP_UPDATE_CHECK: "1"
+  FASTLANE_HIDE_CHANGELOG: "1"
+  FASTLANE_OPT_OUT_USAGE: "1"
+  EXPO_NO_TELEMETRY: "1"
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    # GitHub requires write access to see unpublished release drafts.
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+      code: ${{ steps.release.outputs.code }}
+      build: ${{ steps.release.outputs.build }}
+      destination: ${{ steps.release.outputs.destination }}
+      platforms: ${{ steps.release.outputs.platforms }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Resolve release and immutable source commit
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_DESTINATION: ${{ inputs.destination }}
+          INPUT_PLATFORMS: ${{ inputs.platforms }}
+        run: node scripts/prepare-store-release.mjs
+      - name: Validate store release notes
+        env:
+          VERSION_CODE: ${{ steps.release.outputs.code }}
+        run: node scripts/generate-release-notes.mjs release-output/release.json "$VERSION_CODE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-context
+          path: release-output/release.json
+          retention-days: 30
+
+  android:
+    needs: prepare
+    if: needs.prepare.outputs.platforms != 'ios'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      ANDROID_VERSION_CODE: ${{ needs.prepare.outputs.code }}
+      RELEASE_DESTINATION: ${{ needs.prepare.outputs.destination }}
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-context
+          path: release-output
+      - name: Validate credentials before building
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/validate-store-config.mjs android
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      # Native React Native builds need considerably more temporary disk than a
+      # standard Gradle app. Restoring Gradle's large build-output cache can
+      # exhaust the hosted runner before CMake finishes, so each release uses
+      # a clean dependency cache instead.
+      - name: Prepare disk for native Android build
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android/sdk/system-images
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          docker system prune --all --force || true
+          df -h
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/generate-release-notes.mjs release-output/release.json "$ANDROID_VERSION_CODE"
+      - name: Generate native Android app
+        run: npx expo prebuild --platform android --clean --no-install
+      - name: Restore signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          node scripts/restore-android-keystore.mjs
+          node scripts/configure-android-signing.mjs
+      - name: Build with Fastlane
+        env:
+          TIQKETS_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TIQKETS_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TIQKETS_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: bundle exec fastlane android build
+      - name: Collect signed bundle
+        run: cp android/app/build/outputs/bundle/release/app-release.aab "release-output/tiqkets-$RELEASE_VERSION-$ANDROID_VERSION_CODE.aab"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ env.RELEASE_VERSION }}-${{ env.ANDROID_VERSION_CODE }}
+          path: release-output/*.aab
+          if-no-files-found: error
+          retention-days: 30
+      - name: Attach bundle to the existing GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" "release-output/tiqkets-$RELEASE_VERSION-$ANDROID_VERSION_CODE.aab"
+      - name: Submit to Google Play
+        if: env.RELEASE_DESTINATION != 'build'
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_TRACK: ${{ needs.prepare.outputs.destination == 'production' && 'production' || 'internal' }}
+          PLAY_STATUS: completed
+        run: bundle exec fastlane android publish aab:"release-output/tiqkets-$RELEASE_VERSION-$ANDROID_VERSION_CODE.aab"
+      - name: Remove runner signing key
+        if: always()
+        run: node scripts/restore-android-keystore.mjs --cleanup
+
+  ios:
+    needs: prepare
+    if: needs.prepare.outputs.platforms != 'android'
+    runs-on: macos-15
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      ANDROID_VERSION_CODE: ${{ needs.prepare.outputs.code }}
+      IOS_BUILD_NUMBER: ${{ needs.prepare.outputs.build }}
+      RELEASE_DESTINATION: ${{ needs.prepare.outputs.destination }}
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      # This short-lived job token reads the private signing branch; no personal PAT.
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-context
+          path: release-output
+      - run: node scripts/validate-store-config.mjs ios
+      - name: Select an installed Xcode 26 SDK
+        run: |
+          XCODE_PATH=$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' | sort -V | tail -1)
+          test -n "$XCODE_PATH" || { echo 'Xcode 26 or later is required by Apple.' >&2; exit 1; }
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcodebuild -version
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/generate-release-notes.mjs release-output/release.json "$ANDROID_VERSION_CODE"
+      - name: Generate native iOS app and install pods
+        run: |
+          npx expo prebuild --platform ios --clean --no-install
+          cd ios
+          bundle exec pod install
+      - name: Build with shared signing credentials
+        run: bundle exec fastlane ios build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ env.RELEASE_VERSION }}-${{ env.IOS_BUILD_NUMBER }}
+          path: |
+            release-output/*.ipa
+            release-output/*.dSYM.zip
+          if-no-files-found: error
+          retention-days: 30
+      - name: Attach IPA to the existing GitHub Release
+        run: gh release upload "$RELEASE_TAG" "release-output/tiqkets-$RELEASE_VERSION-$IOS_BUILD_NUMBER.ipa"
+      - name: Submit to TestFlight or App Store review
+        if: env.RELEASE_DESTINATION != 'build'
+        run: bundle exec fastlane ios publish

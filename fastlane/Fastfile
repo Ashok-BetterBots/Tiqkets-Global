@@ -1,0 +1,179 @@
+require "base64"
+require "json"
+
+opt_out_usage
+
+default_platform(:android)
+ROOT = File.expand_path("..", __dir__)
+
+def required_env(*names)
+  missing = names.select { |name| ENV[name].to_s.empty? }
+  UI.user_error!("Missing configuration: #{missing.join(', ')}") unless missing.empty?
+end
+
+def apple_api_key
+  required_env("APP_STORE_CONNECT_KEY_ID", "APP_STORE_CONNECT_ISSUER_ID", "APP_STORE_CONNECT_KEY_BASE64")
+  app_store_connect_api_key(
+    key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+    issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+    key_content: ENV.fetch("APP_STORE_CONNECT_KEY_BASE64"),
+    is_key_content_base64: true,
+    duration: 1200,
+    in_house: false
+  )
+end
+
+def configure_signing_access
+  # GitHub's ephemeral token is valid for this repository's private signing branch.
+  if ENV["GH_TOKEN"] && !ENV["MATCH_GIT_BASIC_AUTHORIZATION"]
+    ENV["MATCH_GIT_BASIC_AUTHORIZATION"] = Base64.strict_encode64("x-access-token:#{ENV.fetch('GH_TOKEN')}")
+  end
+end
+
+platform :android do
+  desc "Build a signed Android App Bundle"
+  lane :build do
+    gradle(
+      project_dir: File.join(ROOT, "android"),
+      task: "bundle",
+      build_type: "Release",
+      print_command: false
+    )
+  end
+
+  desc "Publish an existing AAB and its store metadata to Google Play"
+  lane :publish do |options|
+    required = %w[
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+      PLAY_TRACK
+      PLAY_STATUS
+    ]
+    missing = required.select { |name| ENV[name].to_s.empty? }
+    UI.user_error!("Missing environment variables: #{missing.join(', ')}") unless missing.empty?
+
+    aab_path = options[:aab].to_s
+    UI.user_error!("Pass the signed bundle with aab:/path/to/app.aab") if aab_path.empty?
+
+    upload_to_play_store(
+      package_name: "com.tiqkets.app",
+      json_key_data: ENV.fetch("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"),
+      aab: File.expand_path(aab_path, ROOT),
+      track: ENV.fetch("PLAY_TRACK"),
+      release_status: ENV.fetch("PLAY_STATUS"),
+      metadata_path: File.join(ROOT, "fastlane/metadata/android"),
+      # Text metadata includes the changelog generated from the GitHub Release.
+      # Images remain separately managed so a binary release cannot replace
+      # the reviewed store artwork.
+      skip_upload_metadata: false,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+
+  desc "Build and publish in one local command"
+  lane :release do
+    build
+    publish(aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH])
+  end
+end
+
+platform :ios do
+  desc "Create or renew the shared Apple distribution identity (run by an authorized maintainer)"
+  lane :certificates do
+    required_env("APPLE_TEAM_ID", "MATCH_PASSWORD")
+    configure_signing_access
+    match(api_key: apple_api_key, readonly: false, generate_apple_certs: true)
+  end
+
+  desc "Build an IPA using the company's encrypted Fastlane Match credentials"
+  lane :build do
+    required_env("APPLE_TEAM_ID", "MATCH_PASSWORD", "RELEASE_VERSION", "IOS_BUILD_NUMBER")
+    setup_ci if ENV["CI"] == "true"
+    configure_signing_access
+    # Existing Match assets can be installed without an Apple login. API
+    # credentials remain mandatory in the publish lane for store submission.
+    match(readonly: true)
+    mapping = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING]
+    project = Dir[File.join(ROOT, "ios/*.xcodeproj")].fetch(0)
+    workspace = Dir[File.join(ROOT, "ios/*.xcworkspace")].fetch(0)
+    scheme = File.basename(project, ".xcodeproj")
+    update_code_signing_settings(
+      path: project,
+      use_automatic_signing: false,
+      team_id: ENV.fetch("APPLE_TEAM_ID"),
+      targets: [scheme],
+      build_configurations: ["Release"],
+      code_sign_identity: "Apple Distribution",
+      profile_name: mapping.fetch("com.tiqkets.app")
+    )
+    build_app(
+      workspace: workspace,
+      scheme: scheme,
+      configuration: "Release",
+      clean: true,
+      export_method: "app-store",
+      output_directory: File.join(ROOT, "release-output"),
+      output_name: "tiqkets-#{ENV.fetch('RELEASE_VERSION')}-#{ENV.fetch('IOS_BUILD_NUMBER')}.ipa",
+      export_options: {
+        signingStyle: "manual",
+        provisioningProfiles: mapping,
+        teamID: ENV.fetch("APPLE_TEAM_ID")
+      }
+    )
+  end
+
+  desc "Upload the exact build to TestFlight, or submit it to App Store review with automatic release"
+  lane :publish do
+    required_env("RELEASE_VERSION", "IOS_BUILD_NUMBER", "RELEASE_DESTINATION")
+    destination = ENV.fetch("RELEASE_DESTINATION")
+    UI.user_error!("Destination must be testing or production") unless %w[testing production].include?(destination)
+    key = apple_api_key
+    notes = File.read(File.join(ROOT, "fastlane/metadata/ios/en-US/release_notes.txt")).strip
+    upload_to_testflight(
+      api_key: key,
+      app_identifier: "com.tiqkets.app",
+      ipa: File.join(ROOT, "release-output/tiqkets-#{ENV.fetch('RELEASE_VERSION')}-#{ENV.fetch('IOS_BUILD_NUMBER')}.ipa"),
+      changelog: notes,
+      distribute_external: false,
+      skip_waiting_for_build_processing: false,
+      wait_processing_timeout_duration: 1800
+    )
+    if destination == "production"
+      # The first App Store record was created as 1.0 while the binary uses
+      # 1.0.0. Apple accepts that binary on the 1.0 record, so normalize only a
+      # trailing patch-zero when selecting or creating the App Store version.
+      store_version = ENV.fetch("RELEASE_VERSION").sub(/\.0\z/, "")
+      upload_to_app_store(
+        api_key: key,
+        app_identifier: "com.tiqkets.app",
+        app_version: store_version,
+        build_number: ENV.fetch("IOS_BUILD_NUMBER"),
+        skip_binary_upload: true,
+        metadata_path: File.join(ROOT, "fastlane/metadata/ios"),
+        # Preserve the reviewed store screenshots; upload replacement sets explicitly.
+        skip_screenshots: true,
+        release_notes: { "en-US" => notes },
+        submit_for_review: true,
+        automatic_release: true,
+        force: true,
+        precheck_include_in_app_purchases: false
+      )
+    end
+  end
+
+  desc "Upload the reviewed iPhone/iPad screenshot set without submitting a build"
+  lane :screenshots do
+    upload_to_app_store(
+      api_key: apple_api_key,
+      app_identifier: "com.tiqkets.app",
+      screenshots_path: File.join(ROOT, "fastlane/screenshots"),
+      skip_binary_upload: true,
+      skip_metadata: true,
+      overwrite_screenshots: false,
+      submit_for_review: false,
+      force: true,
+      run_precheck_before_submit: false
+    )
+  end
+end

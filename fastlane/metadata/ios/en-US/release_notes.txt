@@ -1,0 +1,3 @@
+Improved WhatsApp notification speed.
+New multi-language support for registration and queue updates.
+Bug fixes and performance improvements.
