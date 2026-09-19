@@ -182,6 +182,25 @@ already attached to a stable GitHub Release. Use this when the binary is correct
 and only the Play submission needs to be repeated. Choose the existing tag and
 the required `internal` or `production` track.
 
+For iOS, **Publish existing iOS build** submits an already signed IPA without
+compiling again. Use it after a successful build-only run, not after Apple has
+already accepted that build number:
+
+1. Enter the stable release tag and the original **Publish mobile apps** run ID
+   (the number after `/actions/runs/` in its URL).
+2. Select `testing` or `production`. The workflow checks that the original iOS
+   job succeeded, downloads its exact artifact, and verifies the IPA's bundle
+   identifier, version, and build number before calling Fastlane.
+3. For a draft release, explicitly enable **publish_draft**. After successful
+   store submission, the workflow publishes the GitHub draft using its job
+   token. This does **not** trigger a second build or submit Android. Use this
+   only for an intentional iOS-only release or when Android is handled
+   separately.
+
+If Apple accepted the upload but review submission failed, do not re-upload the
+same IPA. Inspect App Store Connect and complete submission using the existing
+build. The original Actions artifact must still be available (30-day retention).
+
 ## Build signed artifacts without submitting
 
 This is useful for independent QA or an exceptional manual upload.

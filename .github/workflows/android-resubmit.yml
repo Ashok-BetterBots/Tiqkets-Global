@@ -14,7 +14,7 @@ on:
         options: [internal, production]
 
 concurrency:
-  group: tiqkets-store-publishing
+  group: tiqkets-store-android
   cancel-in-progress: false
 
 permissions:
