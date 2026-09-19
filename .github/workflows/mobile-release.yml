@@ -201,10 +201,12 @@ jobs:
           name: release-context
           path: release-output
       - run: node scripts/validate-store-config.mjs ios
-      - name: Select an installed Xcode 26 SDK
+      - name: Select an installed Xcode 16 SDK
         run: |
-          XCODE_PATH=$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' | sort -V | tail -1)
-          test -n "$XCODE_PATH" || { echo 'Xcode 26 or later is required by Apple.' >&2; exit 1; }
+          # Expo SDK 57 / React Native 0.86 does not compile with Xcode 26's
+          # Swift toolchain. macos-15 provides the compatible Xcode 16 SDK.
+          XCODE_PATH=$(find /Applications -maxdepth 1 -type d -name 'Xcode_16*.app' | sort -V | tail -1)
+          test -n "$XCODE_PATH" || { echo 'A compatible Xcode 16 SDK is required.' >&2; exit 1; }
           sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
           xcodebuild -version
       - uses: ruby/setup-ruby@v1
