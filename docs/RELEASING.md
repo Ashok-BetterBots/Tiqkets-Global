@@ -188,7 +188,7 @@ already accepted that build number:
 
 1. Enter the stable release tag and the original **Publish mobile apps** run ID
    (the number after `/actions/runs/` in its URL).
-2. Select `testing` or `production`. The workflow checks that the original iOS
+2. Select mode `upload` and destination `testing` or `production`. The workflow checks that the original iOS
    job succeeded, downloads its exact artifact, and verifies the IPA's bundle
    identifier, version, and build number before calling Fastlane.
 3. For a draft release, explicitly enable **publish_draft**. After successful
@@ -197,9 +197,17 @@ already accepted that build number:
    only for an intentional iOS-only release or when Android is handled
    separately.
 
-If Apple accepted the upload but review submission failed, do not re-upload the
-same IPA. Inspect App Store Connect and complete submission using the existing
-build. The original Actions artifact must still be available (30-day retention).
+If Apple accepted the upload but processing timed out or review submission
+failed, do not re-upload the same IPA. Run this workflow in **inspect** mode to
+read Apple's build/upload diagnostics and App Store version states without
+changing anything. Once the build is available, use **resume** mode with the
+same tag/run ID. It waits for that exact uploaded version/build, updates the
+TestFlight notes, and completes the requested store submission; it does not
+upload, download, or build an IPA. A processing timeout alone is not a reason
+to generate a new build number. Resolve any Apple processing error first.
+
+The original Actions artifact must still be available for `upload` mode
+(30-day retention); `inspect` and `resume` do not need the artifact.
 
 ## Build signed artifacts without submitting
 

@@ -123,22 +123,55 @@ platform :ios do
     )
   end
 
-  desc "Upload the exact build to TestFlight, or submit it to App Store review with automatic release"
-  lane :publish do
+  desc "Inspect the exact uploaded build and Apple processing diagnostics without changing the store"
+  lane :status do
+    required_env("RELEASE_VERSION", "IOS_BUILD_NUMBER")
+    apple_api_key
+    app = Spaceship::ConnectAPI::App.find("com.tiqkets.app")
+    UI.user_error!("TIQKETS app record not found") unless app
+    builds = Spaceship::ConnectAPI::Build.all(
+      app_id: app.id, version: ENV.fetch("RELEASE_VERSION"),
+      build_number: ENV.fetch("IOS_BUILD_NUMBER"), platform: "IOS"
+    )
+    uploads = Spaceship::ConnectAPI::BuildUpload.all(
+      app_id: app.id, version: ENV.fetch("RELEASE_VERSION"),
+      build_number: ENV.fetch("IOS_BUILD_NUMBER")
+    )
+    versions = app.get_app_store_versions(filter: { platform: "IOS" }, limit: 10)
+    puts JSON.pretty_generate({
+      app_id: app.id,
+      builds: builds.map { |b| { id: b.id, version: b.app_version, build: b.version, processing_state: b.processing_state } },
+      uploads: uploads.map { |u| { id: u.id, version: u.cf_build_short_version_string, build: u.cf_build_version, state: u.state } },
+      store_versions: versions.map { |v| { version: v.version_string, state: v.app_store_state } }
+    })
+  end
+
+  desc "Upload or resume the exact build, then optionally submit for App Store review"
+  lane :publish do |options|
     required_env("RELEASE_VERSION", "IOS_BUILD_NUMBER", "RELEASE_DESTINATION")
     destination = ENV.fetch("RELEASE_DESTINATION")
     UI.user_error!("Destination must be testing or production") unless %w[testing production].include?(destination)
     key = apple_api_key
     notes = File.read(File.join(ROOT, "fastlane/metadata/ios/en-US/release_notes.txt")).strip
-    upload_to_testflight(
+    resume_upload = options[:skip_upload].to_s == "true"
+    testflight_options = {
       api_key: key,
       app_identifier: "com.tiqkets.app",
-      ipa: File.join(ROOT, "release-output/tiqkets-#{ENV.fetch('RELEASE_VERSION')}-#{ENV.fetch('IOS_BUILD_NUMBER')}.ipa"),
+      app_version: ENV.fetch("RELEASE_VERSION"),
+      build_number: ENV.fetch("IOS_BUILD_NUMBER"),
       changelog: notes,
       distribute_external: false,
       skip_waiting_for_build_processing: false,
       wait_processing_timeout_duration: 1800
-    )
+    }
+    if resume_upload
+      # Apple already has the binary. Wait for and use this exact build;
+      # never generate or upload a replacement for a processing timeout.
+      testflight_options[:distribute_only] = true
+    else
+      testflight_options[:ipa] = File.join(ROOT, "release-output/tiqkets-#{ENV.fetch('RELEASE_VERSION')}-#{ENV.fetch('IOS_BUILD_NUMBER')}.ipa")
+    end
+    upload_to_testflight(**testflight_options)
     if destination == "production"
       # The first App Store record was created as 1.0 while the binary uses
       # 1.0.0. Apple accepts that binary on the 1.0 record, so normalize only a
