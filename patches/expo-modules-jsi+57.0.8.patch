@@ -20,3 +20,30 @@ index 6115e87..957527c 100644
  
    RuntimeScheduler(const RuntimeScheduler &) = delete;
  
+diff --git a/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/JavaScriptRuntime.swift b/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/JavaScriptRuntime.swift
+index 00f7329..2b6d3c9 100644
+--- a/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/JavaScriptRuntime.swift
++++ b/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/JavaScriptRuntime.swift
+@@ -799,11 +799,9 @@ private func createFunctionClosure(
+     resultPtr: UnsafeMutablePointer<facebook.jsi.Value>
+   ) {
+     // Same call-scoped reasoning as the owning-`this` overload above (see its comment) for why the
+-    // buffer is built inside the synchronous `assumeIsolated` closure. Here `this` is additionally
+-    // handed in as a borrowed `JavaScriptUnownedValue` pointing straight at the C++-owned `this` slot:
+-    // it is not moved out and no owning `JavaScriptValue` is allocated, so the closure avoids the
+-    // per-call `weak`-runtime form/destroy and heap object that the owning `this` pays.
+-    nonisolated(unsafe) let thisPtr = thisPtr
++    // buffer is built inside the synchronous `assumeIsolated` closure. Transfer a sendable integer
++    // address, then reconstruct the borrowed C++ pointer within that closure.
++    let thisAddress = Int(bitPattern: thisPtr)
+     nonisolated(unsafe) let argumentsPtr = argumentsPtr
+     nonisolated(unsafe) let resultPtr = resultPtr
+ 
+@@ -813,6 +811,7 @@ private func createFunctionClosure(
+       resultPtr.pointee = JavaScriptActor.assumeIsolated {
+         return forwardingSwiftErrorsToJS(runtime: runtime) {
+           let arguments = JavaScriptValuesBuffer(runtime, start: argumentsPtr, count: argumentsCount)
++          let thisPtr = UnsafePointer<facebook.jsi.Value>(bitPattern: thisAddress)!
+           let thisValue = JavaScriptUnownedValue(runtime.pointee, thisPtr)
+           return try context.call(thisValue, consume arguments).asJSIValue()
+         }
