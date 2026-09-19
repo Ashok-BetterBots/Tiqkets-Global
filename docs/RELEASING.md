@@ -19,6 +19,12 @@ stored as encrypted GitHub configuration.
 
 The workflow is **Publish mobile apps** in `.github/workflows/mobile-release.yml`.
 
+iOS uses the `macos-26` GitHub runner with Xcode **26.6** pinned. Expo SDK 57
+requires Xcode 26.4 or newer; Xcode 26.3 on `macos-15` is unsupported. Validate
+native build changes with a full archive on the pinned CI toolchain. A local
+framework build using a different Xcode version does not verify the release.
+Failed archives retain the full Xcode log in an `ios-diagnostics` artifact.
+
 ## Market policy
 
 TIQKETS is distributed publicly in **India only** on both Google Play and the
@@ -38,8 +44,8 @@ other countries or enable automatic availability in future App Store regions.
    - Major, such as `1.0.2` to `2.0.0`, for a major or breaking release.
 4. Prepare customer-facing release notes. Store notes must be plain, meaningful,
    and no more than 500 characters.
-5. Check that no other mobile-store publishing workflow is running. Submissions
-   are serialized, so a second release waits for the first one.
+5. Check running workflows before starting another release. Submissions are
+   serialized per platform, so an iOS retry can proceed while Android builds.
 6. Confirm both store records still show India as the only public country or
    region. A binary upload should not change this setting, but it is part of the
    release verification checklist.
