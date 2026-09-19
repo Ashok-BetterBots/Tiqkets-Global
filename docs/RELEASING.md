@@ -191,11 +191,17 @@ already accepted that build number:
 2. Select mode `upload` and destination `testing` or `production`. The workflow checks that the original iOS
    job succeeded, downloads its exact artifact, and verifies the IPA's bundle
    identifier, version, and build number before calling Fastlane.
-3. For a draft release, explicitly enable **publish_draft**. After successful
-   store submission, the workflow publishes the GitHub draft using its job
+3. To submit a draft release for public review, explicitly enable
+   **publish_draft**. After successful store submission, the workflow publishes the GitHub draft using its job
    token. This does **not** trigger a second build or submit Android. Use this
    only for an intentional iOS-only release or when Android is handled
    separately.
+
+For TestFlight validation before public submission, select `testing` and leave
+**publish_draft** off. Apple receives the signed build, but the GitHub Release
+stays a draft and no public App Store review or Android release is triggered.
+Failed submissions automatically print Apple's processing diagnostics so an
+upload rejection is distinguishable from a processing timeout.
 
 If Apple accepted the upload but processing timed out or review submission
 failed, do not re-upload the same IPA. Run this workflow in **inspect** mode to

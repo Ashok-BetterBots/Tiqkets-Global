@@ -79,7 +79,7 @@ jobs:
           gh release view "$RELEASE_TAG" --json body,isDraft,isPrerelease,targetCommitish > release-output/release.json
           jq -e '.isPrerelease == false and (.body | length > 0)' release-output/release.json
           if [[ $(jq -r '.isDraft' release-output/release.json) == true ]]; then
-            [[ "$SUBMISSION_MODE" == inspect || "$PUBLISH_DRAFT" == true ]] || { echo 'Explicitly select publish_draft to submit this draft.' >&2; exit 1; }
+            [[ "$SUBMISSION_MODE" == inspect || "$RELEASE_DESTINATION" == testing || "$PUBLISH_DRAFT" == true ]] || { echo 'Explicitly select publish_draft to submit this draft for public review.' >&2; exit 1; }
             jq -e '.targetCommitish | test("^[0-9a-f]{40}$")' release-output/release.json
           fi
       - name: Download the exact validated artifact
@@ -106,6 +106,7 @@ jobs:
         if: inputs.mode != 'inspect'
         run: node scripts/generate-release-notes.mjs release-output/release.json 0
       - name: Inspect or submit the existing build with company API credentials
+        id: submit
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
@@ -117,6 +118,13 @@ jobs:
             upload) bundle exec fastlane ios publish ;;
             *) echo 'Invalid submission mode.' >&2; exit 1 ;;
           esac
+      - name: Read Apple processing diagnostics after submission failure
+        if: failure() && steps.submit.outcome == 'failure' && inputs.mode != 'inspect'
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+        run: bundle exec fastlane ios status
       - name: Publish the GitHub draft after successful store submission
         if: inputs.publish_draft && inputs.mode != 'inspect'
         run: |
