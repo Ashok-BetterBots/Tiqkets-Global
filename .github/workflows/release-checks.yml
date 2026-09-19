@@ -9,6 +9,9 @@ on:
         "scripts/**",
         "fastlane/**",
         "app.config.js",
+        "app.json",
+        "plugins/**",
+        "package*.json",
         "Gemfile*",
       ]
   pull_request:
@@ -18,6 +21,9 @@ on:
         "scripts/**",
         "fastlane/**",
         "app.config.js",
+        "app.json",
+        "plugins/**",
+        "package*.json",
         "Gemfile*",
       ]
   workflow_dispatch:
@@ -38,6 +44,8 @@ jobs:
           ruby-version: "3.3"
           bundler-cache: true
       - run: node --test scripts/release-notes.test.mjs
+      - run: npm ci --no-audit --no-fund
+      - run: node --test scripts/store-permissions.test.mjs
       - run: ruby -c fastlane/Fastfile && ruby -c fastlane/Matchfile
       - name: Load Fastlane lanes without accessing store credentials
         env:

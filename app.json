@@ -17,6 +17,7 @@
         },
         "NSCameraUsageDescription": "Tiqkets uses your camera to scan queue and ticket QR codes.",
         "NSLocationWhenInUseUsageDescription": "Tiqkets uses your location to show nearby queues and services and verify in-person access.",
+        "NSMotionUsageDescription": "TIQKETS includes motion-enabled camera and location libraries, but does not request or collect motion activity or fitness data.",
         "NSPhotoLibraryUsageDescription": "Tiqkets accesses your photos so you can set profile and event images.",
         "NSPhotoLibraryAddUsageDescription": "Tiqkets saves ticket QR codes to your photo library when you choose to save them."
       }
@@ -78,7 +79,7 @@
           "locationAlwaysAndWhenInUsePermission": false,
           "locationAlwaysPermission": false,
           "locationWhenInUsePermission": "Tiqkets uses your location to show nearby queues and services and verify in-person access.",
-          "motionUsagePermission": false,
+          "motionUsagePermission": "TIQKETS includes motion-enabled camera and location libraries, but does not request or collect motion activity or fitness data.",
           "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false
         }

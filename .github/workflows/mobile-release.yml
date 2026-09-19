@@ -228,6 +228,7 @@ jobs:
       - run: node scripts/generate-release-notes.mjs release-output/release.json "$ANDROID_VERSION_CODE"
       - name: Generate native iOS app and install pods
         run: |
+          node --test scripts/store-permissions.test.mjs
           npx expo prebuild --platform ios --clean --no-install
           cd ios
           bundle exec pod install
