@@ -1,0 +1,67 @@
+SCOPE — READ CAREFULLY:
+- This change applies only to how incomplete/abandoned registration 
+  attempts are treated — specifically, that they should NOT appear as 
+  dashboard entries and should NOT be counted anywhere.
+- Do NOT change anything about the successful registration flow itself 
+  — how a completed registration is created, displayed, or counted 
+  should remain exactly as it is today.
+- Do NOT change the guest-count treatment we fixed in the previous 
+  request — that logic stays as already corrected.
+- Do NOT change any other dashboard card, metric, screen, or feature 
+  beyond what's described here.
+- Do NOT touch the customer QR-scanned registration form path unless 
+  it is confirmed to share the exact same "Registration Started" 
+  creation logic — if shared, report this before changing, don't 
+  assume it's safe to change identically.
+
+INVESTIGATE FIRST (report before changing anything):
+1. Locate exactly where and when a "Registration Started" entry is 
+   created in the database — what triggers its creation (e.g., is it 
+   created the moment the customer enters the first field, or after a 
+   specific step)?
+2. Confirm what marks a registration as "successful"/complete in the 
+   current data model — is there a status field, a completion 
+   timestamp, or some other flag that distinguishes a completed 
+   registration from an abandoned one?
+3. Confirm exactly where the "Registrations" and "Customer 
+   Registrations" card counts are calculated — do they currently count 
+   ALL entries regardless of status, or is there already a status 
+   filter that simply isn't excluding "Registration Started" correctly?
+4. Confirm whether the Registration section list (not just the cards) 
+   pulls from the same query/status logic, or a separate one.
+
+Report findings before implementing.
+
+FIX (only after I confirm from your findings):
+- Ensure that an entry with "Registration Started" (incomplete) status 
+  does NOT appear in the Registration section list.
+- Ensure the "Registrations" and "Customer Registrations" cards, and 
+  any other place this count is used, only count entries from 
+  successful/completed registration status onward.
+- Do not delete or alter the underlying "Registration Started" records 
+  themselves unless necessary for the fix — filtering them out of 
+  display/counts is preferred over deleting data, since that data 
+  might be useful later for drop-off analysis. Flag this trade-off 
+  before deciding.
+
+AFTER IMPLEMENTING:
+- Confirm a test abandoned registration no longer appears in the 
+  Registration section or affects either card's count.
+- Confirm a successfully completed registration still appears and 
+  counts exactly as before.
+- Report every file touched.
+
+---
+
+SEPARATE UNDERSTANDING QUESTION (investigation only, no changes):
+
+If this fix is implemented on the SERVER/backend side, will the 
+equivalent card(s) displayed in the MOBILE app also reflect the 
+corrected count automatically — without requiring a mobile app update 
+from the Play Store/App Store? Or does the mobile app calculate/ 
+display this count independently on the client side, meaning it would 
+continue showing the old (incorrect, inflated) count until the mobile 
+app itself is updated?
+
+Report this plainly, the same way you reported on the guest-count 
+question earlier.
