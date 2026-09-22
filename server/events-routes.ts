@@ -419,6 +419,7 @@ export type LocationEventConfig = {
 export type RegistrationSourceMetricRow = {
   registrationSource?: string | null;
   amountPaid?: number | null;
+  status?: string | null;
 };
 
 export function aggregateRegistrationSourceMetrics(rows: RegistrationSourceMetricRow[]) {
@@ -427,6 +428,7 @@ export function aggregateRegistrationSourceMetrics(rows: RegistrationSourceMetri
   let customerRevenue = 0;
 
   for (const row of rows) {
+    if (row.status === "registration_started") continue;
     if (row.registrationSource === "store") {
       storeRegistrations += 1;
     } else {
@@ -1508,7 +1510,8 @@ export function registerEventsRoutes(app: Express) {
       const locFilter = String((req.query.locationId as string) || "").trim();
       let slotCapacity = Math.max(0, Number(ev.maxCapacityPerSlot) || 0);
 
-      const allRegs = await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, ev.id));
+      const allRegs = (await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, ev.id)))
+        .filter((r) => r.status !== "registration_started");
       const regs = locFilter ? allRegs.filter((r) => r.locationId === locFilter) : allRegs;
 
       // Unique location IDs across ALL registrations (not filtered) so the
@@ -3955,7 +3958,10 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
       const { status, q, slotDate } = req.query as Record<string, string>;
       const pageSize = 20;
       const requestedPage = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
-      const conds = [eq(eventRegistrations.eventId, String(req.params.eventId))];
+      const conds = [
+        eq(eventRegistrations.eventId, String(req.params.eventId)),
+        ne(eventRegistrations.status, "registration_started"),
+      ];
       if (status) conds.push(inArray(eventRegistrations.status, status.split(",")));
       if (slotDate) conds.push(eq(eventRegistrations.slotDate, slotDate));
       if (q?.trim()) {
@@ -4003,7 +4009,8 @@ ${terminal ? "" : "<script>setTimeout(function(){location.reload()},2500)</scrip
       if (!ev) return;
       // Optional location filter for the Dashboard "Location" selector.
       const locFilter = String((req.query.locationId as string) || "").trim();
-      const allRegs = await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, ev.id));
+      const allRegs = (await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, ev.id)))
+        .filter((r) => r.status !== "registration_started");
       const regs = locFilter ? allRegs.filter((r) => r.locationId === locFilter) : allRegs;
       // Per-location registration counts so the dashboard can populate its
       // Location selector and show a breakdown. IMPORTANT: aggregate over

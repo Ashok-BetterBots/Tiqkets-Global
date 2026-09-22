@@ -42,3 +42,17 @@ test("aggregates only the rows supplied by the active location filter", () => {
     customerRevenue: 4_000,
   });
 });
+
+test("excludes incomplete customer attempts from registration cards and revenue", () => {
+  const result = aggregateRegistrationSourceMetrics([
+    { registrationSource: "customer", status: "registration_started", amountPaid: 0 },
+    { registrationSource: "customer", status: "ticket_generated", amountPaid: 5_000 },
+    { registrationSource: "store", status: "payment_completed", amountPaid: 2_000 },
+  ]);
+
+  assert.deepEqual(result, {
+    storeRegistrations: 1,
+    customerRegistrations: 1,
+    customerRevenue: 5_000,
+  });
+});
