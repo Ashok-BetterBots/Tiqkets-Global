@@ -93,15 +93,20 @@
       position: relative;
       overflow: hidden;
     }
-    /* Banner photo — absolute fill, sits between background gradient and overlay */
+    /* Banner photo — natural aspect ratio, matching the registration form */
     .pass-banner-img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .pass-header.has-banner {
+      padding: 0;
+      background: none;
+    }
+    .pass-header.has-banner .pass-header-inner {
       position: absolute;
       inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: center;
-      display: block;
+      padding: 22px 22px 20px;
     }
     .pass-header-overlay {
       position: absolute;
@@ -582,7 +587,7 @@
     <div id="mainContent" class="hidden">
       <div class="pass">
         <div class="pass-header" id="passHeader">
-          <!-- Banner photo — shown only when ev.bannerUrl is set; sits behind the overlay -->
+          <!-- Banner photo — shown only when ev.bannerUrl is set -->
           <img id="passBannerImg" class="pass-banner-img hidden" alt="" />
           <div class="pass-header-overlay"></div>
           <div class="pass-header-inner">
@@ -824,7 +829,14 @@
       if (ev.bannerUrl) {
         var bi = $("passBannerImg");
         bi.src = ev.bannerUrl;
-        bi.classList.remove("hidden");
+        bi.onload = function () {
+          $("passHeader").classList.add("has-banner");
+          bi.classList.remove("hidden");
+        };
+        bi.onerror = function () {
+          $("passHeader").classList.remove("has-banner");
+          bi.classList.add("hidden");
+        };
       }
       // Event logo — only hide the default brand badge once the logo has
       // actually loaded; if the URL is broken, keep the badge visible.
