@@ -2404,8 +2404,7 @@ export function registerEventsRoutes(app: Express) {
       const name = String(customerName || "").trim();
       const phone = normalizeIndianPhone(customerPhone);
       const language = isSupportedLanguage(preferredLanguage) ? String(preferredLanguage).toLowerCase() : "en";
-      const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
-      const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
+      const fam = Math.max(0, parseInt(String(familyMembersCount ?? 0), 10) || 0);
       const normalizedProductCategories = normalizeCategorySelections(productCategories, productCategory, allowedProductCategories);
       const normalizedSpecialCategories = normalizeOptionalCategorySelections(specialCategories, allowedSpecialCategories);
       const needsPriorityAccess = specialCategories === undefined
