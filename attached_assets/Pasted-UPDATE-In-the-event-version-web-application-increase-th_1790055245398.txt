@@ -1,0 +1,43 @@
+UPDATE: In the event-version web application, increase the staff 
+account creation limit from 5 to 30 for a user/organization.
+
+SCOPE — READ CAREFULLY:
+- Only change the numeric limit that caps how many staff accounts can 
+  be created. Do NOT change the 5 default user roles that currently 
+  exist — those stay exactly as they are, with their current names, 
+  permissions, and behavior.
+- Do NOT change how roles are assigned, how staff accounts are 
+  created, or any other part of the staff-management flow — only the 
+  maximum count allowed.
+- Do NOT change this limit for any other entity/limit in the app 
+  (e.g., don't touch subscription plan limits, product limits, or any 
+  other unrelated cap) — only the staff account count.
+
+INVESTIGATE FIRST (report before changing anything):
+1. Locate exactly where the "5 staff accounts" limit is enforced — 
+   check both frontend validation (e.g., a disabled "Add Staff" button 
+   or form validation message) and backend/API-level enforcement (e.g., 
+   a check before insert). Report every location found.
+2. Confirm whether this limit is a hardcoded number, or tied to a 
+   subscription plan/tier configuration (e.g., Basic vs Premium plans 
+   might have different staff limits) — if it's plan-based, tell me 
+   before changing anything, since raising it globally to 30 might not 
+   be the same as raising it for a specific plan.
+
+FIX (only after confirming from investigation):
+- Update the limit to 30 wherever it's enforced — frontend and 
+  backend, so the two don't drift out of sync.
+- If the limit turns out to be plan-based and tied to different tiers, 
+  stop and ask which plan(s) this 30 should apply to before 
+  implementing.
+- Update any user-facing text that currently references "5" (e.g., an 
+  error message like "You can only add up to 5 staff members") to 
+  reflect "30" instead.
+
+AFTER IMPLEMENTING:
+- Confirm existing staff accounts and roles are unaffected.
+- Confirm an organization can now create up to 30 staff accounts, and 
+  is correctly blocked from creating a 31st.
+- Confirm the 5 default roles remain unchanged in name, permissions, 
+  and behavior.
+- Report every file touched.
