@@ -1,0 +1,73 @@
+UPDATE: Event version web application — change how guest count is 
+treated when it exceeds the event's max limit, but ONLY for tickets 
+created through paths OTHER than the customer QR-scanned registration 
+form.
+
+CURRENT BEHAVIOR (to be changed):
+When a ticket is generated and the guest count (customer + guests) 
+exceeds the max limit set for that event, the system currently caps 
+the count to the event's max limit everywhere — on the ticket display, 
+when deducting from remaining free slots, and in any other place this 
+count is shown or calculated.
+
+REQUIRED BEHAVIOR (new):
+For ticket creation paths EXCLUDING the customer QR-scanned 
+registration form: if the guest count entered exceeds the event's max 
+limit, the ACTUAL registered count (customer + guests, as entered) 
+should be used instead of the capped max-limit value — everywhere this 
+count is displayed or used in calculations, including:
+- The count shown on the generated ticket
+- The deduction applied to remaining free slots
+- Any other place currently showing the capped max-limit value instead 
+  of the real registered count
+
+SCOPE — READ CAREFULLY, THIS IS STRICT:
+- This change applies ONLY to the treatment of this specific count 
+  (customer + guest count) in the EVENT VERSION web application.
+- Do NOT change anything on the customer QR-scanned registration form 
+  path — that flow's current behavior (whatever it is) stays exactly 
+  as-is, untouched.
+- Do NOT change any other feature, function, file, validation, UI 
+  element, or business logic beyond this specific count-capping 
+  behavior.
+- Do NOT change the max-limit configuration itself, how it's set, or 
+  what it's used for elsewhere (e.g., if max limit is still used to 
+  determine whether an event is "full" for display/blocking purposes 
+  unrelated to this specific count treatment, that logic stays as-is 
+  unless it directly depends on the capped value being wrong — flag 
+  this if you find such a dependency, don't silently change it).
+- Do not touch the mobile app version of this logic unless you confirm 
+  the same code is shared between web and mobile — if shared, stop and 
+  ask before changing, since this request is web-only.
+
+INVESTIGATE FIRST (report before changing anything):
+1. Locate every place in the event-version web app where this count is 
+   capped to the max limit — ticket generation/display, remaining 
+   free-slots calculation, and any other location currently using the 
+   capped value.
+2. Confirm which specific code path(s) correspond to "ticket creation 
+   excluding the customer QR-scanned registration form" — report the 
+   file(s)/screen(s) for each ticket-creation entry point that exists, 
+   so we can confirm together which ones this change applies to before 
+   implementing.
+3. Confirm whether the capping logic is centralized in one function/ 
+   utility or duplicated across multiple places (ticket display vs. 
+   slot-deduction vs. anywhere else) — report this before fixing, since 
+   duplicated logic means multiple places need the same fix.
+
+FIX (only after I confirm from your findings):
+- Change the identified path(s) so the actual registered count (not 
+  the capped max-limit value) is used consistently in the ticket 
+  display, remaining-slot deduction, and any other calculation using 
+  this count.
+- Leave the customer QR-scanned registration form path's logic 
+  completely untouched.
+
+AFTER IMPLEMENTING:
+- Confirm the customer QR-scanned registration form path still behaves 
+  exactly as before (no change).
+- Confirm a ticket created via the other path(s), with guest count 
+  exceeding the max limit, now shows and uses the actual registered 
+  count everywhere it appears.
+- Confirm no other feature, screen, or calculation was affected.
+- Report every file touched.
