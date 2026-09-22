@@ -1,0 +1,41 @@
+Specifically, help me understand:
+
+1. Is the guest-count capping logic (max-limit capping on ticket 
+   display, remaining-slot deduction, etc.) enforced on the BACKEND/ 
+   server, or is it calculated on the CLIENT side (i.e., inside the web 
+   app's code and separately inside the mobile app's code)?
+
+2. If it's backend/server-enforced: does the mobile app simply display 
+   whatever count the server returns/stores, without doing its own 
+   independent capping? If so, fixing it server-side would mean mobile 
+   users see the corrected, uncapped count immediately — even without 
+   updating the mobile app — since the mobile app is just rendering 
+   server data.
+
+3. If it's client-side (duplicated separately in the mobile app's own 
+   code): does the mobile app have its OWN independent capping logic 
+   that is separate from the web app's? If so, mobile users would 
+   continue to see the OLD capped behavior in their tickets until they 
+   update the mobile app from the store, regardless of any fix made to 
+   the web app.
+
+4. Specifically confirm: if a mobile app user (on an outdated, 
+   un-updated version) creates a booking with a guest count exceeding 
+   the max limit, after our web-side fix is deployed —
+   - Will the ticket generated and sent to the customer show the 
+     capped value or the actual registered value?
+   - Will the "remaining free slots" calculation (which may be shared/ 
+     visible across both web and mobile, and affects future bookings 
+     across the whole event) reflect the capped or the actual value?
+
+5. Report clearly: is this fix effective for ALL bookings regardless 
+   of which app/client created them (because it's a backend/server 
+   fix), or does it only affect bookings/tickets created via the web 
+   app specifically, leaving mobile-created bookings still capped until 
+   the mobile app itself is updated and users install that update?
+
+Report your findings plainly, with a direct answer to whether an 
+un-updated mobile app user's guest count will display and calculate 
+correctly (uncapped) everywhere after this web-side fix is deployed, 
+or not. Do not make any changes as part of this — this is 
+investigation and explanation only.
