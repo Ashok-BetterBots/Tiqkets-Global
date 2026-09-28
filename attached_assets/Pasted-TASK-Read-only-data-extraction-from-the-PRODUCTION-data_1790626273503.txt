@@ -1,0 +1,61 @@
+TASK: Read-only data extraction from the PRODUCTION database of the Purattaasi 4.0 event
+(Jagan Metal Mart ticketing and check-in app). I need event metrics for a report.
+
+STRICT RULES
+- READ-ONLY. Run SELECT queries only. Do not insert, update, delete, migrate, or change
+  any schema, code, config, or data. Wrap every query in a READ ONLY transaction
+  (or use a read-only DB user if one exists).
+- Do not modify the app or deploy anything. Do not create tables or files in the database.
+- Aggregates only. Do not print names, phone numbers, or any personal data.
+- Do not guess or invent numbers. If a metric cannot be calculated from the data we
+  store, mark it "NOT AVAILABLE" and say which data is missing.
+- Use timezone Asia/Kolkata (IST). Event date: [EVENT DATE]. Event hours: [e.g. 9 am to 7 pm].
+
+STEP 1. Inspect the schema and tell me which tables and columns you will use for each
+metric, plus any definition you had to assume (for example, what counts as "wait time").
+Then continue without waiting for my reply.
+
+STEP 2. Calculate these metrics for the event day:
+
+A. Funnel
+1. Total registrations
+2. Tickets successfully delivered on WhatsApp (count and % of registrations)
+3. Tickets checked in via QR scan (count, and show-up % of tickets delivered)
+4. Early-exit gifts redeemed (count, and % of checked-in visitors)
+
+B. Arrivals and queue
+5. Check-ins per hour, for every hour of the event (hour, count)
+6. Average wait time per hour, in minutes (use the closest available timestamps, for
+   example queue entry to check-in; state the definition used)
+7. Busiest 15-minute window: start time and check-in count
+8. Busiest single minute: time and check-in count
+9. Peak hour: which hour and how many check-ins
+10. Average time from QR scan to check-in completed, in seconds
+11. Longest single wait: duration and time of day
+12. Largest queue length at any moment, when it happened, and how long it took to clear
+13. Number of distinct check-in counters, devices, or staff logins used
+
+C. Registration answers (share of registrations, count and %)
+14. Product category split (Electronics / Furniture / Home Appliances / Vessels)
+15. Special category counts (Senior Citizen / Pregnant Women / Infants / Specially Abled)
+    and the total as % of checked-in visitors
+16. Preferred language split (preferred_language field)
+17. Registration lead time: how many registered in the last 2 days before the event,
+    3 to 7 days before, and more than 7 days before (count and %)
+
+D. WhatsApp messages
+18. Total WhatsApp messages sent for the event
+19. Delivered % and read % across all messages
+20. Read % of the ticket message specifically
+21. Read % per message type, if message types are stored
+
+E. System
+22. Peak transactions per minute (ticket generation plus check-ins, from timestamps)
+23. Number of visitors who needed manual help at the desk (only if we log this)
+24. Any error, failed-webhook, or retry counts logged during event hours
+
+OUTPUT
+- One table: Metric number, Metric, Value, Query or logic used, Notes or assumptions.
+- The hourly series (metrics 5 and 6) as a separate table, also as CSV text I can copy.
+- A short "NOT AVAILABLE" list with the reason for each.
+- Show the SQL you ran, so I can verify it.
