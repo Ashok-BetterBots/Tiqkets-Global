@@ -14,3 +14,17 @@ For Expo Go development on Replit, use Expo tunnel mode on Android. A Replit-hos
 Rapid workflow restarts can leave Expo CLI's stable tunnel subdomain reserved; SDK 57 CLI may then crash while reading an incomplete ngrok error body. Use a fresh `EXPO_TUNNEL_SUBDOMAIN` per launcher attempt and bounded retry/backoff so the managed workflow recovers without reusing a stale tunnel.
 
 Do not add `--clear` to every tunnel start or automatic retry. Clearing Metro's cache forces a full Android bundle rebuild while Expo Go is already requesting it, which can produce HTTP 504 responses. Preserve the cache for normal starts and retries; clear it only during targeted cache troubleshooting.
+
+## Nested workflow startup
+
+Ensure each entry-point workflow reaches the Expo server only once. Nested
+workflow calls are not deduplicated.
+
+**Why:** A parent started Expo directly and through a child workflow, creating
+competing Metro/tunnel processes. The resulting port conflicts and interrupted
+startup produced Expo Go HTTP 504 errors even though the backend was healthy.
+
+**How to apply:** Inspect both the nested workflow graph and actual process
+tree when diagnosing startup timeouts; the configured-workflow list alone can
+hide duplicate processes. Keep development watch mode enabled rather than
+setting CI globally merely to suppress a port-selection prompt.

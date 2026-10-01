@@ -27,8 +27,8 @@ function startExpo() {
   console.log(`Starting Expo tunnel (attempt ${attempt}/${maxAttempts})...`);
 
   expo = spawn(
-    process.platform === "win32" ? "npx.cmd" : "npx",
-    ["expo", "start", "--tunnel"],
+    process.execPath,
+    [require.resolve("expo/bin/cli"), "start", "--tunnel", "--port", "8081"],
     {
       env: {
         ...env,
