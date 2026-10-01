@@ -23,6 +23,8 @@ workflow calls are not deduplicated.
 **Why:** A parent started Expo directly and through a child workflow, creating
 competing Metro/tunnel processes. The resulting port conflicts and interrupted
 startup produced Expo Go HTTP 504 errors even though the backend was healthy.
+The user confirmed that the mobile app opened after correcting the duplicate
+startup path.
 
 **How to apply:** Inspect both the nested workflow graph and actual process
 tree when diagnosing startup timeouts; the configured-workflow list alone can

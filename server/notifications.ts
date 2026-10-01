@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { tickets } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import {
   sendWhatsAppApproachingNotification,
   sendWhatsAppTurnNotification,
@@ -64,9 +64,15 @@ async function markNotificationSent(
   currentSent: string[],
   notificationType: string
 ): Promise<void> {
-  const updated = [...currentSent, notificationType];
   await db.update(tickets)
-    .set({ notificationsSent: updated, updatedAt: new Date() })
+    .set({
+      notificationsSent: sql`CASE
+        WHEN coalesce(${tickets.notificationsSent}, '[]'::jsonb) @> ${JSON.stringify([notificationType])}::jsonb
+        THEN coalesce(${tickets.notificationsSent}, '[]'::jsonb)
+        ELSE coalesce(${tickets.notificationsSent}, '[]'::jsonb) || ${JSON.stringify([notificationType])}::jsonb
+      END`,
+      updatedAt: new Date(),
+    })
     .where(eq(tickets.id, ticketId));
 }
 
@@ -200,6 +206,7 @@ export async function sendCalledNotification(
     const title = "IT'S YOUR TURN!";
     const body = `${ticket.ticketNumber} - Please proceed to ${serviceName}${deskInfo} at ${branchName} now!`;
 
+    sendWhatsAppTurnNotification(ticketId, branchName).catch(console.error);
     await sendSinglePush(ticket, title, body, {
       type: "your_turn",
       ticketId: ticket.id,
@@ -209,7 +216,6 @@ export async function sendCalledNotification(
       serviceName,
     }, "your_turn", "queue-urgent");
 
-    sendWhatsAppTurnNotification(ticketId, branchName).catch(console.error);
   } catch (error) {
     console.error("Error sending called notification:", error);
   }
@@ -268,6 +274,7 @@ export async function sendDineInCalledNotification(
 
     const notifKey = isReminder ? `dinein_reminder_${callCount}` : "dinein_called";
 
+    sendWhatsAppDineInCalledNotification(ticketId, branchName, table || null).catch(console.error);
     await sendSinglePush(ticket, title, body, {
       type: "dinein_called",
       ticketNumber: ticket.ticketNumber,
@@ -275,7 +282,6 @@ export async function sendDineInCalledNotification(
       branchName,
     }, notifKey, "queue-urgent");
 
-    sendWhatsAppDineInCalledNotification(ticketId, branchName, table || null).catch(console.error);
   } catch (error) {
     console.error("Error sending dine-in called notification:", error);
   }
@@ -505,6 +511,7 @@ export async function sendStatusChangeNotification(
         return;
     }
 
+    sendWhatsAppStatusChangeNotification(ticketId, branchName, newStatus).catch(console.error);
     await sendSinglePush(ticket, title, body, {
       type: "status_change",
       ticketId: ticket.id,
@@ -514,7 +521,6 @@ export async function sendStatusChangeNotification(
       serviceName,
     }, notifKey);
 
-    sendWhatsAppStatusChangeNotification(ticketId, branchName, newStatus).catch(console.error);
   } catch (error) {
     console.error("Error sending status change notification:", error);
   }

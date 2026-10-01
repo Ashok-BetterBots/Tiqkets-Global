@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { renderWaMessage, type WaVars } from "./wa-templates";
 import { normalizeWaMode } from "@shared/wa-templates";
 import { getApprovedWaTemplate } from "@shared/wa-approved-templates";
+import { preRenderAndCacheQueueTicketImage } from "./ticket-image";
 
 const WHATSAPP_API_VERSION = "v21.0";
 const WHATSAPP_API_BASE = `https://graph.facebook.com/${WHATSAPP_API_VERSION}`;
@@ -518,7 +519,12 @@ export async function sendWhatsAppTemplateMessage(
       components,
     },
   };
-  console.log(`[wa-template-send] FULL PAYLOAD → ${JSON.stringify(payload)}`);
+  const isDineInQueueTemplate = templateName.startsWith("tiqkets_global_dinein_");
+  if (isDineInQueueTemplate) {
+    console.log(`[customer-queue-wa] template=${templateName} language=${languageCode} outcome=attempted recipientCount=1`);
+  } else {
+    console.log(`[wa-template-send] FULL PAYLOAD → ${JSON.stringify(payload)}`);
+  }
 
   try {
     const response = await fetch(
@@ -535,28 +541,45 @@ export async function sendWhatsAppTemplateMessage(
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error(
-        `WhatsApp template "${templateName}" (${languageCode}) send error:`,
-        response.status,
-        errorData,
-      );
+      if (isDineInQueueTemplate) {
+        let metaErrorCode = "unavailable";
+        try {
+          const code = JSON.parse(errorData)?.error?.code;
+          if (typeof code === "number" && Number.isFinite(code)) metaErrorCode = String(code);
+        } catch { /* Never log a raw provider body for customer queue messages. */ }
+        console.error(`[customer-queue-wa] template=${templateName} language=${languageCode} outcome=failed httpStatus=${response.status} metaErrorCode=${metaErrorCode}`);
+      } else {
+        console.error(
+          `WhatsApp template "${templateName}" (${languageCode}) send error:`,
+          response.status,
+          errorData,
+        );
+      }
       return false;
     }
 
     const result = await response.json();
-    console.log(
-      `WhatsApp template "${templateName}" (${languageCode}) sent:`,
-      result.messages?.[0]?.id,
-      "to:",
-      cleanPhone,
-    );
+    if (isDineInQueueTemplate) {
+      console.log(`[customer-queue-wa] template=${templateName} language=${languageCode} outcome=accepted httpStatus=${response.status}`);
+    } else {
+      console.log(
+        `WhatsApp template "${templateName}" (${languageCode}) sent:`,
+        result.messages?.[0]?.id,
+        "to:",
+        cleanPhone,
+      );
+    }
     await incrementOrgWhatsappCount(opts.organizationId);
     return true;
   } catch (error) {
-    console.error(
-      `Failed to send WhatsApp template "${templateName}" (${languageCode}):`,
-      error,
-    );
+    if (isDineInQueueTemplate) {
+      console.error(`[customer-queue-wa] template=${templateName} language=${languageCode} outcome=failed reason=request_error`);
+    } else {
+      console.error(
+        `Failed to send WhatsApp template "${templateName}" (${languageCode}):`,
+        error,
+      );
+    }
     return false;
   }
 }
@@ -687,10 +710,18 @@ async function markWhatsAppSent(
   sentNotifications: string[],
   notifKey: string,
 ): Promise<void> {
-  const updated = [...sentNotifications, notifKey];
   await db
     .update(tickets)
-    .set({ notificationsSent: updated, updatedAt: new Date() })
+    .set({
+      // Append against the current row, not a snapshot taken before a slow
+      // image render/send. Other customer actions may have notified meanwhile.
+      notificationsSent: sql`CASE
+        WHEN coalesce(${tickets.notificationsSent}, '[]'::jsonb) @> ${JSON.stringify([notifKey])}::jsonb
+        THEN coalesce(${tickets.notificationsSent}, '[]'::jsonb)
+        ELSE coalesce(${tickets.notificationsSent}, '[]'::jsonb) || ${JSON.stringify([notifKey])}::jsonb
+      END`,
+      updatedAt: new Date(),
+    })
     .where(eq(tickets.id, ticketId));
 }
 
@@ -933,6 +964,7 @@ function formatReservationTime(reservationTime: Date | null | undefined, formDat
  */
 const _recentTemplateSends = new Map<string, number>();
 const TEMPLATE_DEDUP_WINDOW_MS = 5_000;
+const _inFlightDineInSends = new Map<string, Promise<boolean>>();
 
 /**
  * Generic helper: look up ticket + branch + org, resolve the correct
@@ -950,7 +982,27 @@ async function sendDineInApprovedTemplate(
   extraVars: Record<string, string>,
   notifKey: string,
 ): Promise<boolean> {
-  console.log(`[dinein-template] ▶ ticketId=${ticketId} trigger=${trigger} notifKey=${notifKey}`);
+  // Share concurrent attempts for the same logical notification only. A
+  // recall has its own call-count key; a later hold/resume cycle may re-send.
+  const key = `${ticketId}|${notifKey}`;
+  const pending = _inFlightDineInSends.get(key);
+  if (pending) return pending;
+  const attempt = sendDineInApprovedTemplateOnce(ticketId, trigger, extraVars, notifKey);
+  _inFlightDineInSends.set(key, attempt);
+  try {
+    return await attempt;
+  } finally {
+    _inFlightDineInSends.delete(key);
+  }
+}
+
+async function sendDineInApprovedTemplateOnce(
+  ticketId: string,
+  trigger: string,
+  extraVars: Record<string, string>,
+  notifKey: string,
+): Promise<boolean> {
+  console.log(`[customer-queue-wa] trigger=${trigger} outcome=preparing`);
 
   const [row] = await db.select({
     id: tickets.id,
@@ -976,50 +1028,30 @@ async function sendDineInApprovedTemplate(
     .limit(1);
 
   if (!row) {
-    console.log(`[dinein-template] ✗ no row found for ticketId=${ticketId}`);
+    console.log(`[customer-queue-wa] trigger=${trigger} outcome=skipped reason=ticket_not_found`);
     return false;
   }
-
-  console.log(`[dinein-template] row: ticket=${row.ticketNumber} customer=${row.customerName} phone=${row.customerPhone} waPhone=${row.whatsappPhone} lang=${row.preferredLanguage} qrToken=${row.qrToken}`);
 
   const phone = row.whatsappPhone || row.customerPhone;
   // Approved Meta templates can be sent without a prior customer-initiated
   // conversation — no whatsappConfirmed gate needed here (unlike free-form).
   if (!phone) {
-    console.log(`[dinein-template] ✗ no phone on ticket`);
+    console.log(`[customer-queue-wa] trigger=${trigger} outcome=skipped reason=no_phone`);
     return false;
   }
 
   const normalizedPhone = normalizeIndianPhone(phone);
-  console.log(`[dinein-template] phone raw="${phone}" normalized="${normalizedPhone}"`);
 
   const sentNotifications = (row.notificationsSent as string[]) || [];
   if (sentNotifications.includes(notifKey)) {
-    console.log(`[dinein-template] ✗ already sent (dedup): notifKey=${notifKey} sentNotifications=${JSON.stringify(sentNotifications)}`);
-    return false;
-  }
-
-  // In-memory short-window dedup: absorb rapid duplicate API calls (double-tap,
-  // network retry) without blocking the next legitimate hold/resume cycle.
-  const memKey = `${ticketId}|${trigger}`;
-  const lastSentAt = _recentTemplateSends.get(memKey);
-  if (lastSentAt && Date.now() - lastSentAt < TEMPLATE_DEDUP_WINDOW_MS) {
-    console.log(`[dinein-template] ✗ in-memory dedup (${Date.now() - lastSentAt}ms ago): ${memKey}`);
-    return false;
-  }
-  _recentTemplateSends.set(memKey, Date.now());
-  // Prune stale entries to prevent unbounded growth.
-  if (_recentTemplateSends.size > 500) {
-    const cutoff = Date.now() - TEMPLATE_DEDUP_WINDOW_MS * 4;
-    for (const [k, v] of _recentTemplateSends) {
-      if (v < cutoff) _recentTemplateSends.delete(k);
-    }
+    console.log(`[customer-queue-wa] trigger=${trigger} outcome=skipped reason=already_accepted`);
+    return true; // Handled: do not send a second, free-form fallback.
   }
 
   const lang = (row.preferredLanguage as string) || "en";
   const template = getApprovedWaTemplate("dinein", trigger, lang);
   if (!template) {
-    console.log(`[dinein-template] ✗ no approved template for dinein|${trigger}|${lang}`);
+    console.log(`[customer-queue-wa] trigger=${trigger} outcome=skipped reason=no_approved_template`);
     return false;
   }
 
@@ -1061,7 +1093,11 @@ async function sendDineInApprovedTemplate(
   const opts: { headerImageUrl?: string; organizationId?: string; ctaUrlParam?: string } = {
     organizationId: (row.orgId as string | null) || undefined,
   };
-  if (template.hasImageHeader && base && row.qrToken) {
+  if (template.hasImageHeader) {
+    if (!base || !row.qrToken) {
+      console.error(`[customer-queue-wa] trigger=${trigger} outcome=failed reason=media_configuration_missing`);
+      return false;
+    }
     opts.headerImageUrl = `${base}/queue-ticket-image/${row.qrToken}.png`;
     // Pre-render and cache the ticket image BEFORE sending the template URL
     // to Meta.  Meta fetches the URL immediately after receiving the API
@@ -1069,30 +1105,24 @@ async function sendDineInApprovedTemplate(
     // Meta's fetch window, adding a visible delay to every message.
     // After pre-render the cache serves the image in ~0 ms.
     try {
-      const { preRenderAndCacheQueueTicketImage } = await import("./ticket-image");
       await preRenderAndCacheQueueTicketImage(row.qrToken as string);
-    } catch (cacheErr) {
-      console.warn("[dinein-template] image pre-render failed (non-fatal):", cacheErr);
+    } catch {
+      console.error(`[customer-queue-wa] trigger=${trigger} outcome=failed reason=image_preparation_failed`);
+      return false; // The worker can retry; do not advertise unusable media.
     }
   }
-  // For URL buttons the CTA parameter must be the full ticket URL so that
-  // the "Visit Website" button in WhatsApp opens the live ticket page.
-  // Example: https://tiqketsglobal.replit.app/ticket/<qrToken>
+  // Meta appends this dynamic suffix to the template's existing ticket URL.
   if (template.hasCTAUrl && row.qrToken && base) {
-    opts.ctaUrlParam = `${base}/ticket/${row.qrToken as string}`;
+    opts.ctaUrlParam = row.qrToken as string;
   }
 
-  console.log(`[dinein-template] ► sending template="${template.templateName}" lang="${template.languageCode}" to="${normalizedPhone}"`);
-  console.log(`[dinein-template]   bodyVars=${JSON.stringify(template.bodyVariables)}`);
-  console.log(`[dinein-template]   bodyParams=${JSON.stringify(bodyParams)}`);
-  console.log(`[dinein-template]   headerImageUrl=${opts.headerImageUrl ?? "(none)"}`);
-  console.log(`[dinein-template]   ctaUrlParam=${opts.ctaUrlParam ?? "(none)"}`);
+  console.log(`[customer-queue-wa] trigger=${trigger} template=${template.templateName} language=${template.languageCode} outcome=attempted`);
 
   const sent = await sendWhatsAppTemplateMessage(normalizedPhone, template.templateName, template.languageCode, bodyParams, {
     ...opts,
     bodyParamNames: template.bodyVariables,
   });
-  console.log(`[dinein-template] sendWhatsAppTemplateMessage returned: ${sent}`);
+  console.log(`[customer-queue-wa] trigger=${trigger} outcome=${sent ? "accepted" : "failed"}`);
   if (sent) await markWhatsAppSent(ticketId, sentNotifications, notifKey);
   return sent;
 }
@@ -1259,8 +1289,9 @@ export async function sendWhatsAppDineInCalledNotification(
     const body = await renderWaMessage("dinein", triggerKey, lang, vars);
     if (!body) return;
 
-    await sendWhatsAppMessage(ticketRow.whatsappPhone, body);
-    await markWhatsAppSent(ticketId, sentNotifications, notifKey);
+    if (await sendWhatsAppMessage(ticketRow.whatsappPhone, body)) {
+      await markWhatsAppSent(ticketId, sentNotifications, notifKey);
+    }
   } catch (error) {
     console.error("Error sending WhatsApp dine-in notification:", error);
   }
@@ -1550,8 +1581,9 @@ export async function sendWhatsAppStatusChangeNotification(
     const body = await renderWaMessage(target.mode, target.key, lang, vars);
     if (!body) return;
 
-    await sendWhatsAppMessage(ticket.whatsappPhone, body);
-    await markWhatsAppSent(ticketId, ticket._sentNotifications, notifKey);
+    if (await sendWhatsAppMessage(ticket.whatsappPhone, body)) {
+      await markWhatsAppSent(ticketId, ticket._sentNotifications, notifKey);
+    }
   } catch (error) {
     console.error("Error sending WhatsApp status change notification:", error);
   }
@@ -1591,6 +1623,9 @@ export async function sendWhatsAppQueueTicket(ticketId: string): Promise<boolean
 
   if (!row?.qrToken) return true; // no ticket / no QR — nothing to send, skip
 
+  const phone = row.whatsappPhone || row.customerPhone;
+  if (!phone) return true; // No recipient; no provider request is possible.
+
   // Resolve effective queue mode: service-level override wins over branch setting.
   const svcModeOverride = (row.serviceSettings as Record<string, any> | null)?.queueMode;
   const effectiveQueueMode = svcModeOverride || row.branchQueueMode || "fifo";
@@ -1605,12 +1640,10 @@ export async function sendWhatsAppQueueTicket(ticketId: string): Promise<boolean
   if (isDineIn) {
     console.log(`[wa-queue-ticket] dine-in detected → calling sendDineInApprovedTemplate`);
     const sent = await sendDineInApprovedTemplate(ticketId, "booking_confirmed", {}, "whatsapp_dinein_confirmed");
-    if (sent) return true; // approved template handled it
-    console.log(`[wa-queue-ticket] approved template returned false → falling through to free-form`);
+    // These approved templates exist. A preparation/API failure must remain
+    // retryable, not be replaced by an image outside the conversation window.
+    return sent;
   }
-
-  const phone = row.whatsappPhone || row.customerPhone;
-  if (!phone) return true; // no phone on record — nothing to send, skip
 
   const domain =
     process.env.APP_DOMAIN ||

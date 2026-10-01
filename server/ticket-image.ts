@@ -38,6 +38,7 @@ let cachedChromiumPath: string | null | undefined;
 
 // Queue ticket image cache (non-event queue boarding pass)
 const _queueImageCache = new Map<string, { buf: Buffer; ts: number }>();
+const _queueImageRenderInFlight = new Map<string, Promise<Buffer>>();
 const QUEUE_IMAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Event ticket image cache — keyed by qrToken (lowercase hex).
@@ -74,13 +75,28 @@ export function getCachedQueueTicketImage(qrToken: string): Buffer | null {
 }
 
 /** Pre-renders and caches the queue ticket image.  Safe to fire-and-forget. */
-export async function preRenderAndCacheQueueTicketImage(qrToken: string): Promise<Buffer> {
+export async function preRenderAndCacheQueueTicketImage(
+  qrToken: string,
+  render: (token: string) => Promise<Buffer> = renderQueueTicketImage,
+): Promise<Buffer> {
   // Return from cache if still fresh — avoid redundant Playwright renders.
   const cached = getCachedQueueTicketImage(qrToken);
   if (cached) return cached;
-  const buf = await renderQueueTicketImage(qrToken);
-  _queueImageCache.set(qrToken, { buf, ts: Date.now() });
-  return buf;
+  const inFlight = _queueImageRenderInFlight.get(qrToken);
+  if (inFlight) return inFlight;
+
+  const renderPromise = render(qrToken)
+    .then((buf) => {
+      _queueImageCache.set(qrToken, { buf, ts: Date.now() });
+      return buf;
+    })
+    .finally(() => {
+      if (_queueImageRenderInFlight.get(qrToken) === renderPromise) {
+        _queueImageRenderInFlight.delete(qrToken);
+      }
+    });
+  _queueImageRenderInFlight.set(qrToken, renderPromise);
+  return renderPromise;
 }
 
 // NOTE: uses a top-level static import of { existsSync } — do NOT use
@@ -178,14 +194,58 @@ export async function renderQueueTicketImage(qrToken: string): Promise<Buffer> {
   // Viewport width 480 gives the 420px ticket card 30px padding on each side.
   const page = await browser.newPage({ viewport: { width: 480, height: 900 }, deviceScaleFactor: 4 });
   try {
+    // The ticket's web page may use Google Fonts for its live presentation.
+    // Abort only those optional font requests for this screenshot so a slow or
+    // unreachable external CDN cannot keep Chromium's screenshot font wait open.
+    await page.route("https://fonts.googleapis.com/**", (route) => route.abort());
+    await page.route("https://fonts.gstatic.com/**", (route) => route.abort());
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
     await page.waitForSelector('body[data-ready="1"]', { timeout: 12000 });
-    // Wait for ticket card to be visible.
-    await page.locator("#ticket-wrap").waitFor({ state: "visible", timeout: 5000 });
-    // fullPage: true captures only the document's scrollable content — no
-    // setViewportSize() needed, which avoids a second expensive repaint of the
-    // filter:drop-shadow + mask-image combo that caused ~30s render times.
-    const buffer = await page.screenshot({ type: "png", fullPage: true });
+    const ticket = page.locator("#ticket-wrap");
+    await ticket.waitFor({ state: "visible", timeout: 5000 });
+
+    // Keep rendering bounded even if a future template adds another remote
+    // font dependency or the local QR endpoint is slow.
+    await page.evaluate(async () => {
+      if (!document.fonts) return;
+      await Promise.race([
+        document.fonts.ready,
+        new Promise<void>((resolve) => setTimeout(resolve, 2000)),
+      ]);
+    });
+    await page.waitForFunction(() => {
+      const image = document.querySelector("#qr-wrap img");
+      return !image || (image instanceof HTMLImageElement && image.complete);
+    }, null, { timeout: 4000 }).catch(() => {});
+
+    // The live ticket uses a perforation mask and layered drop-shadow filters.
+    // They are decorative, but make a full-page GPU repaint expensive in
+    // headless Chromium. Keep the designed card, color, typography, and QR,
+    // while replacing those effects with a simple, stable card edge for PNG.
+    await page.addStyleTag({
+      content: `
+        .ticket-outer {
+          filter: none !important;
+          will-change: auto !important;
+        }
+        .ticket {
+          -webkit-mask-image: none !important;
+          mask-image: none !important;
+        }
+        *, *::before, *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+      `,
+    });
+
+    // Crop to the actual pass (not the hidden live page) and put a hard ceiling
+    // on capture time. 4x device scale preserves small text and QR detail.
+    const buffer = await ticket.screenshot({
+      type: "png",
+      animations: "disabled",
+      timeout: 15000,
+    });
     return buffer;
   } finally {
     await page.close().catch(() => {});

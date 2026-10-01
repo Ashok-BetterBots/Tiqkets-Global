@@ -1,0 +1,56 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  getCachedQueueTicketImage,
+  preRenderAndCacheQueueTicketImage,
+} from "./ticket-image";
+
+test("queue ticket image pre-render coalesces concurrent misses and caches the result", async () => {
+  let renderCalls = 0;
+  let releaseRender!: (buffer: Buffer) => void;
+  const renderResult = new Promise<Buffer>((resolve) => {
+    releaseRender = resolve;
+  });
+  const mockPng = Buffer.from("mock queue ticket PNG");
+  const mockRenderer = async () => {
+    renderCalls += 1;
+    return renderResult;
+  };
+
+  const first = preRenderAndCacheQueueTicketImage("mock-coalesced-ticket", mockRenderer);
+  const second = preRenderAndCacheQueueTicketImage("mock-coalesced-ticket", mockRenderer);
+
+  assert.equal(renderCalls, 1);
+  releaseRender(mockPng);
+
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+  assert.strictEqual(firstResult, mockPng);
+  assert.strictEqual(secondResult, mockPng);
+  assert.strictEqual(getCachedQueueTicketImage("mock-coalesced-ticket"), mockPng);
+  assert.strictEqual(
+    await preRenderAndCacheQueueTicketImage("mock-coalesced-ticket", async () => {
+      assert.fail("a cached queue ticket should not be rendered again");
+    }),
+    mockPng,
+  );
+});
+
+test("a failed queue ticket render clears its in-flight entry so a later request can retry", async () => {
+  let renderCalls = 0;
+  await assert.rejects(
+    preRenderAndCacheQueueTicketImage("mock-retry-ticket", async () => {
+      renderCalls += 1;
+      throw new Error("mock render failure");
+    }),
+    /mock render failure/,
+  );
+
+  const mockPng = Buffer.from("mock retry PNG");
+  const result = await preRenderAndCacheQueueTicketImage("mock-retry-ticket", async () => {
+    renderCalls += 1;
+    return mockPng;
+  });
+
+  assert.equal(renderCalls, 2);
+  assert.strictEqual(result, mockPng);
+});
