@@ -29,3 +29,18 @@ update* fns for queueStatus. All roles that can toggle (super_admin, admin,
 location_manager, floor_manager, front_desk) have `org.queue.mode_change`.
 Cascade (branch → its services → their desks) is done client-side and is
 non-transactional, mirroring the web dashboard.
+
+## Restoring notification side effects
+
+Treat persisted alert status as notification history, not as the authoritative
+service status. A confirmed service transition must not be suppressed solely
+because notification history already matches its destination.
+
+**Why:** Moving controls to dedicated endpoints bypassed organization alerts.
+This left notification history stale, so merely restoring the call could still
+silently skip the next opposite transition.
+
+**How to apply:** Carry the actual previous service status from the status
+mutation into notification edge checks. Preserve unchanged-request suppression
+and pause/resume session anchors. Do not repair this by rewriting production
+alert history or by disabling deduplication for every caller.

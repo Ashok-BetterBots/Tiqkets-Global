@@ -141,19 +141,29 @@ async function sendWhatsAppMessage(
   to: string,
   message: string,
   organizationId?: string,
+  loggingContext?: {
+    queueAlertTemplate: "org_alert_queue_start" | "org_alert_queue_end";
+  },
 ): Promise<boolean> {
   const phoneNumberId = getPhoneNumberId();
   const accessToken = getAccessToken();
 
   if (!phoneNumberId || !accessToken) {
-    console.log(
-      "WhatsApp API credentials not configured, skipping notification",
-    );
+    if (loggingContext) {
+      console.log(
+        `[org-queue-alert] fallback template=${loggingContext.queueAlertTemplate} outcome=skipped reason=credentials_missing`,
+      );
+    } else {
+      console.log(
+        "WhatsApp API credentials not configured, skipping notification",
+      );
+    }
     return false;
   }
 
   const cleanPhone = to.replace(/[^0-9]/g, "");
 
+  let queueHttpStatus: number | undefined;
   try {
     const response = await fetch(
       `${WHATSAPP_API_BASE}/${phoneNumberId}/messages`,
@@ -175,19 +185,50 @@ async function sendWhatsAppMessage(
         }),
       },
     );
+    if (loggingContext) queueHttpStatus = response.status;
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error("WhatsApp send error:", response.status, errorData);
+      if (loggingContext) {
+        let metaErrorCode = "unavailable";
+        try {
+          const parsed = JSON.parse(errorData);
+          const code = parsed?.error?.code;
+          if (typeof code === "number" && Number.isFinite(code)) {
+            metaErrorCode = String(code);
+          } else if (typeof code === "string" && /^\d+$/.test(code)) {
+            metaErrorCode = code;
+          }
+        } catch {
+          // Provider bodies are intentionally not logged for queue fallbacks.
+        }
+        console.error(
+          `[org-queue-alert] fallback template=${loggingContext.queueAlertTemplate} outcome=failed httpStatus=${response.status} metaErrorCode=${metaErrorCode}`,
+        );
+      } else {
+        console.error("WhatsApp send error:", response.status, errorData);
+      }
       return false;
     }
 
     const result = await response.json();
-    console.log("WhatsApp message sent:", result.messages?.[0]?.id);
+    if (loggingContext) {
+      console.log(
+        `[org-queue-alert] fallback template=${loggingContext.queueAlertTemplate} outcome=sent httpStatus=${response.status} metaErrorCode=none`,
+      );
+    } else {
+      console.log("WhatsApp message sent:", result.messages?.[0]?.id);
+    }
     await incrementOrgWhatsappCount(organizationId);
     return true;
   } catch (error) {
-    console.error("Failed to send WhatsApp message:", error);
+    if (loggingContext) {
+      console.error(
+        `[org-queue-alert] fallback template=${loggingContext.queueAlertTemplate} outcome=failed httpStatus=${queueHttpStatus ?? "unavailable"} metaErrorCode=unavailable`,
+      );
+    } else {
+      console.error("Failed to send WhatsApp message:", error);
+    }
     return false;
   }
 }
@@ -272,13 +313,22 @@ export async function sendWhatsAppAlertTemplate(
     | "org_alert_wait_time",
   params: Array<string | number>,
 ): Promise<boolean> {
+  const isQueueStatusTemplate =
+    templateName === "org_alert_queue_start" ||
+    templateName === "org_alert_queue_end";
   const phoneNumberId = getPhoneNumberId();
   const accessToken = getAccessToken();
 
   if (!phoneNumberId || !accessToken) {
-    console.log(
-      "WhatsApp API credentials not configured, skipping alert template",
-    );
+    if (isQueueStatusTemplate) {
+      console.log(
+        `[org-queue-alert] template=${templateName} outcome=skipped reason=credentials_missing`,
+      );
+    } else {
+      console.log(
+        "WhatsApp API credentials not configured, skipping alert template",
+      );
+    }
     return false;
   }
 
@@ -288,6 +338,7 @@ export async function sendWhatsAppAlertTemplate(
     text: String(p ?? ""),
   }));
 
+  let queueHttpStatus: number | undefined;
   try {
     const response = await fetch(
       `${WHATSAPP_API_BASE}/${phoneNumberId}/messages`,
@@ -313,30 +364,61 @@ export async function sendWhatsAppAlertTemplate(
         }),
       },
     );
+    if (isQueueStatusTemplate) queueHttpStatus = response.status;
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error(
-        `WhatsApp template "${templateName}" send error:`,
-        response.status,
-        errorData,
-      );
+      if (isQueueStatusTemplate) {
+        let metaErrorCode = "unavailable";
+        try {
+          const parsed = JSON.parse(errorData);
+          const code = parsed?.error?.code;
+          if (typeof code === "number" && Number.isFinite(code)) {
+            metaErrorCode = String(code);
+          } else if (typeof code === "string" && /^\d+$/.test(code)) {
+            metaErrorCode = code;
+          }
+        } catch {
+          // Provider bodies are intentionally not logged for queue alerts.
+        }
+        console.error(
+          `[org-queue-alert] template=${templateName} outcome=failed httpStatus=${response.status} metaErrorCode=${metaErrorCode}`,
+        );
+      } else {
+        console.error(
+          `WhatsApp template "${templateName}" send error:`,
+          response.status,
+          errorData,
+        );
+      }
       return false;
     }
 
     const result = await response.json();
-    console.log(
-      `WhatsApp alert template "${templateName}" sent:`,
-      result.messages?.[0]?.id,
-      "to:",
-      cleanPhone,
-    );
+    if (isQueueStatusTemplate) {
+      console.log(
+        `[org-queue-alert] template=${templateName} outcome=sent httpStatus=${response.status} metaErrorCode=none`,
+      );
+    } else {
+      console.log(
+        `WhatsApp alert template "${templateName}" sent:`,
+        result.messages?.[0]?.id,
+        "to:",
+        cleanPhone,
+      );
+    }
     return true;
   } catch (error) {
-    console.error(
-      `Failed to send WhatsApp alert template "${templateName}":`,
-      error,
-    );
+    if (isQueueStatusTemplate) {
+      console.error(
+        `[org-queue-alert] template=${templateName} outcome=failed httpStatus=${queueHttpStatus ?? "unavailable"} metaErrorCode=unavailable`,
+      );
+    } else {
+      console.error(
+        `Failed to send WhatsApp alert template "${templateName}":`,
+        error,
+      );
+    }
     return false;
   }
 }

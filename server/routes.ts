@@ -4322,7 +4322,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await Promise.all(
           branchServices
             .filter(s => (s as any).queueStatus === "ended")
-            .map(s => storage.updateService(s.id, { queueStatus: "active" } as any)),
+            .map(async s => {
+              const updated = await storage.updateService(s.id, { queueStatus: "active" } as any);
+              if (updated) {
+                void notifyOrgServiceQueueStatusChange(updated.branchId, updated.id, updated.name, "active", "ended")
+                  .catch(() => console.error("[org-queue-alert] notification failed"));
+              }
+              return updated;
+            }),
         );
       }
 
@@ -4339,6 +4346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!await assertServiceOwnership(req, res, id)) return;
       const status = parseQueueStatus(req, res);
       if (status === null) return;
+      const previousService = await storage.getServiceById(id);
       const service = await storage.updateService(id, { queueStatus: status } as any);
       if (!service) { res.status(404).json({ error: "Service not found" }); return; }
 
@@ -4358,6 +4366,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (branch && (branch as any).queueStatus === "ended") {
           await storage.updateBranch(branch.id, { queueStatus: "active" } as any);
         }
+      }
+
+      // Organization alerts are independent of the queue action. Only real
+      // service transitions notify; branch/desk cascades may have opened it first.
+      if (previousService && previousService.queueStatus !== service.queueStatus) {
+        void notifyOrgServiceQueueStatusChange(service.branchId, service.id, service.name, status as "active" | "paused" | "ended", previousService.queueStatus as "active" | "paused" | "ended")
+          .catch(() => console.error("[org-queue-alert] notification failed"));
       }
 
       res.json({ service });
@@ -4387,7 +4402,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if ((desk as any).serviceId) {
           const svc = await storage.getServiceById((desk as any).serviceId);
           if (svc && (svc as any).queueStatus === "ended") {
-            await storage.updateService(svc.id, { queueStatus: "active" } as any);
+            const updated = await storage.updateService(svc.id, { queueStatus: "active" } as any);
+            if (updated) {
+              void notifyOrgServiceQueueStatusChange(updated.branchId, updated.id, updated.name, "active", "ended")
+                .catch(() => console.error("[org-queue-alert] notification failed"));
+            }
           }
         }
       }

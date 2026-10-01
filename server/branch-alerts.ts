@@ -206,6 +206,9 @@ export async function sendAlertToRecipient(
 ): Promise<{ wa: boolean; push: boolean }> {
   const result = { wa: false, push: false };
   const { title, message, template } = payload;
+  const isQueueStatusAlert =
+    template?.name === "org_alert_queue_start" ||
+    template?.name === "org_alert_queue_end";
 
   if (recipient.sendViaWhatsapp && recipient.phoneNumber) {
     try {
@@ -222,9 +225,16 @@ export async function sendAlertToRecipient(
         // If the template send failed (e.g. credentials missing) fall
         // back to plain text so the alert is not silently dropped.
         if (!result.wa) {
+          const queueTemplateName =
+            template.name === "org_alert_queue_start" ||
+            template.name === "org_alert_queue_end"
+              ? template.name
+              : undefined;
           result.wa = await sendWhatsAppMessage(
             recipient.phoneNumber,
             `${title}\n${message}`,
+            undefined,
+            queueTemplateName ? { queueAlertTemplate: queueTemplateName } : undefined,
           );
         }
       } else {
@@ -234,7 +244,13 @@ export async function sendAlertToRecipient(
         );
       }
     } catch (err) {
-      console.error("Alert WA send error to", recipient.phoneNumber, err);
+      if (isQueueStatusAlert) {
+        console.error(
+          `[org-queue-alert] recipient send error template=${template?.name}`,
+        );
+      } else {
+        console.error("Alert WA send error to", recipient.phoneNumber, err);
+      }
     }
   }
 
@@ -401,14 +417,38 @@ export async function notifyOrgServiceQueueStatusChange(
   serviceId: string,
   serviceName: string,
   newStatus: "active" | "paused" | "ended",
+  previousStatus?: "active" | "paused" | "ended",
 ): Promise<void> {
   try {
+    const queueTemplateName =
+      newStatus === "active"
+        ? "org_alert_queue_start"
+        : newStatus === "ended"
+          ? "org_alert_queue_end"
+          : null;
     const branch = await getBranch(branchId);
-    if (!branch) return;
+    if (!branch) {
+      if (queueTemplateName) {
+        console.log(
+          `[org-queue-alert] skipped status=${newStatus} recipientCount=not_queried template=${queueTemplateName} reason=branch_not_found`,
+        );
+      }
+      return;
+    }
 
     const state = await getOrCreateState(branchId, "queue_status", serviceId);
     const statusCode = newStatus === "active" ? 1 : newStatus === "paused" ? 2 : 3;
-    if (state.lastValue === statusCode) return;
+    // Dedicated status routes confirm a real service transition. Alert state
+    // can be stale from the period when those routes bypassed this notifier.
+    const confirmedTransition = previousStatus !== undefined && previousStatus !== newStatus;
+    if (state.lastValue === statusCode && !confirmedTransition) {
+      if (queueTemplateName) {
+        console.log(
+          `[org-queue-alert] skipped status=${newStatus} recipientCount=not_queried template=${queueTemplateName} reason=status_unchanged`,
+        );
+      }
+      return;
+    }
 
     // Track the explicit queue-open timestamp on a separate row using
     // its own triggerKind ("queue_open") with scopeId = serviceId. The
@@ -420,6 +460,11 @@ export async function notifyOrgServiceQueueStatusChange(
     const openedState = await getOrCreateState(branchId, "queue_open", serviceId);
 
     const recipients = await getRecipientsFor(branchId, "alertOnQueueOpenClose");
+    if (queueTemplateName && recipients.length === 0) {
+      console.log(
+        `[org-queue-alert] skipped status=${newStatus} recipientCount=0 template=${queueTemplateName} reason=no_recipients`,
+      );
+    }
     if (recipients.length > 0) {
       const label =
         newStatus === "active" ? "OPENED" : newStatus === "paused" ? "PAUSED" : "CLOSED";
@@ -478,6 +523,11 @@ export async function notifyOrgServiceQueueStatusChange(
         };
       }
 
+      if (queueTemplateName) {
+        console.log(
+          `[org-queue-alert] attempted status=${newStatus} recipientCount=${recipients.length} template=${queueTemplateName}`,
+        );
+      }
       await sendAlertToRecipients(recipients, payload);
     }
 
@@ -499,9 +549,12 @@ export async function notifyOrgServiceQueueStatusChange(
     // the existing anchor so a mid-day pause/resume doesn't reset the
     // session window used by end-of-queue stats. Pause / end transitions
     // never touch this row.
+    const previousStatusCode = previousStatus === undefined
+      ? state.lastValue
+      : previousStatus === "active" ? 1 : previousStatus === "paused" ? 2 : 3;
     if (
       newStatus === "active" &&
-      (state.lastValue == null || state.lastValue === 3)
+      (previousStatusCode == null || previousStatusCode === 3)
     ) {
       await db
         .update(branchAlertState)
