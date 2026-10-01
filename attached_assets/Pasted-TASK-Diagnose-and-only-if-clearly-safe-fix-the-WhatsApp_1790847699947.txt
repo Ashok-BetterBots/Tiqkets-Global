@@ -1,0 +1,43 @@
+TASK: Diagnose (and only if clearly safe, fix) the WhatsApp notifications that should fire when a queue is OPENED or CLOSED in Tiqkets.
+
+EXPECTED BEHAVIOUR
+Whenever an admin opens or closes a queue, a WhatsApp template message should be sent to the preset/alert mobile numbers configured in the web application (admin settings). This was set up earlier but is not working now.
+
+STRICT RULES – READ BEFORE DOING ANYTHING
+1. Start in READ-ONLY / investigation mode. Do NOT modify any code, database schema, data, environment variables/secrets, or WhatsApp templates until you have reported your findings to me and I approve.
+2. Do NOT run migrations, drop/alter tables, reseed data, or delete any records.
+3. Do NOT refactor, rename, reformat, or "clean up" unrelated code. Do NOT touch payment (Razorpay), ticketing, customer-facing queue messages, or any other WhatsApp flows.
+4. Do NOT create, rename, or edit WhatsApp message templates in Meta / the WhatsApp provider. Do NOT change API keys, tokens, phone number IDs, or webhook URLs.
+5. Do NOT send test messages to real customer numbers. If a test send is needed, ask me for a test number first.
+6. If something is missing (template name, config value, secret, setting), REPORT it — do not invent or hardcode a value.
+
+STEP 1 – INVESTIGATE AND TRACE THE FLOW
+a) Find where queue open/close happens (API endpoint, service function, mobile app call, DB status update). List the exact files and functions.
+b) Check whether any WhatsApp notification is triggered on open/close at all. If yes, show the exact code path (trigger → service → WhatsApp API call). If no, tell me clearly: "This is not implemented."
+c) Find where the preset mobile numbers are stored (table/column or settings field) and confirm:
+   - Whether the open/close code actually reads them
+   - Whether numbers exist in the DB for the affected tenant/business
+   - Number format (country code, no "+", no spaces, as the WhatsApp API expects)
+d) Identify the template(s) used for queue opened / queue closed:
+   - Template name(s) and language code referenced in code
+   - Number and order of variables/parameters being sent
+   - Whether the template name is hardcoded, in env/secrets, or in DB config — and whether that value is present
+e) Check WhatsApp config: required env vars/secrets (access token, phone number ID, WABA ID, API base URL/version) — confirm they EXIST (do not print secret values).
+f) Check for any condition that could silently skip sending: feature flags, per-tenant toggles, plan/subscription checks, try/catch that swallows errors, async jobs not awaited, queue workers not running.
+g) Check recent logs for any errors around queue open/close or WhatsApp API calls (e.g. template not found, parameter count mismatch, invalid token, 24-hour window/re-engagement errors, invalid recipient).
+h) Check git history / recent changes that may have broken this flow.
+
+STEP 2 – REPORT BACK TO ME (before any changes)
+Give me a short report with:
+- Status: Implemented & broken / Partially implemented / Not implemented
+- The root cause (or most likely causes, ranked)
+- What is missing, if anything (e.g. template name, language code, config value, numbers not saved, trigger not wired)
+- Exact files/functions involved
+- Your proposed fix: the minimal change only, showing the diff you intend to make
+- Anything I need to do outside Replit (e.g. approve a template in Meta, add a secret)
+
+STEP 3 – FIX (ONLY AFTER MY APPROVAL)
+- Make the smallest possible change that fixes the issue.
+- Add clear logging for this flow (send attempted, recipient count, template name, API response/error) without logging secrets or full phone numbers.
+- Errors in sending the notification must NOT block or roll back the queue open/close action itself.
+- After the fix, explain how I can test it safely with my own number, and confirm nothing else was changed.
