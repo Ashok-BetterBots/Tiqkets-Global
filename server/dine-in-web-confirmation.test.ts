@@ -74,8 +74,8 @@ test("other modes retain their WhatsApp confirmation button and no image", () =>
 
 test("ticket hides expected wait for Dine-In, including service overrides, but not other modes", () => {
   const ticketHtml = readFileSync(new URL("./templates/queue-ticket.html", import.meta.url), "utf8");
-  const start = ticketHtml.indexOf("document.getElementById('est-wait-field').style.display =");
-  const end = ticketHtml.indexOf(";", start) + 1;
+  const start = ticketHtml.indexOf("var hideWait =");
+  const end = ticketHtml.indexOf(";", ticketHtml.indexOf("document.getElementById('est-wait-field').style.display =", start)) + 1;
   assert.ok(start >= 0 && end > start);
   for (const [mode, flag, expected] of [
     ["dine_in", undefined, "none"], ["dinein", undefined, "none"],
@@ -88,6 +88,34 @@ test("ticket hides expected wait for Dine-In, including service overrides, but n
       document: { getElementById: () => field },
     });
     assert.equal(field.style.display, expected);
+  }
+});
+
+test("Dine-In removes banner and live-view wait estimates while keeping queue position", () => {
+  const ticketHtml = readFileSync(new URL("./templates/queue-ticket.html", import.meta.url), "utf8");
+  const stripStart = ticketHtml.indexOf("var strip  =");
+  const stripEnd = ticketHtml.indexOf("// Instruction text", stripStart);
+  const liveStart = ticketHtml.indexOf("var wb =");
+  const liveEndMarker = "wb.style.display = 'none';\n      }";
+  const liveEnd = ticketHtml.indexOf(liveEndMarker, liveStart) + liveEndMarker.length;
+  assert.ok(stripStart >= 0 && stripEnd > stripStart && liveStart >= 0 && liveEnd > liveStart);
+  for (const hideWait of [true, false]) {
+    const elements: Record<string, any> = {};
+    const getElementById = (id: string) =>
+      elements[id] ??= { style: {}, innerHTML: "", textContent: "" };
+    runInNewContext(ticketHtml.slice(stripStart, stripEnd) + ticketHtml.slice(liveStart, liveEnd), {
+      hideWait, wait: 15, pos: 2, status: "waiting", data: { waitingAhead: 1 },
+      document: { getElementById },
+    });
+    assert.match(elements["position-strip"].innerHTML, /party ahead of you/);
+    assert.equal(elements["wait-num"].textContent, "2nd");
+    if (hideWait) {
+      assert.doesNotMatch(elements["position-strip"].innerHTML, /min wait/);
+      assert.equal(elements["wait-sub"].textContent, "in queue");
+    } else {
+      assert.match(elements["position-strip"].innerHTML, /15 min wait/);
+      assert.match(elements["wait-sub"].textContent, /15 min wait/);
+    }
   }
 });
 

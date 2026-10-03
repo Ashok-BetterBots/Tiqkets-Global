@@ -603,10 +603,10 @@ body.embed .ticket-outer {
     var wait = parseInt(data.estimatedWait, 10) || 0;
     var pos  = parseInt(data.position, 10)       || 0;
     var ewEl = document.getElementById('est-wait');
-    document.getElementById('est-wait-field').style.display =
-      (typeof data.hideExpectedWait === 'boolean'
-        ? data.hideExpectedWait
-        : mode === 'dinein' || mode === 'dine_in') ? 'none' : '';
+    var hideWait = typeof data.hideExpectedWait === 'boolean'
+      ? data.hideExpectedWait
+      : mode === 'dinein' || mode === 'dine_in';
+    document.getElementById('est-wait-field').style.display = hideWait ? 'none' : '';
     if (wait > 0) {
       ewEl.innerHTML = '~' + wait + ' <small>min</small>';
     } else {
@@ -626,7 +626,7 @@ body.embed .ticket-outer {
         // No serving ticket — show waiting-ahead count + optional wait estimate
         strip.innerHTML =
           '<span><b>' + ahead + '</b> ' + (ahead === 1 ? 'party ahead of you' : 'parties ahead of you') + '</span>' +
-          (wait > 0 ? '<span>~' + wait + ' min wait</span>' : '');
+          (!hideWait && wait > 0 ? '<span>~' + wait + ' min wait</span>' : '');
       }
     } else {
       strip.style.display = 'none';
@@ -673,7 +673,7 @@ body.embed .ticket-outer {
         wb.style.display = 'flex';
         document.getElementById('wait-num').textContent = pos + (pos === 1 ? 'st' : pos === 2 ? 'nd' : pos === 3 ? 'rd' : 'th');
         document.getElementById('wait-sub').textContent =
-          'in queue' + (wait > 0 ? ' · ~' + wait + ' min wait' : '');
+          'in queue' + (!hideWait && wait > 0 ? ' · ~' + wait + ' min wait' : '');
       } else {
         wb.style.display = 'none';
       }

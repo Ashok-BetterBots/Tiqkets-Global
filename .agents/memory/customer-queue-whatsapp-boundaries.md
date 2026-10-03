@@ -51,11 +51,14 @@ one-day image retention, with no other changes.
 delete booking records or change other modes or already-delivered WhatsApp
 messages.
 
-Do not show expected wait time on the Dine-In customer ticket or web Booking
-Confirmed page. Keep underlying wait calculations and other queue modes intact.
+Do not show expected wait time anywhere on the Dine-In customer ticket or web
+Booking Confirmed page, including the top-right estimate below the banner and
+live queue-position text. Keep underlying wait calculations and other queue
+modes intact.
 
 **Why:** The user requested removal of these customer-facing fields after
 confirming the inline ticket/no-redirect confirmation behavior worked.
+The user repeated the removal request after the banner estimate was missed.
 
 **How to apply:** Include the WhatsApp ticket image, which renders the same web
 ticket. Respect service-level Dine-In overrides as well as branch mode.
