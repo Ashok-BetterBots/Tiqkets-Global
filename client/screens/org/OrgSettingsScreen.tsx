@@ -302,7 +302,7 @@ export default function OrgSettingsScreen() {
   const { isDark } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, getAccessibleServices, hasPermission, hasAnyPermission, refreshOrganizationData, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
+  const { organization, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, getAccessibleServices, hasPermission, hasAnyPermission, refreshOrganizationData, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
   const isMobile = Platform.OS !== "web";
 
   // Pull fresh org/branch data from the server every time this screen gains
@@ -1320,58 +1320,6 @@ export default function OrgSettingsScreen() {
               ) : null}
             </>
           ) : null}
-        </SettingSection>
-        ) : null}
-
-        {hasPermission("org.settings.staff") ? (
-        <SettingSection title="TEAM & ACCESS">
-          <SettingRow
-            icon="users"
-            label="Manage Team"
-            isDark={isDark}
-            onPress={() => navigation.navigate("UserManagement")}
-            showChevron
-            right={
-              <View style={[styles.badge, { backgroundColor: colors.surfaceMuted }]}>
-                <ThemedText style={[styles.badgeText, { color: colors.text }]}>{users.length}</ThemedText>
-              </View>
-            }
-          />
-          {hasPermission("org.users.assign_role") ? (
-            <>
-              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
-              <SettingRow
-                icon="shield"
-                label="Roles & Permissions"
-                isDark={isDark}
-                onPress={() => navigation.navigate("TeamRoles")}
-                showChevron
-              />
-            </>
-          ) : null}
-          <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
-          <View style={styles.teamSummary}>
-            {[
-              { role: "admin", color: "#7C3AED", label: "Admins" },
-              { role: "location_manager", color: "#2563EB", label: "Managers" },
-              { role: "floor_manager", color: "#059669", label: "Floor" },
-              { role: "front_desk", color: "#D97706", label: "Desk" },
-            ].map((item) => (
-              <View key={item.role} style={styles.teamItem}>
-                <View style={[styles.teamDot, { backgroundColor: item.color }]} />
-                <ThemedText style={[styles.teamCount, { color: colors.textSecondary }]}>
-                  {users.filter((u) => u.role === item.role).length} {item.label}
-                </ThemedText>
-              </View>
-            ))}
-          </View>
-          <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
-          <View style={styles.branchInfo}>
-            <Feather name="map-pin" size={14} color={colors.textSecondary} />
-            <ThemedText style={[styles.branchText, { color: colors.textSecondary }]}>
-              {branches.length} branch{branches.length !== 1 ? "es" : ""} configured
-            </ThemedText>
-          </View>
         </SettingSection>
         ) : null}
 
