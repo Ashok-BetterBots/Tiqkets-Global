@@ -43,9 +43,13 @@ For Dine-In web QR registrations, Booking Confirmed must show the generated
 ticket image used by WhatsApp, without a WhatsApp redirect button. Keep the
 server's cached image for no more than 24 hours and remove it automatically,
 not only when a later request notices that it has expired.
+Show "Generating Ticket..." at the top of the confirmation while preparing
+the image, then show the generated ticket in that same top position.
 
 **Why:** The user explicitly requested this web confirmation behavior and
 one-day image retention, with no other changes.
+The user also requested clear visibility of ticket generation and the finished
+ticket above the booking confirmation details.
 
 **How to apply:** Scope this behavior to Dine-In. Image-cache cleanup must not
 delete booking records or change other modes or already-delivered WhatsApp

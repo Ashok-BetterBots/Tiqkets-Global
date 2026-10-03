@@ -878,7 +878,7 @@
     .wa-link-btn:active { transform: translateY(0); }
 
     .ticket-image-section {
-      margin-top: 20px;
+      margin-bottom: 20px;
       text-align: center;
     }
 
@@ -896,6 +896,15 @@
       font-size: 13px;
       color: var(--text-secondary);
       line-height: 1.5;
+    }
+
+    #ticketImageLoading {
+      padding: 20px 12px;
+      border-radius: 12px;
+      background: var(--brand-tint);
+      color: var(--text);
+      font-size: 20px;
+      font-weight: 700;
     }
 
     /* ── Language picker ─────────────────────────────────── */
@@ -1019,6 +1028,12 @@
       
       <div id="screen3" class="hidden">
         <div class="success-screen">
+          <div id="ticketImageSection" class="ticket-image-section hidden">
+            <p id="ticketImageLoading" class="ticket-image-status" role="status">Generating Ticket...</p>
+            <img id="ticketImage" class="ticket-image hidden" alt="Your queue ticket" />
+            <p id="ticketImageError" class="ticket-image-status hidden" role="alert">Your ticket image could not be loaded.</p>
+          </div>
+
           <div class="success-icon">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -1049,12 +1064,6 @@
               <span class="queue-info-label" data-i18n="estWaitTime">Est. Wait Time</span>
               <span class="queue-info-value" id="estWaitTime">--</span>
             </div>
-          </div>
-
-          <div id="ticketImageSection" class="ticket-image-section hidden">
-            <p id="ticketImageLoading" class="ticket-image-status" role="status">Loading your ticket…</p>
-            <img id="ticketImage" class="ticket-image hidden" alt="Your queue ticket" />
-            <p id="ticketImageError" class="ticket-image-status hidden" role="alert">Your ticket image could not be loaded.</p>
           </div>
 
           <!-- WhatsApp ticket-sent notice (dine-in / approved template flow) -->
@@ -1871,6 +1880,7 @@
 
         hideLoading();
         goToStep(3);
+        if (isDineInFlow) window.scrollTo(0, 0);
       } catch (error) {
         hideLoading();
         showError(error.message || 'Failed to join queue. Please try again.');

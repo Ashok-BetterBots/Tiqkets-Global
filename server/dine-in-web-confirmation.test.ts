@@ -45,6 +45,8 @@ test("Dine-In QR confirmation shows the same ticket image, not a WhatsApp redire
   });
   assert.equal(get("ticketImage").src, "/queue-ticket-image/mock-ticket.png");
   assert.equal(get("ticketImageSection").classList.contains("hidden"), false);
+  assert.equal(get("ticketImageLoading").classList.contains("hidden"), false);
+  assert.equal(get("ticketImage").classList.contains("hidden"), true);
   assert.equal(get("estWaitTimeRow").style.display, "none");
   for (const id of ["whatsappBtn", "whatsappHint", "whatsappSection"]) {
     assert.equal(get(id).style.display, "none");
@@ -52,6 +54,15 @@ test("Dine-In QR confirmation shows the same ticket image, not a WhatsApp redire
   get("ticketImage").onload();
   assert.equal(get("ticketImage").classList.contains("hidden"), false);
   assert.equal(get("ticketImageLoading").classList.contains("hidden"), true);
+});
+
+test("ticket generation and the loaded ticket appear above Booking Confirmed", () => {
+  const successStart = html.indexOf('<div class="success-screen">');
+  const ticketStart = html.indexOf('<div id="ticketImageSection"', successStart);
+  const titleStart = html.indexOf('<h2 class="booking-confirmed-title"', successStart);
+  assert.ok(successStart >= 0 && ticketStart > successStart && titleStart > ticketStart);
+  assert.match(html.slice(ticketStart, titleStart), /role="status">Generating Ticket\.\.\.</);
+  assert.equal((html.match(/id="ticketImageSection"/g) || []).length, 1);
 });
 
 test("a failed image load surfaces an error without a WhatsApp redirect", () => {
