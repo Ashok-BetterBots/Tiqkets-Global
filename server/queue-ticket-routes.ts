@@ -39,12 +39,14 @@ async function findTicketByToken(qrToken: string) {
       qrToken: tickets.qrToken,
       branchName: branches.name,
       queueMode: branches.queueMode,
+      serviceSettings: services.serviceSettings,
       organizationId: branches.organizationId,
       timezone: branches.timezone,
       organizationName: organizations.name,
     })
     .from(tickets)
     .leftJoin(branches, eq(tickets.branchId, branches.id))
+    .leftJoin(services, eq(tickets.serviceId, services.id))
     .leftJoin(organizations, eq(branches.organizationId, organizations.id))
     .where(eq(tickets.qrToken, qrToken))
     .limit(1);
@@ -286,6 +288,9 @@ export function registerQueueTicketRoutes(app: Express) {
         serviceName: ticket.serviceName,
         branchName: ticket.branchName,
         queueMode: ticket.queueMode || "fifo",
+        hideExpectedWait: ["dinein", "dine_in"].includes(
+          (ticket.serviceSettings as Record<string, any> | null)?.queueMode || ticket.queueMode || "fifo",
+        ),
         status: ticket.status,
         position: ticket.position,
         estimatedWait: ticket.estimatedWaitTime,

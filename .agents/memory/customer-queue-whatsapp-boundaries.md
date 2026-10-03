@@ -50,3 +50,12 @@ one-day image retention, with no other changes.
 **How to apply:** Scope this behavior to Dine-In. Image-cache cleanup must not
 delete booking records or change other modes or already-delivered WhatsApp
 messages.
+
+Do not show expected wait time on the Dine-In customer ticket or web Booking
+Confirmed page. Keep underlying wait calculations and other queue modes intact.
+
+**Why:** The user requested removal of these customer-facing fields after
+confirming the inline ticket/no-redirect confirmation behavior worked.
+
+**How to apply:** Include the WhatsApp ticket image, which renders the same web
+ticket. Respect service-level Dine-In overrides as well as branch mode.

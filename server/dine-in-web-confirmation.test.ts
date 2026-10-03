@@ -45,6 +45,7 @@ test("Dine-In QR confirmation shows the same ticket image, not a WhatsApp redire
   });
   assert.equal(get("ticketImage").src, "/queue-ticket-image/mock-ticket.png");
   assert.equal(get("ticketImageSection").classList.contains("hidden"), false);
+  assert.equal(get("estWaitTimeRow").style.display, "none");
   for (const id of ["whatsappBtn", "whatsappHint", "whatsappSection"]) {
     assert.equal(get(id).style.display, "none");
   }
@@ -68,6 +69,26 @@ test("other modes retain their WhatsApp confirmation button and no image", () =>
   assert.equal(get("whatsappBtn").style.display, "flex");
   assert.equal(get("whatsappSection").style.display, "block");
   assert.equal(get("ticketImageSection").classList.contains("hidden"), true);
+  assert.equal(get("estWaitTimeRow").style.display, "");
+});
+
+test("ticket hides expected wait for Dine-In, including service overrides, but not other modes", () => {
+  const ticketHtml = readFileSync(new URL("./templates/queue-ticket.html", import.meta.url), "utf8");
+  const start = ticketHtml.indexOf("document.getElementById('est-wait-field').style.display =");
+  const end = ticketHtml.indexOf(";", start) + 1;
+  assert.ok(start >= 0 && end > start);
+  for (const [mode, flag, expected] of [
+    ["dine_in", undefined, "none"], ["dinein", undefined, "none"],
+    ["fifo", true, "none"], ["dine_in", false, ""],
+    ["fifo", false, ""], ["takeaway", false, ""],
+  ]) {
+    const field = { style: { display: "" } };
+    runInNewContext(ticketHtml.slice(start, end), {
+      mode, data: { hideExpectedWait: flag },
+      document: { getElementById: () => field },
+    });
+    assert.equal(field.style.display, expected);
+  }
 });
 
 test("the join response includes the image only for Dine-In", () => {

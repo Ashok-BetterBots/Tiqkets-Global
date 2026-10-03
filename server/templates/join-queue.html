@@ -1045,7 +1045,7 @@
               <span class="queue-info-label" data-i18n="position">Position</span>
               <span class="queue-info-value" id="queuePosition">--</span>
             </div>
-            <div class="queue-info-row">
+            <div class="queue-info-row" id="estWaitTimeRow">
               <span class="queue-info-label" data-i18n="estWaitTime">Est. Wait Time</span>
               <span class="queue-info-value" id="estWaitTime">--</span>
             </div>
@@ -1793,6 +1793,7 @@
         document.getElementById('confirmedService').textContent = selectedService.name;
         document.getElementById('queuePosition').textContent = `#${result.position} of ${result.totalInQueue}`;
         document.getElementById('estWaitTime').textContent = `~${result.estimatedWait} min`;
+        document.getElementById('estWaitTimeRow').style.display = isDineInFlow ? 'none' : '';
 
         // Show guests row if a partySize / guests field was submitted
         const partySize = data.partySize || data.guests || '';

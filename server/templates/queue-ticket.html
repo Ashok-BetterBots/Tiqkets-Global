@@ -449,7 +449,7 @@ body.embed .ticket-outer {
           <span class="lbl">Joined queue</span>
           <div class="val" id="joined-time">—</div>
         </div>
-        <div class="field">
+        <div class="field" id="est-wait-field">
           <span class="lbl">Expected wait</span>
           <div class="val" id="est-wait">—</div>
         </div>
@@ -603,6 +603,10 @@ body.embed .ticket-outer {
     var wait = parseInt(data.estimatedWait, 10) || 0;
     var pos  = parseInt(data.position, 10)       || 0;
     var ewEl = document.getElementById('est-wait');
+    document.getElementById('est-wait-field').style.display =
+      (typeof data.hideExpectedWait === 'boolean'
+        ? data.hideExpectedWait
+        : mode === 'dinein' || mode === 'dine_in') ? 'none' : '';
     if (wait > 0) {
       ewEl.innerHTML = '~' + wait + ' <small>min</small>';
     } else {
