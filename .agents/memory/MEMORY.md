@@ -3,6 +3,7 @@
 - [Event screens need shared React Query cache](event-screens-shared-query-cache.md) — independent per-screen local-state fetches of events data caused "no event available" until visiting another events screen; use shared queryKeys + login prefetch.
 - [WhatsApp Cloud API silently drops bad numbers](whatsapp-country-code-silent-fail.md) — API returns success+wamid for a number missing its country code; it's never delivered. Always send full international digits.
 - [Org stats — what counts as served](org-stats-completion.md) — dashboard "served" metrics must count dine-in `arrived` (seating = the service), not just `completed`, or active dine-in branches read 0.
+- [Home analytics scope](home-analytics-scope.md) — mobile Home performance cards and charts show the selected branch/service across all staff; separate Reports staff filters stay unchanged.
 - [Multi-stage journey persistence](multistage-journey-persistence.md) — journey stage moves/completion must POST to /move-stage and /complete; client context functions were local-state-only.
 - [Join must set journey fields](join-must-set-journey-fields.md) — multi-stage tickets need journeyId/currentStage*/stageHistory set on createTicket or dashboard stage-nav stays hidden.
 - [Production secrets location](replit-production-secrets.md) — ORG_SESSION_SECRET & SUPER_ADMIN_TOKEN live plaintext in `.replit [userenv.production]`, not the encrypted store; `.replit` not directly editable.

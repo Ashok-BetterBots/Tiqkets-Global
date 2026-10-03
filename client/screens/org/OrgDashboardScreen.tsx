@@ -135,6 +135,42 @@ export default function OrgDashboardScreen() {
 
   const waitingCount = queue.filter((c) => c.status === "waiting").length;
 
+  const accessibleBranches = getAccessibleBranches();
+  const canSelectBranch = accessibleBranches.length > 1;
+  const activeBranch = accessibleBranches.find(b => b.id === selectedBranchId)
+    || (accessibleBranches.length > 0 ? accessibleBranches[0] : null);
+  const branchServices = activeBranch ? getAccessibleServices(activeBranch.id) : [];
+  const pickerServices = branchServices;
+  const selectedService = branchServices.find(s => s.id === selectedServiceId);
+  const availableDesks = selectedServiceId && selectedService?.desks
+    ? selectedService.desks.filter(d => d.isActive)
+    : [];
+  // Don't fetch with the previous branch's service during a scope switch.
+  const analyticsServiceId = selectedService?.id;
+  const analyticsScopeReady = !!organization?.id && !!activeBranch?.id && !!analyticsServiceId;
+
+  // Home-only data: shared organisation stats and other screens stay unchanged.
+  const todayReportQuery = useQuery<{
+    summary: { totalTickets: number; completed: number; noShows: number; avgWaitTime: number; maxWaitTime: number };
+  }>({
+    queryKey: ["/api/reports", organization?.id, "summary", "today-peak-wait", activeBranch?.id, analyticsServiceId],
+    enabled: analyticsScopeReady,
+    staleTime: 15_000,
+    refetchInterval: 8_000,
+    queryFn: async ({ signal }) => {
+      const today = new Date().toISOString().split("T")[0];
+      const url = new URL(`/api/reports/${organization!.id}/summary`, getApiUrl());
+      url.searchParams.set("startDate", today);
+      url.searchParams.set("endDate", today);
+      url.searchParams.set("branchId", activeBranch!.id);
+      url.searchParams.set("serviceId", analyticsServiceId!);
+      const res = await fetch(url.toString(), { credentials: "include", signal });
+      if (!res.ok) throw new Error(`Failed to load today's performance (${res.status})`);
+      return res.json();
+    },
+  });
+  const peakWaitMinutes = Math.round(todayReportQuery.data?.summary?.maxWaitTime ?? 0);
+
   // Real analytics from /api/reports/:orgId/summary. We fetch once with a
   // 365-day window which gives us the daily breakdown used for the Served
   // Report and Weekly Trend charts. The Hourly Trend uses a separate query
@@ -144,16 +180,18 @@ export default function OrgDashboardScreen() {
   const longRangeReportQuery = useQuery<{
     daily: { date: string; total: number; completed: number; noShow: number; cancelled: number }[];
   }>({
-    queryKey: ["/api/reports", organization?.id, "summary", "long-range"],
-    enabled: !!organization?.id,
+    queryKey: ["/api/reports", organization?.id, "summary", "long-range", activeBranch?.id, analyticsServiceId],
+    enabled: analyticsScopeReady,
     staleTime: 15_000,
     refetchInterval: 30_000,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const start = new Date();
       start.setDate(start.getDate() - 365);
       const url = new URL(`/api/reports/${organization!.id}/summary`, getApiUrl());
       url.searchParams.set("startDate", start.toISOString().split("T")[0]);
-      const res = await fetch(url.toString(), { credentials: "include" });
+      url.searchParams.set("branchId", activeBranch!.id);
+      url.searchParams.set("serviceId", analyticsServiceId!);
+      const res = await fetch(url.toString(), { credentials: "include", signal });
       if (!res.ok) throw new Error(`Failed to load report (${res.status})`);
       return res.json();
     },
@@ -162,16 +200,18 @@ export default function OrgDashboardScreen() {
   const hourlyReportQuery = useQuery<{
     hourly: { hour: number; total: number; completed: number; noShow: number }[];
   }>({
-    queryKey: ["/api/reports", organization?.id, "summary", "hourly", hourlyTrendPeriod],
-    enabled: !!organization?.id,
+    queryKey: ["/api/reports", organization?.id, "summary", "hourly", hourlyTrendPeriod, activeBranch?.id, analyticsServiceId],
+    enabled: analyticsScopeReady,
     staleTime: 15_000,
     refetchInterval: 30_000,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const start = new Date();
       start.setDate(start.getDate() - hourlyTrendPeriod);
       const url = new URL(`/api/reports/${organization!.id}/summary`, getApiUrl());
       url.searchParams.set("startDate", start.toISOString().split("T")[0]);
-      const res = await fetch(url.toString(), { credentials: "include" });
+      url.searchParams.set("branchId", activeBranch!.id);
+      url.searchParams.set("serviceId", analyticsServiceId!);
+      const res = await fetch(url.toString(), { credentials: "include", signal });
       if (!res.ok) throw new Error(`Failed to load report (${res.status})`);
       return res.json();
     },
@@ -255,12 +295,20 @@ export default function OrgDashboardScreen() {
 
   const servingCount = queue.filter((c) => c.status === "serving" || c.status === "called").length;
 
+  const refreshHomeAnalytics = useCallback(async () => {
+    if (!analyticsScopeReady) return;
+    await Promise.all([
+      longRangeReportQuery.refetch(),
+      hourlyReportQuery.refetch(),
+      todayReportQuery.refetch(),
+    ]);
+  }, [analyticsScopeReady, activeBranch?.id, analyticsServiceId, longRangeReportQuery.refetch, hourlyReportQuery.refetch, todayReportQuery.refetch]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
       refreshStats(),
-      longRangeReportQuery.refetch(),
-      hourlyReportQuery.refetch(),
+      refreshHomeAnalytics(),
     ]);
     setRefreshing(false);
   };
@@ -271,9 +319,8 @@ export default function OrgDashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       void refreshStats();
-      void longRangeReportQuery.refetch();
-      void hourlyReportQuery.refetch();
-    }, [organization?.id, hourlyTrendPeriod, refreshStats, longRangeReportQuery.refetch, hourlyReportQuery.refetch])
+      void refreshHomeAnalytics();
+    }, [organization?.id, hourlyTrendPeriod, refreshStats, refreshHomeAnalytics])
   );
 
   // Live auto-refresh of the queue widget while the Home tab is focused, so the
@@ -329,39 +376,6 @@ export default function OrgDashboardScreen() {
   const showSubBanner = subInactive || trialEndingSoon;
   const subBannerExpired = subInactive || (trialDaysRemaining !== null && trialDaysRemaining <= 0);
   const canManageBilling = hasPermission("org.billing.manage");
-
-  const accessibleBranches = getAccessibleBranches();
-  const canSelectBranch = accessibleBranches.length > 1;
-  const activeBranch = accessibleBranches.find(b => b.id === selectedBranchId)
-    || (accessibleBranches.length > 0 ? accessibleBranches[0] : null);
-  const branchServices = activeBranch ? getAccessibleServices(activeBranch.id) : [];
-  const pickerServices = branchServices;
-  const selectedService = branchServices.find(s => s.id === selectedServiceId);
-  const availableDesks = selectedServiceId && selectedService?.desks
-    ? selectedService.desks.filter(d => d.isActive)
-    : [];
-
-  // Peak wait time today, scoped to the currently selected branch + service.
-  // The summary endpoint returns maxWaitTime (minutes) for the filtered set,
-  // which is exactly the "Peak Wait" performance metric.
-  const peakWaitQuery = useQuery<{ summary: { maxWaitTime: number } }>({
-    queryKey: ["/api/reports", organization?.id, "summary", "today-peak-wait", activeBranch?.id, selectedServiceId],
-    enabled: !!organization?.id && !!activeBranch?.id,
-    staleTime: 15_000,
-    refetchInterval: 30_000,
-    queryFn: async () => {
-      const today = new Date().toISOString().split("T")[0];
-      const url = new URL(`/api/reports/${organization!.id}/summary`, getApiUrl());
-      url.searchParams.set("startDate", today);
-      url.searchParams.set("endDate", today);
-      if (activeBranch?.id) url.searchParams.set("branchId", activeBranch.id);
-      if (selectedServiceId) url.searchParams.set("serviceId", selectedServiceId);
-      const res = await fetch(url.toString(), { credentials: "include" });
-      if (!res.ok) throw new Error(`Failed to load peak wait (${res.status})`);
-      return res.json();
-    },
-  });
-  const peakWaitMinutes = Math.round(peakWaitQuery.data?.summary?.maxWaitTime ?? 0);
 
   // Queue Control auto-selects the first service whenever the current service
   // is empty or invalid for the active branch. The branch is always concrete.
@@ -438,10 +452,10 @@ export default function OrgDashboardScreen() {
   const dropdownStyle = { backgroundColor: isDark ? colors.surfaceMuted : "#FAFAFC", borderColor: isDark ? colors.border : "rgba(0,0,0,0.06)" };
 
   const perfCards: { label: string; value: string | number; icon: keyof typeof Feather.glyphMap; color: string; bg: string }[] = [
-    { label: "Bookings", value: organization.stats.totalBookingsToday, icon: "calendar", color: "#6366F1", bg: "#EEF2FF" },
-    { label: "Served", value: organization.stats.todayServed, icon: "check-circle", color: "#16A34A", bg: "#DCFCE7" },
-    { label: "No Shows", value: organization.stats.todayNoShow, icon: "x-circle", color: "#D97706", bg: "#FEF3C7" },
-    { label: "Avg Wait", value: `${organization.stats.averageWaitTime}m`, icon: "clock", color: "#0891B2", bg: "#ECFEFF" },
+    { label: "Bookings", value: todayReportQuery.data?.summary?.totalTickets ?? 0, icon: "calendar", color: "#6366F1", bg: "#EEF2FF" },
+    { label: "Served", value: todayReportQuery.data?.summary?.completed ?? 0, icon: "check-circle", color: "#16A34A", bg: "#DCFCE7" },
+    { label: "No Shows", value: todayReportQuery.data?.summary?.noShows ?? 0, icon: "x-circle", color: "#D97706", bg: "#FEF3C7" },
+    { label: "Avg Wait", value: `${todayReportQuery.data?.summary?.avgWaitTime ?? 0}m`, icon: "clock", color: "#0891B2", bg: "#ECFEFF" },
     { label: "Peak Wait", value: `${peakWaitMinutes}m`, icon: "trending-up", color: "#E11D48", bg: "#FFF1F2" },
   ];
 
