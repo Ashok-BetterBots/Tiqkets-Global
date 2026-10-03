@@ -314,20 +314,30 @@ export function registerQueueTicketRoutes(app: Express) {
       const ticket = await findTicketByToken(token);
       if (!ticket) return res.status(404).send("Not found");
 
+      const [service] = ticket.serviceId
+        ? await db.select({ serviceSettings: services.serviceSettings })
+            .from(services).where(eq(services.id, ticket.serviceId)).limit(1)
+        : [];
+      const mode = (service?.serviceSettings as Record<string, unknown> | null)?.queueMode || ticket.queueMode;
+      const isDineIn = mode === "dine_in" || mode === "dinein";
       const { getCachedQueueTicketImage, preRenderAndCacheQueueTicketImage } = await import("./ticket-image");
 
       // Serve from cache instantly when available (pre-rendered by WhatsApp sender).
       const cached = getCachedQueueTicketImage(ticket.qrToken!);
       if (cached) {
+        if (isDineIn) {
+          // An existing cache entry may have been prepared by another caller.
+          await preRenderAndCacheQueueTicketImage(ticket.qrToken!, undefined, { deleteAfterDay: true });
+        }
         res.setHeader("Content-Type", "image/png");
-        res.setHeader("Cache-Control", "public, max-age=3600");
+        res.setHeader("Cache-Control", isDineIn ? "no-store" : "public, max-age=3600");
         return res.send(cached);
       }
 
       // Cache miss — render now and store for subsequent fetches.
-      const png = await preRenderAndCacheQueueTicketImage(ticket.qrToken!);
+      const png = await preRenderAndCacheQueueTicketImage(ticket.qrToken!, undefined, { deleteAfterDay: isDineIn });
       res.setHeader("Content-Type", "image/png");
-      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Cache-Control", isDineIn ? "no-store" : "public, max-age=3600");
       res.send(png);
     } catch (e) {
       console.error("[queue-ticket] image render failed:", e);

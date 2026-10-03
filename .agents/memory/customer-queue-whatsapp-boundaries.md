@@ -38,3 +38,15 @@ history snapshot can erase their successful-send markers.
 **How to apply:** Dispatch channels independently and append markers atomically.
 Do not change Meta templates, credentials, customer phone records, or production
 data to work around these pipeline failures.
+
+For Dine-In web QR registrations, Booking Confirmed must show the generated
+ticket image used by WhatsApp, without a WhatsApp redirect button. Keep the
+server's cached image for no more than 24 hours and remove it automatically,
+not only when a later request notices that it has expired.
+
+**Why:** The user explicitly requested this web confirmation behavior and
+one-day image retention, with no other changes.
+
+**How to apply:** Scope this behavior to Dine-In. Image-cache cleanup must not
+delete booking records or change other modes or already-delivered WhatsApp
+messages.

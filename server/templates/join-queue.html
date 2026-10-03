@@ -877,6 +877,27 @@
 
     .wa-link-btn:active { transform: translateY(0); }
 
+    .ticket-image-section {
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    .ticket-image {
+      display: block;
+      width: 100%;
+      max-width: 360px;
+      height: auto;
+      margin: 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    .ticket-image-status {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
     /* ── Language picker ─────────────────────────────────── */
     .lang-picker {
       position: fixed;
@@ -1028,6 +1049,12 @@
               <span class="queue-info-label" data-i18n="estWaitTime">Est. Wait Time</span>
               <span class="queue-info-value" id="estWaitTime">--</span>
             </div>
+          </div>
+
+          <div id="ticketImageSection" class="ticket-image-section hidden">
+            <p id="ticketImageLoading" class="ticket-image-status" role="status">Loading your ticket…</p>
+            <img id="ticketImage" class="ticket-image hidden" alt="Your queue ticket" />
+            <p id="ticketImageError" class="ticket-image-status hidden" role="alert">Your ticket image could not be loaded.</p>
           </div>
 
           <!-- WhatsApp ticket-sent notice (dine-in / approved template flow) -->
@@ -1755,9 +1782,11 @@
         const result = await response.json();
 
         // ── Determine flow type ──────────────────────────────────────────────
-        // dine-in / approved-template: ticket is already sent, no ref code needed.
-        // Regular queue: customer must confirm via WhatsApp bot (ref code flow).
-        const isDineInFlow = !result.whatsappRefCode;
+        // Dine-in QR joins are identified explicitly; a reference code may still
+        // be present because the ticket is also sent through WhatsApp.
+        const isDineInFlow = result.isDineIn === true;
+        // Retain the previous no-reference behavior for older non-dine-in responses.
+        const isLegacyNoRefFlow = !isDineInFlow && !result.whatsappRefCode;
 
         // ── Populate success screen ──────────────────────────────────────────
         document.getElementById('queueNumber').textContent = result.ticketNumber;
@@ -1778,14 +1807,44 @@
           ticketNumber: result.ticketNumber,
           refCode: result.whatsappRefCode || '',
           whatsappUrl: result.whatsappUrl || '',
-          isDineIn: isDineInFlow,
+          isDineIn: isDineInFlow || isLegacyNoRefFlow,
           consumed: false,
           createdAt: Date.now(),
         };
         saveSession(sessionPayload);
 
         if (isDineInFlow) {
-          // Dine-in: show "ticket sent" notice; offer WhatsApp link (no auto-redirect)
+          // Dine-in: show the generated ticket image, without WhatsApp actions.
+          document.getElementById('waNoticeSection').style.display = 'flex';
+          document.getElementById('whatsappSection').style.display = 'none';
+          document.getElementById('whatsappBtn').style.display = 'none';
+          document.getElementById('whatsappHint').style.display = 'none';
+
+          const ticketSection = document.getElementById('ticketImageSection');
+          const ticketImage = document.getElementById('ticketImage');
+          const ticketLoading = document.getElementById('ticketImageLoading');
+          const ticketError = document.getElementById('ticketImageError');
+          ticketSection.classList.remove('hidden');
+          ticketLoading.classList.remove('hidden');
+          ticketImage.classList.add('hidden');
+          ticketError.classList.add('hidden');
+
+          if (result.ticketImageUrl) {
+            ticketImage.onload = () => {
+              ticketLoading.classList.add('hidden');
+              ticketImage.classList.remove('hidden');
+            };
+            ticketImage.onerror = () => {
+              ticketLoading.classList.add('hidden');
+              ticketError.classList.remove('hidden');
+            };
+            ticketImage.src = result.ticketImageUrl;
+          } else {
+            ticketLoading.classList.add('hidden');
+            ticketError.classList.remove('hidden');
+          }
+        } else if (isLegacyNoRefFlow) {
+          // Older no-reference flow: preserve its existing WhatsApp ticket notice.
           document.getElementById('waNoticeSection').style.display = 'flex';
           if (result.whatsappUrl) {
             const btn = document.getElementById('whatsappBtn');

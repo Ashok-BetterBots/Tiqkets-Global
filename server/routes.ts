@@ -636,6 +636,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         queueId: ticket.id,
         whatsappRefCode,
         whatsappUrl,
+        ...(isDineIn ? {
+          isDineIn: true,
+          ticketImageUrl: `/queue-ticket-image/${qrToken}.png`,
+        } : {}),
       });
     } catch (error) {
       console.error("Error joining queue:", error);

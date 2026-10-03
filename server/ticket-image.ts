@@ -37,7 +37,11 @@ let cachedChromiumPath: string | null | undefined;
 // pre-render before sending → Meta hits a warm cache → zero delay.
 
 // Queue ticket image cache (non-event queue boarding pass)
-const _queueImageCache = new Map<string, { buf: Buffer; ts: number }>();
+const _queueImageCache = new Map<string, {
+  buf: Buffer;
+  ts: number;
+  expiryTimer?: ReturnType<typeof setTimeout>;
+}>();
 const _queueImageRenderInFlight = new Map<string, Promise<Buffer>>();
 const QUEUE_IMAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -67,27 +71,50 @@ export function setEventTicketImageCache(qrToken: string, buf: Buffer): void {
 export function getCachedQueueTicketImage(qrToken: string): Buffer | null {
   const entry = _queueImageCache.get(qrToken);
   if (!entry) return null;
-  if (Date.now() - entry.ts > QUEUE_IMAGE_CACHE_TTL_MS) {
+  if (Date.now() - entry.ts >= QUEUE_IMAGE_CACHE_TTL_MS) {
+    if (entry.expiryTimer) clearTimeout(entry.expiryTimer);
     _queueImageCache.delete(qrToken);
     return null;
   }
   return entry.buf;
 }
 
+function scheduleDineInImageDeletion(qrToken: string): void {
+  const entry = _queueImageCache.get(qrToken);
+  if (!entry || entry.expiryTimer) return;
+  // Delete without waiting for another request. Reads do not extend retention.
+  const remaining = Math.max(0, entry.ts + QUEUE_IMAGE_CACHE_TTL_MS - Date.now());
+  entry.expiryTimer = setTimeout(() => {
+    if (_queueImageCache.get(qrToken) === entry) {
+      _queueImageCache.delete(qrToken);
+    }
+  }, remaining);
+  entry.expiryTimer.unref?.();
+}
+
 /** Pre-renders and caches the queue ticket image.  Safe to fire-and-forget. */
 export async function preRenderAndCacheQueueTicketImage(
   qrToken: string,
   render: (token: string) => Promise<Buffer> = renderQueueTicketImage,
+  opts: { deleteAfterDay?: boolean } = {},
 ): Promise<Buffer> {
   // Return from cache if still fresh — avoid redundant Playwright renders.
   const cached = getCachedQueueTicketImage(qrToken);
-  if (cached) return cached;
+  if (cached) {
+    if (opts.deleteAfterDay) scheduleDineInImageDeletion(qrToken);
+    return cached;
+  }
   const inFlight = _queueImageRenderInFlight.get(qrToken);
-  if (inFlight) return inFlight;
+  if (inFlight) {
+    const buf = await inFlight;
+    if (opts.deleteAfterDay) scheduleDineInImageDeletion(qrToken);
+    return buf;
+  }
 
   const renderPromise = render(qrToken)
     .then((buf) => {
       _queueImageCache.set(qrToken, { buf, ts: Date.now() });
+      if (opts.deleteAfterDay) scheduleDineInImageDeletion(qrToken);
       return buf;
     })
     .finally(() => {

@@ -1105,7 +1105,7 @@ async function sendDineInApprovedTemplateOnce(
     // Meta's fetch window, adding a visible delay to every message.
     // After pre-render the cache serves the image in ~0 ms.
     try {
-      await preRenderAndCacheQueueTicketImage(row.qrToken as string);
+      await preRenderAndCacheQueueTicketImage(row.qrToken as string, undefined, { deleteAfterDay: true });
     } catch {
       console.error(`[customer-queue-wa] trigger=${trigger} outcome=failed reason=image_preparation_failed`);
       return false; // The worker can retry; do not advertise unusable media.
