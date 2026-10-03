@@ -3026,14 +3026,14 @@ export default function OrgQueueScreen() {
 
                 <View style={styles.diWaitingActions}>
                   <Pressable
-                    style={[styles.diAssignBtn, { backgroundColor: colors.primaryDark }]}
+                    style={({ pressed }) => [styles.diAssignBtn, { backgroundColor: colors.primaryDark }, pressed && styles.diActionPressed]}
                     onPress={() => handleOpenTableAllocation(customer)}
                     testID={`button-assign-table-${customer.id}`}
                   >
                     <ThemedText style={styles.diAssignBtnText}>Assign Table</ThemedText>
                   </Pressable>
                   <Pressable
-                    style={[styles.diMoreBtn, { borderColor: colors.primary }]}
+                    style={({ pressed }) => [styles.diMoreBtn, { borderColor: colors.primary }, pressed && styles.diActionPressed]}
                     onPress={() => setMorePopupCustomer(customer)}
                     testID={`button-more-${customer.id}`}
                   >
@@ -3106,21 +3106,21 @@ export default function OrgQueueScreen() {
 
                 <View style={styles.diAssignedActions}>
                   <Pressable
-                    style={[styles.diAssignedBtn, { borderColor: colors.primary }]}
+                    style={({ pressed }) => [styles.diAssignedBtn, { borderColor: colors.primary }, pressed && styles.diActionPressed]}
                     onPress={() => handleHoldCustomer(customer.id)}
                     testID={`button-hold-${customer.id}`}
                   >
                     <ThemedText style={[styles.diAssignedBtnText, { color: colors.primary }]}>Hold</ThemedText>
                   </Pressable>
                   <Pressable
-                    style={[styles.diAssignedBtn, { borderColor: colors.primary }]}
+                    style={({ pressed }) => [styles.diAssignedBtn, { borderColor: colors.primary }, pressed && styles.diActionPressed]}
                     onPress={() => handleDineInCallAgain(customer.id)}
                     testID={`button-call-again-${customer.id}`}
                   >
                     <ThemedText style={[styles.diAssignedBtnText, { color: colors.primary }]}>Call again</ThemedText>
                   </Pressable>
                   <Pressable
-                    style={styles.diSeatedBtn}
+                    style={({ pressed }) => [styles.diSeatedBtn, pressed && styles.diActionPressed]}
                     onPress={() => handleMarkArrived(customer.id)}
                     testID={`button-seated-${customer.id}`}
                   >
@@ -3183,14 +3183,14 @@ export default function OrgQueueScreen() {
 
                 <View style={styles.diAssignedActions}>
                   <Pressable
-                    style={[styles.diAssignedBtn, { borderColor: colors.primary, flex: 1 }]}
+                    style={({ pressed }) => [styles.diAssignedBtn, { borderColor: colors.primary, flex: 1 }, pressed && styles.diActionPressed]}
                     onPress={() => handleWalkIn(customer.id)}
                     testID={`button-walkin-hold-${customer.id}`}
                   >
                     <ThemedText style={[styles.diAssignedBtnText, { color: colors.primary }]}>Walk In</ThemedText>
                   </Pressable>
                   <Pressable
-                    style={[styles.diSeatedBtn, { flex: 1.4 }]}
+                    style={({ pressed }) => [styles.diSeatedBtn, { flex: 1.4 }, pressed && styles.diActionPressed]}
                     onPress={() => handleResumeCustomer(customer.id)}
                     testID={`button-resume-${customer.id}`}
                   >
@@ -3670,7 +3670,7 @@ export default function OrgQueueScreen() {
                 {morePopupCustomer?.customerName}
               </ThemedText>
               <Pressable
-                style={[styles.morePopupBtn, { backgroundColor: colors.primaryDark }]}
+                style={({ pressed }) => [styles.morePopupBtn, { backgroundColor: colors.primaryDark }, pressed && styles.diActionPressed]}
                 onPress={() => {
                   const c = morePopupCustomer;
                   setMorePopupCustomer(null);
@@ -3682,7 +3682,7 @@ export default function OrgQueueScreen() {
                 <ThemedText style={styles.morePopupBtnText}>Walk In</ThemedText>
               </Pressable>
               <Pressable
-                style={[styles.morePopupBtn, styles.morePopupBtnOutline, { borderColor: colors.primary }]}
+                style={({ pressed }) => [styles.morePopupBtn, styles.morePopupBtnOutline, { borderColor: colors.primary }, pressed && styles.diActionPressed]}
                 onPress={() => { if (morePopupCustomer) handleOpenEdit(morePopupCustomer); }}
                 testID="button-popup-edit"
               >
@@ -6883,6 +6883,10 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     gap: 10,
     alignItems: "center",
     marginBottom: 8,
+  },
+  diActionPressed: {
+    opacity: 0.65,
+    transform: [{ scale: 0.97 }],
   },
   diAssignBtn: {
     flex: 1,
