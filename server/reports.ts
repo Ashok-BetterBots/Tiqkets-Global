@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "./db";
 import { tickets, reservations, branches, services, desks, orgUsers, customers, organizations, events, eventRegistrations } from "@shared/schema";
 import { eq, and, gte, lte, sql, count, avg, inArray, isNull, or } from "drizzle-orm";
+import { createHomeReportCalendar, shiftHomeReportDate } from "@shared/home-report-calendar";
 
 function maskPhone(phone: string): string {
   if (!phone || phone.length <= 3) return phone ? '***' : '';
@@ -227,6 +228,19 @@ export function registerReportRoutes(app: Express) {
     try {
       const { orgId } = req.params;
       const { startDate, endDate, branchId, serviceId, deskId, staffId, source, eventId } = req.query;
+      let homeCalendar: ReturnType<typeof createHomeReportCalendar> | undefined;
+      if (req.query.homeTimeZone !== undefined) {
+        try {
+          if (typeof req.query.homeTimeZone !== "string") throw new Error("Invalid timezone");
+          homeCalendar = createHomeReportCalendar(req.query.homeTimeZone);
+          for (const date of [startDate, endDate]) {
+            if (date !== undefined && (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)
+              || !Number.isFinite(Date.parse(`${date}T00:00:00.000Z`)))) throw new Error("Invalid date");
+          }
+        } catch {
+          return res.status(400).json({ error: "Invalid Home report timezone or date" });
+        }
+      }
 
       const orgBranches = await db.select({ id: branches.id, name: branches.name, queueMode: branches.queueMode })
         .from(branches).where(eq(branches.organizationId, orgId as string));
@@ -243,10 +257,13 @@ export function registerReportRoutes(app: Express) {
       }
 
       const conditions: any[] = [inArray(tickets.branchId, branchId ? [branchId as string] : branchIds)];
-      if (startDate) conditions.push(gte(tickets.joinedAt, new Date(startDate as string)));
+      if (startDate) conditions.push(gte(tickets.joinedAt, homeCalendar
+        ? homeCalendar.dayStart(startDate as string) : new Date(startDate as string)));
       if (endDate) {
-        const end = new Date(endDate as string);
-        end.setHours(23, 59, 59, 999);
+        const end = homeCalendar
+          ? new Date(homeCalendar.dayStart(shiftHomeReportDate(endDate as string, 1)).getTime() - 1)
+          : new Date(endDate as string);
+        if (!homeCalendar) end.setHours(23, 59, 59, 999);
         conditions.push(lte(tickets.joinedAt, end));
       }
       if (serviceId) conditions.push(eq(tickets.serviceId, serviceId as string));
@@ -347,7 +364,7 @@ export function registerReportRoutes(app: Express) {
       const hourlyMap = new Map<number, { total: number; completed: number; noShow: number }>();
       for (let h = 0; h < 24; h++) hourlyMap.set(h, { total: 0, completed: 0, noShow: 0 });
       allTickets.forEach(t => {
-        const hour = new Date(t.joinedAt).getHours();
+        const hour = homeCalendar ? homeCalendar.hour(new Date(t.joinedAt)) : new Date(t.joinedAt).getHours();
         const entry = hourlyMap.get(hour)!;
         entry.total++;
         if (isServed(t.status)) entry.completed++;
@@ -357,7 +374,7 @@ export function registerReportRoutes(app: Express) {
 
       const dailyMap = new Map<string, { total: number; completed: number; noShow: number; cancelled: number }>();
       allTickets.forEach(t => {
-        const day = new Date(t.joinedAt).toISOString().split("T")[0];
+        const day = homeCalendar ? homeCalendar.dateKey(new Date(t.joinedAt)) : new Date(t.joinedAt).toISOString().split("T")[0];
         if (!dailyMap.has(day)) dailyMap.set(day, { total: 0, completed: 0, noShow: 0, cancelled: 0 });
         const entry = dailyMap.get(day)!;
         entry.total++;

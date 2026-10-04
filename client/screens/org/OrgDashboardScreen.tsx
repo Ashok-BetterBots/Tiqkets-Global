@@ -16,6 +16,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { getRoleLabel } from "@/types/organization";
 import { useQuery } from "@tanstack/react-query";
 import { getApiUrl } from "@/lib/query-client";
+import { createHomeReportCalendar, shiftHomeReportDate } from "@shared/home-report-calendar";
 
 type ReportPeriod = 7 | 14 | 30;
 type TrendPeriod = 30 | 60 | 90 | 180 | 365;
@@ -30,9 +31,10 @@ const TREND_PERIODS: { value: TrendPeriod; label: string }[] = [
 
 // Weekday short labels (Sun..Sat), matching currentWeeklyData's index order.
 const WEEK_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
-// 15 hourly buckets 9AM..11PM; only every other hour is labelled to stay legible.
-const HOUR_VALUES = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
-const HOUR_LABELS = ["9A", "", "11A", "", "1P", "", "3P", "", "5P", "", "7P", "", "9P", "", "11P"];
+// Include every hour; transactions outside business hours must still count.
+const HOUR_VALUES = Array.from({ length: 24 }, (_, hour) => hour);
+const HOUR_LABELS = HOUR_VALUES.map(hour =>
+  hour % 3 === 0 ? `${hour % 12 || 12}${hour < 12 ? "A" : "P"}` : "");
 
 const formatHour = (h: number) => {
   const ampm = h < 12 ? "AM" : "PM";
@@ -147,23 +149,31 @@ export default function OrgDashboardScreen() {
     : [];
   // Don't fetch with the previous branch's service during a scope switch.
   const analyticsServiceId = selectedService?.id;
-  const analyticsScopeReady = !!organization?.id && !!activeBranch?.id && !!analyticsServiceId;
+  const analyticsDeskId = selectedDeskId === "all" ? undefined
+    : availableDesks.find(desk => desk.id === selectedDeskId)?.id;
+  const analyticsTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const homeCalendar = useMemo(() => createHomeReportCalendar(analyticsTimeZone), [analyticsTimeZone]);
+  const analyticsScopeReady = !!organization?.id && !!activeBranch?.id && !!analyticsServiceId
+    && (selectedDeskId === "all" || !!analyticsDeskId);
 
   // Home-only data: shared organisation stats and other screens stay unchanged.
   const todayReportQuery = useQuery<{
     summary: { totalTickets: number; completed: number; noShows: number; avgWaitTime: number; maxWaitTime: number };
   }>({
-    queryKey: ["/api/reports", organization?.id, "summary", "today-peak-wait", activeBranch?.id, analyticsServiceId],
+    queryKey: ["/api/reports", organization?.id, "summary", "today-peak-wait", activeBranch?.id, analyticsServiceId, analyticsDeskId, analyticsTimeZone],
     enabled: analyticsScopeReady,
     staleTime: 15_000,
     refetchInterval: 8_000,
     queryFn: async ({ signal }) => {
-      const today = new Date().toISOString().split("T")[0];
+      const today = homeCalendar.dateKey(new Date());
       const url = new URL(`/api/reports/${organization!.id}/summary`, getApiUrl());
       url.searchParams.set("startDate", today);
       url.searchParams.set("endDate", today);
       url.searchParams.set("branchId", activeBranch!.id);
       url.searchParams.set("serviceId", analyticsServiceId!);
+      if (analyticsDeskId) url.searchParams.set("deskId", analyticsDeskId);
+      url.searchParams.set("homeTimeZone", analyticsTimeZone);
+      url.searchParams.set("t", String(Date.now()));
       const res = await fetch(url.toString(), { credentials: "include", signal });
       if (!res.ok) throw new Error(`Failed to load today's performance (${res.status})`);
       return res.json();
@@ -180,17 +190,19 @@ export default function OrgDashboardScreen() {
   const longRangeReportQuery = useQuery<{
     daily: { date: string; total: number; completed: number; noShow: number; cancelled: number }[];
   }>({
-    queryKey: ["/api/reports", organization?.id, "summary", "long-range", activeBranch?.id, analyticsServiceId],
+    queryKey: ["/api/reports", organization?.id, "summary", "long-range", activeBranch?.id, analyticsServiceId, analyticsDeskId, analyticsTimeZone],
     enabled: analyticsScopeReady,
     staleTime: 15_000,
     refetchInterval: 30_000,
     queryFn: async ({ signal }) => {
-      const start = new Date();
-      start.setDate(start.getDate() - 365);
+      const today = homeCalendar.dateKey(new Date());
       const url = new URL(`/api/reports/${organization!.id}/summary`, getApiUrl());
-      url.searchParams.set("startDate", start.toISOString().split("T")[0]);
+      url.searchParams.set("startDate", shiftHomeReportDate(today, -365));
       url.searchParams.set("branchId", activeBranch!.id);
       url.searchParams.set("serviceId", analyticsServiceId!);
+      if (analyticsDeskId) url.searchParams.set("deskId", analyticsDeskId);
+      url.searchParams.set("homeTimeZone", analyticsTimeZone);
+      url.searchParams.set("t", String(Date.now()));
       const res = await fetch(url.toString(), { credentials: "include", signal });
       if (!res.ok) throw new Error(`Failed to load report (${res.status})`);
       return res.json();
@@ -200,17 +212,19 @@ export default function OrgDashboardScreen() {
   const hourlyReportQuery = useQuery<{
     hourly: { hour: number; total: number; completed: number; noShow: number }[];
   }>({
-    queryKey: ["/api/reports", organization?.id, "summary", "hourly", hourlyTrendPeriod, activeBranch?.id, analyticsServiceId],
+    queryKey: ["/api/reports", organization?.id, "summary", "hourly", hourlyTrendPeriod, activeBranch?.id, analyticsServiceId, analyticsDeskId, analyticsTimeZone],
     enabled: analyticsScopeReady,
     staleTime: 15_000,
     refetchInterval: 30_000,
     queryFn: async ({ signal }) => {
-      const start = new Date();
-      start.setDate(start.getDate() - hourlyTrendPeriod);
+      const today = homeCalendar.dateKey(new Date());
       const url = new URL(`/api/reports/${organization!.id}/summary`, getApiUrl());
-      url.searchParams.set("startDate", start.toISOString().split("T")[0]);
+      url.searchParams.set("startDate", shiftHomeReportDate(today, -hourlyTrendPeriod));
       url.searchParams.set("branchId", activeBranch!.id);
       url.searchParams.set("serviceId", analyticsServiceId!);
+      if (analyticsDeskId) url.searchParams.set("deskId", analyticsDeskId);
+      url.searchParams.set("homeTimeZone", analyticsTimeZone);
+      url.searchParams.set("t", String(Date.now()));
       const res = await fetch(url.toString(), { credentials: "include", signal });
       if (!res.ok) throw new Error(`Failed to load report (${res.status})`);
       return res.json();
@@ -231,16 +245,13 @@ export default function OrgDashboardScreen() {
   // days the API didn't return (no tickets that day).
   const buildDailySeries = useCallback((days: number) => {
     const out: number[] = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = homeCalendar.dateKey(new Date());
     for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const key = d.toISOString().split("T")[0];
+      const key = shiftHomeReportDate(today, -i);
       out.push(dailyCompletedByDate.get(key) || 0);
     }
     return out;
-  }, [dailyCompletedByDate]);
+  }, [dailyCompletedByDate, homeCalendar]);
 
   const currentServedData = useMemo(() => buildDailySeries(reportPeriod), [buildDailySeries, reportPeriod]);
   const totalServed = currentServedData.reduce((sum, val) => sum + val, 0);
@@ -253,17 +264,15 @@ export default function OrgDashboardScreen() {
     const days = buildDailySeries(weeklyTrendPeriod);
     const totals = [0, 0, 0, 0, 0, 0, 0];
     const counts = [0, 0, 0, 0, 0, 0, 0];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = homeCalendar.dateKey(new Date());
     for (let i = 0; i < days.length; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - (weeklyTrendPeriod - 1 - i));
-      const dow = d.getDay();
+      const key = shiftHomeReportDate(today, -(weeklyTrendPeriod - 1 - i));
+      const dow = new Date(`${key}T12:00:00.000Z`).getUTCDay();
       totals[dow] += days[i];
       counts[dow] += 1;
     }
     return totals.map((t, idx) => (counts[idx] > 0 ? Math.round(t / counts[idx]) : 0));
-  }, [buildDailySeries, weeklyTrendPeriod]);
+  }, [buildDailySeries, weeklyTrendPeriod, homeCalendar]);
   const maxWeeklyValue = Math.max(0, ...currentWeeklyData);
 
   // Week-level aggregates for the Weekly Trend stat row.
@@ -279,8 +288,7 @@ export default function OrgDashboardScreen() {
     return { total, avgPerWeek: Math.round(total / numWeeks), peakWeek: peak };
   }, [buildDailySeries, weeklyTrendPeriod]);
 
-  // Hourly trend = completed count at each of the 15 displayed hours
-  // (9AM..11PM) over the selected window.
+  // Hourly trend = served count at every hour over the selected window.
   const currentHourlyData = useMemo(() => {
     const buckets = hourlyReportQuery.data?.hourly ?? [];
     const byHour = new Map<number, number>();
@@ -302,7 +310,7 @@ export default function OrgDashboardScreen() {
       hourlyReportQuery.refetch(),
       todayReportQuery.refetch(),
     ]);
-  }, [analyticsScopeReady, activeBranch?.id, analyticsServiceId, longRangeReportQuery.refetch, hourlyReportQuery.refetch, todayReportQuery.refetch]);
+  }, [analyticsScopeReady, activeBranch?.id, analyticsServiceId, analyticsDeskId, analyticsTimeZone, longRangeReportQuery.refetch, hourlyReportQuery.refetch, todayReportQuery.refetch]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -966,7 +974,8 @@ export default function OrgDashboardScreen() {
               <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Peak Hour</ThemedText>
             </View>
           </View>
-          <View style={styles.chartRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={[styles.chartRow, { width: 576 }]}>
             {currentHourlyData.map((value, index) => (
               <ChartBar
                 key={index}
@@ -985,6 +994,7 @@ export default function OrgDashboardScreen() {
               />
             ))}
           </View>
+          </ScrollView>
         </View>
         </>
         ) : null}

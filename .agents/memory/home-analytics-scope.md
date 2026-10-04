@@ -4,12 +4,24 @@ description: Product scope for the mobile Home performance cards and charts.
 ---
 
 Organisation mobile Home's Today's Performance, Served Report, Weekly Trend,
-and Hourly Trend must show the full selected branch and service, across all
-staff—not only activity processed by the logged-in user.
+and Hourly Trend must show the selected branch, service and desk, across all
+staff—not only activity processed by the logged-in user. All Desks includes
+every desk in the selected branch/service.
 
-**Why:** The user explicitly requested complete branch/service performance and
-limited the work to these Home sections: "Do not alter anything else."
+**Why:** The user explicitly requested complete performance for the selected
+branch and desks, including transactions processed by other users, and limited
+the work to Home without affecting other features.
 
 **How to apply:** Keep Home analytics independent of personal staff filters.
 Do not remove intentional staff filtering from the separate Reports screen or
 change other screens to follow Home's scope without a separate request.
+
+Home request boundaries, daily chart keys and hourly buckets must use the same
+calendar timezone. Hourly Trend must include the full day.
+
+**Why:** Home queries already included every staff member, but converting local
+midnight to a UTC date made positive-offset devices look up yesterday's totals.
+Server-time hour grouping and a 9AM–11PM-only chart also hid some transactions.
+
+**How to apply:** Keep timezone-aware Home reporting opt-in; separate Reports
+must retain its existing calendar and explicit staff filters unless requested.
