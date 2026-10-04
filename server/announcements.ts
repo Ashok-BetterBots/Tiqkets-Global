@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
 import { getRequestUserId } from "./rbac";
 import { getLanguage, isSupportedLanguage } from "../shared/languages";
+import { resolveOrganizationTimezone } from "../shared/home-report-calendar";
 
 // ============================================
 // TYPES
@@ -31,7 +32,10 @@ interface PlayerClient {
 type AnnouncementClient = DashboardClient | PlayerClient;
 
 interface AnnouncementEvent {
+  id: string;
   type: "call" | "serve";
+  calledAt?: Date | null;
+  servedAt?: Date | null;
   ticketNumber: string;
   customerName: string;
   serviceName: string;
@@ -481,15 +485,14 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
   });
 }
 
-// Push a lightweight "queue changed" signal to every dashboard tab that is
-// watching this branch. The client reacts by immediately re-fetching the
-// queue list so all connected staff see the new state without waiting for
-// the next poll cycle.
+// Push a lightweight "queue changed" signal to dashboards and TV/player
+// connections watching this branch. TVs refresh without replaying audio;
+// audio-only players ignore this named event.
 export function broadcastQueueUpdate(branchId: string): void {
   if (!branchId) return;
   const payload = JSON.stringify({ branchId });
   for (const client of [...clients]) {
-    if (client.kind === "dashboard" && client.branchId === branchId) {
+    if (client.branchId === branchId) {
       try {
         client.res.write(`event: queue_update\ndata: ${payload}\n\n`);
       } catch {
@@ -509,6 +512,65 @@ function removeClient(id: string) {
 // ============================================
 
 export function registerAnnouncementRoutes(app: Express) {
+  // The device token scopes both live events and snapshots. Never hydrate a
+  // service-specific TV from the unscoped public/mobile branch queue.
+  app.get("/api/announcement-player/snapshot", async (req: Request, res: Response) => {
+    res.setHeader("Cache-Control", "no-store, must-revalidate");
+    try {
+      const token = typeof req.query.token === "string" ? req.query.token : "";
+      if (!token) return res.status(400).json({ error: "token required" });
+      const device = await storage.getAnnouncementDeviceByToken(token);
+      if (!device) return res.status(404).json({ error: "Device not found" });
+      if (!device.isActive) return res.status(403).json({ error: "Device disabled" });
+      const branch = await storage.getBranchById(device.branchId);
+      if (!branch) return res.status(404).json({ error: "Branch not found" });
+      const [active, today, services, org] = await Promise.all([
+        storage.getTicketsByBranch(device.branchId, ["waiting", "called", "serving", "hold"]),
+        storage.getTodaysTicketsByBranch(device.branchId),
+        storage.getServicesByBranch(device.branchId),
+        storage.getOrganizationById(branch.organizationId),
+      ]);
+      const serviceById = new Map(services.map(service => [service.id, service]));
+      const rows = new Map([...active, ...today].map(ticket => [ticket.id, ticket]));
+      const modeFor = (serviceId: string | null) => {
+        const override = serviceId
+          ? (serviceById.get(serviceId)?.serviceSettings as Record<string, unknown> | null)?.queueMode
+          : null;
+        return typeof override === "string" && override ? override : branch.queueMode || "fifo";
+      };
+      const queue = [...rows.values()]
+        .filter(ticket => !device.serviceId || ticket.serviceId === device.serviceId)
+        .map(ticket => ({
+          id: ticket.id,
+          branchId: ticket.branchId,
+          serviceId: ticket.serviceId,
+          serviceName: ticket.serviceName,
+          ticketNumber: ticket.ticketNumber,
+          status: ticket.status,
+          position: ticket.position,
+          joinedAt: ticket.joinedAt,
+          calledAt: ticket.calledAt,
+          servedAt: ticket.servedAt,
+          deskName: ticket.deskName,
+          tableNumber: stripLeadingTableWord(ticket.tableNumber),
+          queueMode: modeFor(ticket.serviceId),
+          stageName: ticket.currentStageId && Array.isArray(ticket.stageHistory)
+            ? (ticket.stageHistory as any[]).find(stage => stage.stageId === ticket.currentStageId && !stage.completedAt)?.stageName || null
+            : null,
+        }));
+      // Display projection only: no phones, email, notes, form data or QR tokens.
+      return res.json({
+        branchId: device.branchId,
+        serviceId: device.serviceId || null,
+        queueMode: modeFor(device.serviceId),
+        timeZone: resolveOrganizationTimezone(org?.timezone),
+        queue,
+      });
+    } catch (error) {
+      console.error("Error loading TV queue snapshot:", error);
+      return res.status(500).json({ error: "Unable to load display queue" });
+    }
+  });
   // Existing dashboard SSE (used by dashboard tab) — unchanged auth/contract.
   app.get("/api/announcements/stream", async (req: Request, res: Response) => {
     const branchId = req.query.branchId as string;
@@ -594,6 +656,7 @@ export function registerAnnouncementRoutes(app: Express) {
     let organizationName: string | null = null;
     let organizationLogoUrl: string | null = null;
     let serviceName: string | null = null;
+    let timeZone = resolveOrganizationTimezone(null);
     try {
       const branch = await storage.getBranchById(device.branchId);
       branchName = (branch?.name as string) || null;
@@ -601,6 +664,7 @@ export function registerAnnouncementRoutes(app: Express) {
         const org = await storage.getOrganizationById(branch.organizationId as string);
         organizationName = (org?.name as string) || null;
         organizationLogoUrl = (org?.logoUrl as string) || null;
+        timeZone = resolveOrganizationTimezone(org?.timezone);
       }
       if (device.serviceId) {
         const svc = await storage.getServiceById(device.serviceId);
@@ -617,7 +681,7 @@ export function registerAnnouncementRoutes(app: Express) {
         effectiveQueueMode = (branch?.queueMode as string) || null;
       }
     } catch { /* non-fatal — TV will fall back to fifo layout */ }
-    res.write(`event: ready\ndata: ${JSON.stringify({ deviceId: device.id, deviceName: device.deviceName, language: device.language, branchId: device.branchId, serviceId: device.serviceId || null, serviceName, queueMode: effectiveQueueMode, branchName, organizationName, organizationLogoUrl })}\n\n`);
+    res.write(`event: ready\ndata: ${JSON.stringify({ deviceId: device.id, deviceName: device.deviceName, language: device.language, branchId: device.branchId, serviceId: device.serviceId || null, serviceName, queueMode: effectiveQueueMode, branchName, organizationName, organizationLogoUrl, timeZone })}\n\n`);
 
     storage.touchAnnouncementDeviceLastSeen(device.id).catch(() => undefined);
 

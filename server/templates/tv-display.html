@@ -331,11 +331,11 @@
   <script>
     function tvDisplay() {
       return {
-        deviceToken: '', deviceId: '', deviceName: '', branchId: '', branchName: '',
+        deviceToken: '', deviceId: '', deviceName: '', branchId: '', branchName: '', serviceId: null,
         organizationName: '', organizationLogoUrl: '',
         lang: 'en', queueMode: 'fifo', layout: 'fifo',
         connectionState: 'idle', sse: null, reconnectTimer: null, backoffMs: 1000,
-        clockText: '', clockTimer: null,
+        clockText: '', clockTimer: null, timeZone: 'Asia/Kolkata',
         // Live state
         current: null,           // currently called/serving
         recent: [],              // last few calls (most recent first)
@@ -345,7 +345,7 @@
         // Audio
         audioUnlocked: false, muted: false, voicesLoaded: false, toneEl: null,
         speakQueue: [], speakBusy: false,
-        snapshotTimer: null,
+        snapshotTimer: null, snapshotVersion: 0, snapshotInFlight: false, snapshotQueued: false,
         // Flash control: toggles a reactive class so the CSS animation
         // re-runs every time a new ticket is called (CSS `animation:` only
         // fires once when a class is *added*, so we have to toggle it off
@@ -403,13 +403,35 @@
         },
 
         startClock() {
+          if (this.clockTimer) clearInterval(this.clockTimer);
           const tick = () => {
-            const d = new Date();
-            const hh = d.getHours(), mm = d.getMinutes();
-            const h12 = ((hh + 11) % 12) + 1;
-            this.clockText = h12 + ':' + (mm<10?'0':'') + mm + ' ' + (hh<12?'AM':'PM');
+            this.clockText = this.formatDisplayTime(new Date());
           };
           tick(); this.clockTimer = setInterval(tick, 15000);
+        },
+
+        formatDisplayTime(value) {
+          return new Date(value).toLocaleTimeString('en-US', {
+            timeZone: this.timeZone, hour: 'numeric', minute: '2-digit', hour12: true
+          });
+        },
+
+        clearQueue() {
+          this.current = null;
+          this.recent = [];
+          this.upcoming = [];
+          this.preparing = [];
+          this.ready = [];
+        },
+
+        inScope(ticket) {
+          return (!ticket.branchId || ticket.branchId === this.branchId)
+            && (!this.serviceId || ticket.serviceId === this.serviceId);
+        },
+
+        activityTime(ticket) {
+          const mode = this.layoutForMode(ticket.queueMode || this.queueMode);
+          return new Date((mode === 'takeaway' ? ticket.servedAt || ticket.calledAt : ticket.calledAt || ticket.servedAt) || ticket.joinedAt || 0).getTime() || 0;
         },
 
         modeLabel() {
@@ -478,13 +500,18 @@
           this.connectionState = 'idle';
           try {
             const url = '/api/announcement-player/stream?token=' + encodeURIComponent(this.deviceToken);
-            this.sse = new EventSource(url);
+            const source = new EventSource(url);
+            this.sse = source;
             this.sse.addEventListener('ready', (e) => {
+              if (this.sse !== source) return;
               try {
                 const meta = JSON.parse(e.data);
                 this.deviceId = meta.deviceId || '';
                 this.deviceName = meta.deviceName || '';
                 this.branchId = meta.branchId || '';
+                this.serviceId = meta.serviceId || null;
+                this.timeZone = meta.timeZone || 'Asia/Kolkata';
+                this.startClock();
                 this.branchName = meta.branchName || '';
                 this.organizationName = meta.organizationName || '';
                 this.organizationLogoUrl = meta.organizationLogoUrl || '';
@@ -498,19 +525,30 @@
                 this.snapshotTimer = setInterval(() => this.refreshSnapshot(), 8000);
               } catch(_){}
             });
+            this.sse.addEventListener('queue_update', () => {
+              if (this.sse !== source) return;
+              this.snapshotVersion++;
+              this.refreshSnapshot();
+            });
             this.sse.onmessage = (e) => {
+              if (this.sse !== source) return;
               try {
                 const ev = JSON.parse(e.data);
                 ev._id = Date.now() + '-' + Math.random().toString(36).slice(2,8);
-                ev._when = new Date().toLocaleTimeString();
+                ev._when = this.formatDisplayTime(ev.servedAt || ev.calledAt || new Date());
                 this.handleAnnouncement(ev);
               } catch(_){}
             };
-            this.sse.onerror = () => { this.connectionState='error'; this.scheduleReconnect(); };
+            this.sse.onerror = () => {
+              if (this.sse !== source) return;
+              this.connectionState='error'; this.scheduleReconnect();
+            };
           } catch (err) { this.connectionState='error'; this.scheduleReconnect(); }
         },
 
         disconnect() {
+          this.snapshotVersion++;
+          this.snapshotQueued = false;
           if (this.sse) { try { this.sse.close(); } catch{} this.sse = null; }
           // Clear the snapshot poll alongside the SSE so reconnect attempts
           // (which call disconnect() then connect()) don't stack overlapping
@@ -527,13 +565,17 @@
         },
 
         handleAnnouncement(ev) {
-          // If queueMode arrived via the event and we don't yet have one,
-          // adopt it — useful when ready payload lacked it.
-          if (ev.queueMode && (!this.queueMode || this.queueMode === 'fifo')) {
-            this.queueMode = ev.queueMode;
-            this.layout = this.layoutForMode(this.queueMode);
+          if (!this.inScope(ev)) return;
+          this.snapshotVersion++;
+          // Keep the newest call's layout aligned with per-service overrides.
+          // A delayed older call must not displace a newer displayed call.
+          if (!this.current || this.current.id === ev.id || this.activityTime(ev) >= this.activityTime(this.current)) {
+            if (ev.queueMode) {
+              this.queueMode = ev.queueMode;
+              this.layout = this.layoutForMode(this.queueMode);
+            }
+            this.promoteToCurrent(ev, true);
           }
-          this.promoteToCurrent(ev, true);
           // Trigger a snapshot refresh shortly so up-next/preparing rails update.
           setTimeout(() => this.refreshSnapshot(), 400);
           // Speak + play tone (audio side, like the audio-only player).
@@ -546,8 +588,9 @@
         // before this page connected.
         promoteToCurrent(ev, withFlash) {
           if (!ev) return;
-          if (!ev._id) ev._id = (ev.id || ev.ticketNumber || 'evt') + '-' + Date.now();
-          if (!ev._when) ev._when = new Date().toLocaleTimeString();
+          if (!ev.id && ev.ticketId) ev.id = ev.ticketId;
+          if (!ev._id) ev._id = (ev.id || ev.ticketNumber || 'evt') + '-' + this.activityTime(ev);
+          if (!ev._when) ev._when = this.formatDisplayTime(ev.servedAt || ev.calledAt || new Date());
           if (this.current && this.current.id !== ev.id) {
             this.recent.unshift(this.current);
             if (this.recent.length > 8) this.recent.length = 8;
@@ -569,14 +612,42 @@
         },
 
         async refreshSnapshot() {
-          if (!this.branchId) return;
+          if (!this.branchId || !this.deviceToken) return;
+          if (this.snapshotInFlight) { this.snapshotQueued = true; return; }
+          this.snapshotInFlight = true;
+          const version = this.snapshotVersion;
+          const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          const timeout = controller ? setTimeout(() => controller.abort(), 15000) : null;
           try {
-            // Use the public branch queue endpoint — it returns a sanitized
-            // projection (no raw phones / emails) suitable for a public TV.
-            const res = await fetch('/api/branches/' + encodeURIComponent(this.branchId) + '/queue', { headers: { 'accept':'application/json' }, cache: 'no-store' });
-            if (!res.ok) return;
+            const res = await fetch('/api/announcement-player/snapshot?token=' + encodeURIComponent(this.deviceToken) + '&t=' + Date.now(), {
+              headers: { 'accept':'application/json' }, cache: 'no-store',
+              ...(controller ? { signal: controller.signal } : {})
+            });
+            if (version !== this.snapshotVersion) return;
+            if (!res.ok) {
+              this.connectionState = 'error';
+              if ([401, 403, 404].includes(res.status)) {
+                this.clearQueue();
+                this.scheduleReconnect();
+              }
+              return;
+            }
             const data = await res.json();
-            const list = Array.isArray(data.queue) ? data.queue : [];
+            if (version !== this.snapshotVersion) return;
+            if (!Array.isArray(data.queue)) throw new Error('Invalid display snapshot');
+            // Device reassignment must update both the event and snapshot scope.
+            if (data.branchId !== this.branchId || (data.serviceId || null) !== this.serviceId) {
+              this.clearQueue();
+              this.connect();
+              return;
+            }
+            this.timeZone = data.timeZone || this.timeZone;
+            this.queueMode = data.queueMode || this.queueMode;
+            const list = data.queue.filter(t => this.inScope(t));
+            list.forEach(ticket => {
+              ticket._id = ticket.id + '-' + this.activityTime(ticket);
+              ticket._when = this.formatDisplayTime(this.activityTime(ticket));
+            });
             // Up-next = waiting tickets, sorted by position.
             const waiting = list.filter(t => t.status === 'waiting').sort((a,b) => (a.position||0) - (b.position||0));
             // Active (called / serving) — used for takeaway "Ready to collect"
@@ -584,9 +655,7 @@
             // Sort newest first so promoteToCurrent picks the latest call.
             const active = list.filter(t => t.status === 'called' || t.status === 'serving')
               .sort((a,b) => {
-                const ta = new Date(a.calledAt || a.updatedAt || a.createdAt || 0).getTime();
-                const tb = new Date(b.calledAt || b.updatedAt || b.createdAt || 0).getTime();
-                return tb - ta;
+                return this.activityTime(b) - this.activityTime(a);
               });
 
             // Hydrate / refresh the hero card from the snapshot. This catches
@@ -596,10 +665,19 @@
             // ticket is in `called` status.
             const newest = active[0] || null;
             if (newest) {
-              const isNew = !this.current || this.current.id !== newest.id;
+              const isNew = !this.current || this.current.id !== newest.id || this.activityTime(this.current) !== this.activityTime(newest);
+              this.queueMode = newest.queueMode || this.queueMode;
               this.promoteToCurrent(newest, isNew);
+            } else {
+              this.current = null;
             }
+            this.layout = this.layoutForMode(this.queueMode);
+            this.recent = list.filter(t => t.id !== newest?.id && (t.calledAt || t.servedAt))
+              .sort((a,b) => this.activityTime(b) - this.activityTime(a)).slice(0,8);
 
+            this.preparing = [];
+            this.ready = [];
+            this.upcoming = [];
             if (this.layout === 'takeaway') {
               this.preparing = waiting;
               // Reserve the most recent active for hero (current); the rest
@@ -609,7 +687,17 @@
             } else {
               this.upcoming = waiting;
             }
-          } catch(_){}
+            if (this.sse && this.sse.readyState === 1) this.connectionState = 'live';
+          } catch(_) {
+            if (version === this.snapshotVersion) this.connectionState = 'error';
+          } finally {
+            if (timeout) clearTimeout(timeout);
+            this.snapshotInFlight = false;
+            if (this.snapshotQueued) {
+              this.snapshotQueued = false;
+              this.refreshSnapshot();
+            }
+          }
         },
 
         unlockAudio() {

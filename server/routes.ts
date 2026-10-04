@@ -2059,7 +2059,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             updatedTicket.serviceId || null,
           );
           broadcastAnnouncement({
+            id: updatedTicket.id,
             type: "call",
+            calledAt: updatedTicket.calledAt,
             ticketNumber: updatedTicket.ticketNumber || "",
             customerName: updatedTicket.customerName || "",
             serviceName: updatedTicket.serviceName || "",
@@ -2233,7 +2235,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (effectiveCallMode2 !== "checkin" && effectiveCallMode2 !== "check_in") {
         const effectiveMode = effectiveCallMode2;
         broadcastAnnouncement({
+          id: ticketId,
           type: "call",
+          calledAt: updated?.calledAt || ticket.calledAt,
           ticketNumber: updated?.ticketNumber || ticket.ticketNumber || "",
           customerName: updated?.customerName || ticket.customerName || "",
           serviceName: updated?.serviceName || ticket.serviceName || "",
@@ -2295,12 +2299,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (effectiveMode === "takeaway") {
           sendTakeawayReadyNotification(ticketId, branchName).catch(console.error);
           broadcastAnnouncement({
+            id: ticketId,
             type: "serve",
+            calledAt: ticket.calledAt,
+            servedAt: updated?.servedAt,
             ticketNumber: ticket.ticketNumber || "",
             customerName: ticket.customerName || "",
             serviceName: ticket.serviceName || "",
-            deskName: null,
-            tableNumber: null,
+            deskName: updated?.deskName || ticket.deskName || null,
+            tableNumber: updated?.tableNumber || ticket.tableNumber || null,
             queueMode: effectiveMode,
             branchId: ticket.branchId,
             serviceId: ticket.serviceId || null,

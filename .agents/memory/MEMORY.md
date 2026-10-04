@@ -87,3 +87,4 @@
 - [Foreground-only ticket audio](foreground-only-ticket-audio.md) — iOS ticket-call sounds only while active; never re-add audio background mode or background playback sessions.
 - [Event registration fee lock](event-registration-fee-lock.md) — lock the saved paise amount server-side across event and location routes; payout readiness remains a separate gate.
 - [Customer queue WhatsApp boundaries](customer-queue-whatsapp-boundaries.md) — media readiness precedes sending; channels stay independent; deduplication tracks logical actions, not template timing.
+- [TV queue consistency](tv-queue-consistency.md) — reconcile called customers and assignments within device scope; announcements alone are not current queue state.
