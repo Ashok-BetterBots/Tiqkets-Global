@@ -1051,8 +1051,10 @@ export default function OrgDashboardScreen() {
               <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Peak Month</ThemedText>
             </View>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} removeClippedSubviews={false}>
-            <View style={[styles.chartRow, styles.scrollChartRow, { width: Math.max(288, monthlyTrendMonths * 48) }]}>
+          <View
+            style={[styles.chartRow, styles.monthlyChartRow, monthlyTrendMonths === 12 && styles.yearlyChartRow]}
+            testID="monthly-chart"
+          >
               {currentMonthlyData.map((month, index) => (
                 <ChartBar
                   key={month.key}
@@ -1070,8 +1072,7 @@ export default function OrgDashboardScreen() {
                   }}
                 />
               ))}
-            </View>
-          </ScrollView>
+          </View>
           {selectedMonthlyMonth ? (
             <ThemedText style={[styles.chartCaption, { color: colors.textSecondary }]} accessibilityLiveRegion="polite" testID="monthly-selection">
               {selectedMonthlyMonth.fullLabel} · {selectedMonthlyMonth.value} served
@@ -1599,6 +1600,14 @@ const styles = StyleSheet.create({
     width: 576,
     paddingTop: 40,
     paddingHorizontal: 18,
+  },
+  monthlyChartRow: {
+    width: "100%",
+    paddingTop: 40,
+    paddingHorizontal: 8,
+  },
+  yearlyChartRow: {
+    gap: 2,
   },
   selectedChartBar: {
     zIndex: 1,

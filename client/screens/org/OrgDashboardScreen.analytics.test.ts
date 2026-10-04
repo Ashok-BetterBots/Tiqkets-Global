@@ -278,7 +278,7 @@ test("scrollable chart values have real space within the viewport and selected b
   assert.ok(row.paddingHorizontal >= 16, "First and last tooltip edges must remain in the viewport");
   assert.ok(evaluate(wanted.selectedChartBar, {}).zIndex > 0);
   assert.match(source.text, /style=\{\[styles\.barTouchTarget, isSelected && styles\.selectedChartBar\]\}/);
-  assert.equal((source.text.match(/removeClippedSubviews=\{false\}/g) || []).length, 2);
+  assert.equal((source.text.match(/removeClippedSubviews=\{false\}/g) || []).length, 1);
   assert.match(source.text, /testID="hourly-selection"/, "Selected hour and its value also remain visible outside the scroll viewport");
 });
 
@@ -306,9 +306,50 @@ test("monthly period changes clear the selected value; tapping a monthly bar sel
     maxMonthlyValue: 0, selectedMonthlyBarIndex: selected, setSelectedMonthlyBarIndex,
     Haptics: { impactAsync: () => { haptics++; }, ImpactFeedbackStyle: { Light: "light" } },
   });
+  for (const months of [3, 6, 12]) {
+    callback(months);
+    assert.equal(renderBars().length, months, `Render every bar for the ${months}-month filter`);
+    assert.equal(selected, null);
+  }
+  callback(3);
   renderBars()[1].props.onPress();
   assert.equal(selected, 1);
   renderBars()[1].props.onPress();
   assert.equal(selected, null);
   assert.equal(haptics, 2);
+});
+
+test("monthly filters fit within the card without a horizontal scroll container", () => {
+  let chart: ts.JsxElement | undefined;
+  const wanted: Record<string, string> = {};
+  function visit(node: ts.Node) {
+    if (ts.isJsxElement(node) && node.openingElement.attributes.getText(source).includes('testID="monthly-chart"')) chart = node;
+    if (ts.isPropertyAssignment(node) && ["chartRow", "monthlyChartRow", "yearlyChartRow", "barTouchTarget"].includes(node.name.getText(source))) {
+      wanted[node.name.getText(source)] = node.initializer.getText(source);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  assert.ok(chart);
+  assert.equal(chart.openingElement.tagName.getText(source), "View");
+  assert.match(chart.getText(source), /currentMonthlyData\.map/);
+  for (let ancestor: ts.Node | undefined = chart.parent; ancestor; ancestor = ancestor.parent) {
+    if (!ts.isJsxElement(ancestor)) continue;
+    if (ancestor.openingElement.attributes.getText(source).includes('testID="monthly-trend"')) break;
+    assert.notEqual(ancestor.openingElement.tagName.getText(source), "ScrollView");
+  }
+  const row = evaluate(wanted.chartRow, {});
+  const monthly = evaluate(wanted.monthlyChartRow, {});
+  const yearly = evaluate(wanted.yearlyChartRow, {});
+  const bar = evaluate(wanted.barTouchTarget, {});
+  assert.equal(monthly.width, "100%");
+  assert.equal(bar.flex, 1);
+  assert.ok(monthly.paddingTop >= 40, "Keep room for selected-value tooltips");
+  for (const width of [216, 248, 288, 340]) {
+    for (const months of [3, 6, 12]) {
+      const gap = months === 12 ? yearly.gap : row.gap;
+      const available = width - monthly.paddingHorizontal * 2 - gap * (months - 1);
+      assert.ok(available / months >= bar.minWidth, `${months} bars fit inside a ${width}px chart`);
+    }
+  }
 });
