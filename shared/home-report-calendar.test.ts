@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createHomeReportCalendar, shiftHomeReportDate } from "./home-report-calendar";
+import { createHomeReportCalendar, shiftHomeReportDate, resolveOrganizationTimezone } from "./home-report-calendar";
 
 test("Home calendar uses local day/hour, including transactions near UTC midnight", () => {
   const riyadh = createHomeReportCalendar("Asia/Riyadh");
@@ -28,4 +28,18 @@ test("Home date-only arithmetic preserves month/year/leap-day boundaries", () =>
   assert.equal(shiftHomeReportDate("2024-03-01", -1), "2024-02-29");
   assert.equal(shiftHomeReportDate("2026-10-04", -365), "2025-10-04");
   assert.throws(() => createHomeReportCalendar("Not/A_TimeZone"), RangeError);
+});
+
+test("organisation default is IST and timestamps/weekday change at IST midnight", () => {
+  assert.equal(resolveOrganizationTimezone(undefined), "Asia/Kolkata");
+  assert.equal(resolveOrganizationTimezone(null), "Asia/Kolkata");
+  assert.equal(resolveOrganizationTimezone("America/New_York"), "America/New_York");
+  const calendar = createHomeReportCalendar(resolveOrganizationTimezone("Asia/Kolkata"));
+  const beforeMidnight = new Date("2026-10-04T18:29:59.999Z");
+  const midnight = new Date("2026-10-04T18:30:00.000Z");
+  assert.equal(calendar.timestamp(beforeMidnight), "2026-10-04 23:59:59");
+  assert.equal(calendar.timestamp(midnight), "2026-10-05 00:00:00");
+  assert.equal(calendar.weekday(beforeMidnight), 0);
+  assert.equal(calendar.weekday(midnight), 1);
+  assert.equal(calendar.hour(midnight), 0);
 });

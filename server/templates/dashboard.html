@@ -5476,12 +5476,12 @@
               </div>
               <div class="flex flex-wrap items-center gap-1.5 mt-4 pt-3 border-t border-gray-100" x-show="!isEventAccount">
                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1">Quick:</span>
-                <button @click="let d=new Date(); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=d.toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">Today</button>
-                <button @click="let d=new Date(); d.setDate(d.getDate()-7); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">7 Days</button>
-                <button @click="let d=new Date(); d.setDate(d.getDate()-30); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">30 Days</button>
-                <button @click="let d=new Date(); d.setDate(d.getDate()-90); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">90 Days</button>
-                <button @click="let d=new Date(); reportFilters.startDate=new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; reportFilters.endDate=d.toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">This Month</button>
-                <button @click="let d=new Date(); let y=d.getFullYear(); reportFilters.startDate=y+'-01-01'; reportFilters.endDate=d.toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">This Year</button>
+                <button @click="setReportRange(0)" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">Today</button>
+                <button @click="setReportRange(7)" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">7 Days</button>
+                <button @click="setReportRange(30)" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">30 Days</button>
+                <button @click="setReportRange(90)" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">90 Days</button>
+                <button @click="setReportRange('month')" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">This Month</button>
+                <button @click="setReportRange('year')" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">This Year</button>
               </div>
             </div>
 
@@ -9410,12 +9410,12 @@
         payoutDate(value) {
           if (!value) return '—';
           const date = new Date(value);
-          return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
+          return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(undefined, { timeZone: this.organizationTimeZone });
         },
         payoutDateTime(value) {
           if (!value) return '—';
           const date = new Date(value);
-          return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+          return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(undefined, { timeZone: this.organizationTimeZone });
         },
         payoutStatusLabel(status) {
           return String(status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -9714,9 +9714,9 @@
             const data = await api(`/api/reports/${this.org.id}/filters?${params}`);
             this.reportFilterOptions = data;
             if (!this.reportFilters.startDate) {
-              const d = new Date(); d.setDate(d.getDate() - 30);
-              this.reportFilters.startDate = d.toISOString().split('T')[0];
-              this.reportFilters.endDate = new Date().toISOString().split('T')[0];
+              const today = this.organizationDateKey();
+              this.reportFilters.startDate = this.shiftOrganizationDate(today, -30);
+              this.reportFilters.endDate = today;
             }
           } catch (e) { console.error(e); }
         },
@@ -11276,15 +11276,38 @@
           const map = { waiting: 'Waiting', called: 'Called', serving: 'Serving', hold: 'On Hold', arrived: 'Arrived', completed: 'Completed', no_show: 'No Show', cancelled: 'Cancelled' };
           return map[status] || status;
         },
+        get organizationTimeZone() {
+          return this.org?.timezone || 'Asia/Kolkata';
+        },
+        organizationDateKey(value = new Date()) {
+          const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: this.organizationTimeZone, year: 'numeric', month: '2-digit', day: '2-digit'
+          }).formatToParts(new Date(value));
+          const get = (name) => parts.find(p => p.type === name).value;
+          return `${get('year')}-${get('month')}-${get('day')}`;
+        },
+        shiftOrganizationDate(dateKey, days) {
+          const date = new Date(dateKey + 'T12:00:00.000Z');
+          date.setUTCDate(date.getUTCDate() + days);
+          return date.toISOString().slice(0, 10);
+        },
+        setReportRange(range) {
+          const today = this.organizationDateKey();
+          this.reportFilters.startDate = range === 'month' ? today.slice(0, 7) + '-01'
+            : range === 'year' ? today.slice(0, 4) + '-01-01'
+            : this.shiftOrganizationDate(today, -range);
+          this.reportFilters.endDate = today;
+          this.loadReportData();
+        },
         formatTime(dateStr) {
           if (!dateStr) return '';
           const d = new Date(dateStr);
-          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: this.organizationTimeZone });
         },
         formatDateTime(dateStr) {
           if (!dateStr) return '';
           const d = new Date(dateStr);
-          return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ', ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+          return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: this.organizationTimeZone }) + ', ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: this.organizationTimeZone });
         },
         getTicketTimeline(ticket) {
           if (!ticket) return [];
@@ -11560,7 +11583,7 @@
         formatDate(d) {
           if (!d) return '—';
           try {
-            return new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            return new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: this.organizationTimeZone });
           } catch { return '—'; }
         },
         // Generic in-app confirm. Returns nothing; runs onConfirm when the

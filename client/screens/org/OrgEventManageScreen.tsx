@@ -29,6 +29,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { BottomSheetModal } from "@/components/BottomSheetModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { resolveOrganizationTimezone } from "@shared/home-report-calendar";
 import { apiRequest, queryClient, getErrorMessage, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius, BrandColors, headingFont } from "@/constants/theme";
 
@@ -631,7 +632,7 @@ export default function OrgEventManageScreen() {
                 <View style={{ flex: 1 }}>
                   <ThemedText style={styles.eventName} testID={`text-event-name-${ev.id}`}>{ev.name}</ThemedText>
                   <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
-                    {new Date(ev.startDate).toLocaleDateString()} – {new Date(ev.endDate).toLocaleDateString()}
+                    {new Date(ev.startDate).toLocaleDateString(undefined, { timeZone: resolveOrganizationTimezone(organization?.timezone) })} – {new Date(ev.endDate).toLocaleDateString(undefined, { timeZone: resolveOrganizationTimezone(organization?.timezone) })}
                   </ThemedText>
                   <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
                     {fmtRupeesFromPaise(ev.registrationFee)} · {ev.maxCapacityPerSlot ?? 0}/slot · {ev.slotDurationMinutes ?? 0}min

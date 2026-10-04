@@ -19,6 +19,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { resolveOrganizationTimezone } from "@shared/home-report-calendar";
 import { apiRequest, getApiUrl, getErrorMessage, queryClient } from "@/lib/query-client";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -117,11 +118,11 @@ function formatCurrency(amountInPaise: number, currency = "INR"): string {
   return `${symbol}${major.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
-function formatDate(iso: string | null | undefined): string {
+function formatBillingDate(iso: string | null | undefined, timeZone: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone });
 }
 
 function formatCap(cap: number | null) {
@@ -270,6 +271,8 @@ export default function OrgBillingScreen() {
   const palette = isDark ? Colors.dark : Colors.light;
   const isWeb = Platform.OS === "web";
   const { organization } = useOrganization();
+  const formatDate = (iso: string | null | undefined) =>
+    formatBillingDate(iso, resolveOrganizationTimezone(organization?.timezone));
   const orgId = organization?.id;
   const isEventAccount = organization?.accountType === "event";
 

@@ -6,6 +6,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { resolveOrganizationTimezone } from "@shared/home-report-calendar";
 import { apiRequest, getErrorMessage, queryClient } from "@/lib/query-client";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -37,13 +38,13 @@ const ROUTE_BUSINESS_TYPES = new Set([
 ]);
 
 const money = (paise = 0) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(paise / 100);
-const dateLabel = (value: string) => {
+const formatPayoutDate = (value: string, timeZone: string) => {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString(undefined, { timeZone });
 };
-const dateTimeLabel = (value: string) => {
+const formatPayoutDateTime = (value: string, timeZone: string) => {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString(undefined, { timeZone });
 };
 const statusLabel = (value: string | null | undefined) => String(value || "not available").replace(/_/g, " ").replace(/\b\w/g, character => character.toUpperCase());
 
@@ -51,6 +52,9 @@ export default function OrgPayoutsScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { organization } = useOrganization();
+  const timeZone = resolveOrganizationTimezone(organization?.timezone);
+  const dateLabel = (value: string) => formatPayoutDate(value, timeZone);
+  const dateTimeLabel = (value: string) => formatPayoutDateTime(value, timeZone);
   const orgId = organization?.id;
   const [form, setForm] = useState<Form>(initialForm);
   const [errors, setErrors] = useState<Record<string, string>>({});

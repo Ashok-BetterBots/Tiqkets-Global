@@ -1,5 +1,7 @@
 import { eq, ne, and, gte, gt, lte, lt, desc, asc, sql, inArray, isNull, or } from "drizzle-orm";
 import { db } from "./db";
+import { getBranchOrganizationCalendar } from "./organization-calendar";
+import { shiftHomeReportDate } from "@shared/home-report-calendar";
 import {
   organizations,
   branches,
@@ -485,16 +487,16 @@ export class DatabaseStorage {
   }
 
   async getTodaysTicketsByBranch(branchId: string): Promise<Ticket[]> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const calendar = await getBranchOrganizationCalendar(branchId);
+    const dateKey = calendar.dateKey(new Date());
+    const today = calendar.dayStart(dateKey);
+    const tomorrow = calendar.dayStart(shiftHomeReportDate(dateKey, 1));
 
     return db.select().from(tickets)
       .where(and(
         eq(tickets.branchId, branchId),
         gte(tickets.joinedAt, today),
-        lte(tickets.joinedAt, tomorrow)
+        lt(tickets.joinedAt, tomorrow)
       ))
       .orderBy(asc(tickets.joinedAt));
   }
@@ -1031,10 +1033,10 @@ export class DatabaseStorage {
     serviceSampleCount: number;
     serviceSampleSum: number;
   }> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const calendar = await getBranchOrganizationCalendar(branchId);
+    const dateKey = calendar.dateKey(new Date());
+    const today = calendar.dayStart(dateKey);
+    const tomorrow = calendar.dayStart(shiftHomeReportDate(dateKey, 1));
 
     const conditions = [
       eq(tickets.branchId, branchId),

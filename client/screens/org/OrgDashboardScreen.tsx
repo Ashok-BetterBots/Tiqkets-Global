@@ -16,7 +16,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { getRoleLabel } from "@/types/organization";
 import { useQuery } from "@tanstack/react-query";
 import { getApiUrl } from "@/lib/query-client";
-import { createHomeReportCalendar, shiftHomeReportDate } from "@shared/home-report-calendar";
+import { createHomeReportCalendar, shiftHomeReportDate, resolveOrganizationTimezone } from "@shared/home-report-calendar";
 
 type ReportPeriod = 7 | 14 | 30;
 type TrendPeriod = 30 | 60 | 90 | 180 | 365;
@@ -151,7 +151,7 @@ export default function OrgDashboardScreen() {
   const analyticsServiceId = selectedService?.id;
   const analyticsDeskId = selectedDeskId === "all" ? undefined
     : availableDesks.find(desk => desk.id === selectedDeskId)?.id;
-  const analyticsTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const analyticsTimeZone = resolveOrganizationTimezone(organization?.timezone);
   const homeCalendar = useMemo(() => createHomeReportCalendar(analyticsTimeZone), [analyticsTimeZone]);
   const analyticsScopeReady = !!organization?.id && !!activeBranch?.id && !!analyticsServiceId
     && (selectedDeskId === "all" || !!analyticsDeskId);
@@ -674,7 +674,7 @@ export default function OrgDashboardScreen() {
                 <ThemedText style={[styles.subBannerSub, { color: colors.textSecondary }]}>
                   {subInactive
                     ? "New customers can't join the queue and staff can't process tickets until you choose a plan."
-                    : `Subscribe before ${sub?.trialEndDate ? new Date(sub.trialEndDate).toLocaleDateString() : "your trial ends"} to keep adding customers and processing the queue.`}
+                    : `Subscribe before ${sub?.trialEndDate ? new Date(sub.trialEndDate).toLocaleDateString(undefined, { timeZone: analyticsTimeZone }) : "your trial ends"} to keep adding customers and processing the queue.`}
                 </ThemedText>
               </View>
               {canManageBilling ? (

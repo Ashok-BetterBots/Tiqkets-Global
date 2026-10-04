@@ -1,4 +1,5 @@
 import { logHandledError } from "@/lib/logger";
+import { resolveOrganizationTimezone } from "@shared/home-report-calendar";
 import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
@@ -411,9 +412,9 @@ interface FifoCardProps {
   movedToService?: string;
 }
 
-function formatRegisteredTime(value: string | Date) {
+function formatRegisteredTime(value: string | Date, timeZone: string) {
   try {
-    return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone });
   } catch {
     return "";
   }
@@ -447,6 +448,7 @@ function FifoCard({
   moveStageLabel,
   movedToService,
 }: FifoCardProps) {
+  const { organization } = useOrganization();
   const isTerminal = tab === "completed";
   const isHold = tab === "hold";
   const isServing = customer.status === "serving";
@@ -503,7 +505,7 @@ function FifoCard({
         <View style={fifoStyles.rightCol}>
           <View style={fifoStyles.regTimeRow}>
             <Feather name="clock" size={12} color={OrgDesign.muted} />
-            <ThemedText style={fifoStyles.regTime}>{formatRegisteredTime(customer.joinedAt)}</ThemedText>
+            <ThemedText style={fifoStyles.regTime}>{formatRegisteredTime(customer.joinedAt, resolveOrganizationTimezone(organization?.timezone))}</ThemedText>
           </View>
           {isTerminal ? (
             <View style={[fifoStyles.terminalPill, {
@@ -910,6 +912,7 @@ export default function OrgQueueScreen() {
     setSelectedServiceId,
     liveBranchMeta,
   } = useOrganization();
+  const organizationTimeZone = resolveOrganizationTimezone(organization?.timezone);
 
   // Re-pull org/branch data on focus so queue mode changes from the web
   // dashboard or another admin device propagate without a relogin.
@@ -1535,7 +1538,7 @@ export default function OrgQueueScreen() {
         setLastCheckIn({
           ticketNumber: result.customer.ticketNumber,
           name: result.customer.customerName,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: organizationTimeZone }),
         });
         setTicketInput("");
         Alert.alert(
@@ -1805,7 +1808,7 @@ export default function OrgQueueScreen() {
       setLastCheckIn({
         ticketNumber: c.ticketNumber,
         name: c.customerName,
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: organizationTimeZone }),
       });
     };
 
@@ -2028,7 +2031,7 @@ export default function OrgQueueScreen() {
 
     const formatTime = (dateString: string) => {
       const date = new Date(dateString);
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: organizationTimeZone });
     };
 
     const getInitials = (name: string) => {
@@ -2819,7 +2822,7 @@ export default function OrgQueueScreen() {
 
     const formatTime = (dateString: string) => {
       const date = new Date(dateString);
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: organizationTimeZone });
     };
 
     // Split a customer's formData into the "default" dine-in details (party

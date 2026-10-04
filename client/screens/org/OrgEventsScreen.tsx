@@ -17,6 +17,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { resolveOrganizationTimezone } from "@shared/home-report-calendar";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { OrgStackParamList } from "@/navigation/OrgStackNavigator";
@@ -84,7 +85,7 @@ export default function OrgEventsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { theme, isDark } = useTheme();
-  const { getAccessibleBranches, hasPermission } = useOrganization();
+  const { getAccessibleBranches, hasPermission, organization } = useOrganization();
   const branches = getAccessibleBranches();
 
   const canManage = hasPermission("org.events.manage");
@@ -320,8 +321,8 @@ export default function OrgEventsScreen() {
                       {selectedEvent.name}
                     </ThemedText>
                     <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                      {new Date(selectedEvent.startDate).toLocaleDateString()} –{" "}
-                      {new Date(selectedEvent.endDate).toLocaleDateString()}
+                      {new Date(selectedEvent.startDate).toLocaleDateString(undefined, { timeZone: resolveOrganizationTimezone(organization?.timezone) })} –{" "}
+                      {new Date(selectedEvent.endDate).toLocaleDateString(undefined, { timeZone: resolveOrganizationTimezone(organization?.timezone) })}
                     </ThemedText>
                   </View>
                   <View

@@ -23,5 +23,6 @@ calendar timezone. Hourly Trend must include the full day.
 midnight to a UTC date made positive-offset devices look up yesterday's totals.
 Server-time hour grouping and a 9AM–11PM-only chart also hid some transactions.
 
-**How to apply:** Keep timezone-aware Home reporting opt-in; separate Reports
-must retain its existing calendar and explicit staff filters unless requested.
+**How to apply:** Home uses the organisation timezone, not the device timezone.
+The user subsequently requested that all reports use that same organisation
+calendar; keep explicit staff filters intact. See [organisation timezone](organisation-timezone.md).

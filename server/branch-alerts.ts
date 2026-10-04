@@ -10,6 +10,7 @@ import {
 } from "@shared/schema";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { sendWhatsAppMessage, sendWhatsAppAlertTemplate } from "./whatsapp";
+import { getOrganizationCalendar } from "./organization-calendar";
 
 type AlertTemplateName =
   | "org_alert_high_volume"
@@ -292,8 +293,9 @@ function formatMinutes(minutes: number): string {
 }
 
 // "27 Apr 2026" — short, locale-stable, easy to read in WhatsApp.
-function formatAlertDate(d: Date): string {
+function formatAlertDate(d: Date, timeZone: string): string {
   return d.toLocaleDateString("en-GB", {
+    timeZone,
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -301,8 +303,9 @@ function formatAlertDate(d: Date): string {
 }
 
 // "10:30 AM" — same intent as formatAlertDate (compact, unambiguous).
-function formatAlertTime(d: Date): string {
+function formatAlertTime(d: Date, timeZone: string): string {
   return d.toLocaleTimeString("en-US", {
+    timeZone,
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
@@ -436,6 +439,7 @@ export async function notifyOrgServiceQueueStatusChange(
       return;
     }
 
+    const calendar = await getOrganizationCalendar(branch.organizationId);
     const state = await getOrCreateState(branchId, "queue_status", serviceId);
     const statusCode = newStatus === "active" ? 1 : newStatus === "paused" ? 2 : 3;
     // Dedicated status routes confirm a real service transition. Alert state
@@ -471,7 +475,7 @@ export async function notifyOrgServiceQueueStatusChange(
       const title = `Tiqkets · Queue ${label}`;
       const now = new Date();
       const location = locationLabelFor(branch);
-      const body = `Branch: ${branch.name}\nService: ${serviceName}\nTime: ${now.toLocaleString()}`;
+      const body = `Branch: ${branch.name}\nService: ${serviceName}\nTime: ${now.toLocaleString("en-IN", { timeZone: calendar.timeZone })}`;
 
       const payload: AlertPayload = { title, message: body };
 
@@ -481,20 +485,16 @@ export async function notifyOrgServiceQueueStatusChange(
         // {{2}} service name, {{3}} location, {{4}} start time
         payload.template = {
           name: "org_alert_queue_start",
-          params: [serviceName, location, formatAlertTime(now)],
+          params: [serviceName, location, formatAlertTime(now, calendar.timeZone)],
         };
       } else if (newStatus === "ended") {
         // Use the dedicated queue-open timestamp as the session anchor.
-        // Falls back to local midnight when no prior open transition was
+        // Falls back to organisation midnight when no prior open transition was
         // ever recorded (e.g. first time this service flips to ended).
         const startedAt =
           openedState.lastTriggeredAt instanceof Date
             ? openedState.lastTriggeredAt
-            : (() => {
-                const d = new Date(now);
-                d.setHours(0, 0, 0, 0);
-                return d;
-              })();
+            : calendar.dayStart(calendar.dateKey(now));
 
         const stats = await aggregateQueueEndStats(branchId, serviceId, startedAt);
 
@@ -508,9 +508,9 @@ export async function notifyOrgServiceQueueStatusChange(
           params: [
             serviceName,
             location,
-            formatAlertDate(now),
-            formatAlertTime(startedAt),
-            formatAlertTime(now),
+            formatAlertDate(now, calendar.timeZone),
+            formatAlertTime(startedAt, calendar.timeZone),
+            formatAlertTime(now, calendar.timeZone),
             stats.totalEntries,
             stats.totalVisitors,
             stats.served,
@@ -584,6 +584,7 @@ export async function evaluateBranchAlerts(branchId: string): Promise<void> {
 
     const thresholds = readAlertThresholds(branch.displaySettings as unknown);
     if (!thresholds.enabled) return;
+    const calendar = await getOrganizationCalendar(branch.organizationId);
 
     const waitingRows = await db
       .select({
@@ -610,7 +611,7 @@ export async function evaluateBranchAlerts(branchId: string): Promise<void> {
         if (recipients.length > 0) {
           const now = new Date();
           const title = `Tiqkets · High waiting count`;
-          const body = `Branch: ${branch.name}\nWaiting: ${waitingCount} (threshold ${thresholds.waitingCountMax})\nTime: ${now.toLocaleString()}`;
+          const body = `Branch: ${branch.name}\nWaiting: ${waitingCount} (threshold ${thresholds.waitingCountMax})\nTime: ${now.toLocaleString("en-IN", { timeZone: calendar.timeZone })}`;
           // org_alert_high_volume body params (after {{1}} recipient name):
           // {{2}} branch, {{3}} location, {{4}} threshold,
           // {{5}} current entries, {{6}} date, {{7}} time
@@ -624,8 +625,8 @@ export async function evaluateBranchAlerts(branchId: string): Promise<void> {
                 branchLocation,
                 thresholds.waitingCountMax,
                 waitingCount,
-                formatAlertDate(now),
-                formatAlertTime(now),
+                formatAlertDate(now, calendar.timeZone),
+                formatAlertTime(now, calendar.timeZone),
               ],
             },
           });
@@ -645,7 +646,7 @@ export async function evaluateBranchAlerts(branchId: string): Promise<void> {
         if (recipients.length > 0) {
           const now = new Date();
           const title = `Tiqkets · High average wait time`;
-          const body = `Branch: ${branch.name}\nAvg wait: ${formatMinutes(avgWaitMinutes)} (threshold ${formatMinutes(thresholds.avgWaitTimeMaxMinutes)})\nTime: ${now.toLocaleString()}`;
+          const body = `Branch: ${branch.name}\nAvg wait: ${formatMinutes(avgWaitMinutes)} (threshold ${formatMinutes(thresholds.avgWaitTimeMaxMinutes)})\nTime: ${now.toLocaleString("en-IN", { timeZone: calendar.timeZone })}`;
           // org_alert_wait_time body params (after {{1}} recipient name):
           // {{2}} branch, {{3}} location, {{4}} threshold mins,
           // {{5}} current avg mins, {{6}} date, {{7}} time,
@@ -660,8 +661,8 @@ export async function evaluateBranchAlerts(branchId: string): Promise<void> {
                 branchLocation,
                 thresholds.avgWaitTimeMaxMinutes,
                 avgWaitMinutes,
-                formatAlertDate(now),
-                formatAlertTime(now),
+                formatAlertDate(now, calendar.timeZone),
+                formatAlertTime(now, calendar.timeZone),
                 waitingCount,
               ],
             },

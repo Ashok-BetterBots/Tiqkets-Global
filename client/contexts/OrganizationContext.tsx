@@ -1,4 +1,5 @@
 import { logHandledError } from "@/lib/logger";
+import { createHomeReportCalendar, resolveOrganizationTimezone } from "@shared/home-report-calendar";
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from "react";
 import { AppState, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -2573,14 +2574,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   const loadBranchReservations = useCallback(async (branchId: string) => {
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = createHomeReportCalendar(resolveOrganizationTimezone(organization?.timezone)).dateKey(new Date());
       const response = await apiRequest("GET", `/api/branches/${branchId}/reservations?date=${today}`);
       const data = await response.json();
       setBranchReservations(data.reservations || []);
     } catch (error) {
       logHandledError("Error loading reservations", error);
     }
-  }, []);
+  }, [organization?.timezone]);
 
   const checkInApiReservation = useCallback(async (reservationId: string): Promise<{ success: boolean; error?: string }> => {
     try {

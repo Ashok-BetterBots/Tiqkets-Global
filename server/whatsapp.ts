@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { resolveOrganizationTimezone } from "@shared/home-report-calendar";
 import { tickets, branches, organizations, services } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { renderWaMessage, type WaVars } from "./wa-templates";
@@ -942,14 +943,14 @@ async function buildTicketVars(ticketRow: any, branchName: string): Promise<{ mo
 // ─── Dine-In: Approved-Template Helpers ──────────────────────────────────────
 
 /** Format a reservation timestamp for template body text. */
-function formatReservationTime(reservationTime: Date | null | undefined, formData: any): string {
+function formatReservationTime(reservationTime: Date | null | undefined, formData: any, timeZone: string): string {
   if (formData?.reservationTime && typeof formData.reservationTime === "string") return formData.reservationTime;
   if (formData?.time) return String(formData.time);
   if (reservationTime) {
     return new Date(reservationTime).toLocaleString("en-IN", {
       dateStyle: "medium",
       timeStyle: "short",
-      timeZone: "Asia/Kolkata",
+      timeZone,
     });
   }
   return "";
@@ -1020,6 +1021,7 @@ async function sendDineInApprovedTemplateOnce(
     orgId: branches.organizationId,
     branchName: branches.name,
     orgName: organizations.name,
+    orgTimezone: organizations.timezone,
   })
     .from(tickets)
     .leftJoin(branches, eq(tickets.branchId, branches.id))
@@ -1057,11 +1059,12 @@ async function sendDineInApprovedTemplateOnce(
 
   const formData = (row.formData as any) || {};
 
-  // Walk-in customers have no reservation_time; format the current IST time
+  // Walk-in customers have no reservation_time; format the current organisation time
   // as a human-readable fallback so Meta never receives an empty string param.
-  const rawReservationTime = formatReservationTime(row.reservationTime, formData);
+  const timeZone = resolveOrganizationTimezone(row.orgTimezone);
+  const rawReservationTime = formatReservationTime(row.reservationTime, formData, timeZone);
   const fallbackReservationTime = rawReservationTime || new Date().toLocaleString("en-IN", {
-    timeZone: "Asia/Kolkata",
+    timeZone,
     day: "2-digit",
     month: "short",
     year: "numeric",

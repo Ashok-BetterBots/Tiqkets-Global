@@ -1,5 +1,11 @@
-// Home opts into a single calendar for request boundaries and chart buckets.
-// Reports that omit a timezone retain their existing behaviour.
+// Organisations without an explicit timezone use IST. Never use the device
+// or server's timezone to interpret organisation reporting days.
+export const DEFAULT_ORGANIZATION_TIMEZONE = "Asia/Kolkata";
+export function resolveOrganizationTimezone(timeZone: unknown): string {
+  return typeof timeZone === "string" && timeZone.trim()
+    ? timeZone : DEFAULT_ORGANIZATION_TIMEZONE;
+}
+
 export function createHomeReportCalendar(timeZone: string) {
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone, hourCycle: "h23", year: "numeric", month: "2-digit",
@@ -14,12 +20,21 @@ export function createHomeReportCalendar(timeZone: string) {
     };
   };
   return {
+    timeZone,
     dateKey(date: Date) {
       const p = parts(date);
       return `${p.year}-${p.month}-${p.day}`;
     },
     hour(date: Date) {
       return Number(parts(date).hour);
+    },
+    weekday(date: Date) {
+      const p = parts(date);
+      return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), 12)).getUTCDay();
+    },
+    timestamp(date: Date) {
+      const p = parts(date);
+      return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
     },
     dayStart(dateKey: string) {
       const wallClock = Date.parse(`${dateKey}T00:00:00.000Z`);

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
-import { createHomeReportCalendar, shiftHomeReportDate } from "../../../shared/home-report-calendar";
+import { createHomeReportCalendar, shiftHomeReportDate, resolveOrganizationTimezone } from "../../../shared/home-report-calendar";
 
 const source = ts.createSourceFile(
   "OrgDashboardScreen.tsx",
@@ -40,7 +40,7 @@ function query(name: string, branchId: string, serviceId: string, fetch: unknown
     organization: { id: "org-test" }, activeBranch: { id: branchId },
     analyticsServiceId: serviceId, analyticsScopeReady: ready, hourlyTrendPeriod: 30,
     analyticsDeskId: deskId === "all" ? undefined : deskId,
-    analyticsTimeZone: "Asia/Riyadh", homeCalendar: createHomeReportCalendar("Asia/Riyadh"),
+    analyticsTimeZone: "Asia/Kolkata", homeCalendar: createHomeReportCalendar("Asia/Kolkata"),
     shiftHomeReportDate,
     getApiUrl: () => "https://test.invalid", URL, Date, fetch,
   });
@@ -65,7 +65,7 @@ test("all Home analytics include branch/service and the selected desk, across al
       assert.equal(requested.searchParams.get("serviceId"), service);
       assert.equal(requested.searchParams.has("staffId"), false);
       assert.equal(requested.searchParams.get("deskId"), desk === "all" ? null : desk);
-      assert.equal(requested.searchParams.get("homeTimeZone"), "Asia/Riyadh");
+      assert.equal(requested.searchParams.get("homeTimeZone"), "Asia/Kolkata");
       assert.ok(requested.searchParams.get("t"), "Live reports bypass stale HTTP caches");
       assert.ok(requested.searchParams.get("startDate"));
       assert.equal(requested.searchParams.has("endDate"), name === "todayReportQuery");
@@ -86,6 +86,15 @@ test("every Home analytics cache key separates branches, services and desks", ()
     assert.notDeepEqual(a.queryKey, otherDesk.queryKey);
     assert.notDeepEqual(otherDesk.queryKey, secondDesk.queryKey);
     assert.equal(query(name, "branch-a", "service-a", null, false).enabled, false);
+  }
+});
+
+test("Home calendar comes from the organisation, never the phone timezone", () => {
+  for (const [timezone, expected] of [[undefined, "Asia/Kolkata"], ["Asia/Kolkata", "Asia/Kolkata"], ["America/New_York", "America/New_York"]]) {
+    assert.equal(evaluate(initializer("analyticsTimeZone"), {
+      organization: { timezone }, resolveOrganizationTimezone,
+      Intl: { DateTimeFormat: () => { throw new Error("Phone timezone must not be used"); } },
+    }), expected);
   }
 });
 
