@@ -5,6 +5,7 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { createHomeReportCalendar, shiftHomeReportDate, resolveOrganizationTimezone } from "../../../shared/home-report-calendar";
+import { buildMonthlyServedTrend } from "../../../shared/home-monthly-trend";
 
 const source = ts.createSourceFile(
   "OrgDashboardScreen.tsx",
@@ -28,9 +29,9 @@ function initializer(name: string): string {
 
 function evaluate(expression: string, context: Record<string, unknown>) {
   const js = ts.transpileModule(`const result = ${expression}; result;`, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+    compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },
   }).outputText;
-  return runInNewContext(js, context);
+  return runInNewContext(js, { ...context });
 }
 
 const queries = ["todayReportQuery", "longRangeReportQuery", "hourlyReportQuery"];
@@ -224,4 +225,90 @@ test("report failures are surfaced rather than returned as successful empty data
     const options = query(name, "branch-a", "service-a", async () => ({ ok: false, status: 500 }));
     await assert.rejects(options.queryFn({ signal: new AbortController().signal }), /Failed to load/);
   }
+});
+
+test("Home chart order is Served Report, Hourly Trend, Weekly Trend, then Monthly Trend", () => {
+  const titles: string[] = [];
+  function visit(node: ts.Node) {
+    if (ts.isJsxText(node) && /^(Served Report|Hourly Trend|Weekly Trend|Monthly Trend)$/.test(node.text.trim())) {
+      titles.push(node.text.trim());
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  assert.deepEqual(titles, ["Served Report", "Hourly Trend", "Weekly Trend", "Monthly Trend"]);
+});
+
+test("Monthly Trend uses the already-scoped live report for totals, averages and peak month", () => {
+  class FixedDate extends Date {
+    constructor(value?: string | number | Date) {
+      super(value === undefined ? "2026-10-04T20:00:00Z" : value instanceof Date ? value.getTime() : value);
+    }
+  }
+  const context = {
+    Date: FixedDate,
+    useMemo: (callback: () => unknown) => callback(),
+    buildMonthlyServedTrend, homeCalendar: createHomeReportCalendar("Asia/Kolkata"),
+    reportingDateKey: "2026-10-05",
+    monthlyTrendMonths: 3,
+    dailyCompletedByDate: new Map([["2026-08-01", 6], ["2026-09-01", 3], ["2026-10-05", 9]]),
+  };
+  const currentMonthlyData = evaluate(initializer("currentMonthlyData"), context);
+  const totalsContext = { ...context, currentMonthlyData };
+  const totalMonthly = evaluate(initializer("totalMonthly"), totalsContext);
+  assert.equal(totalMonthly, 18);
+  assert.equal(evaluate(initializer("avgPerMonth"), { ...totalsContext, totalMonthly }), 6);
+  assert.equal(evaluate(initializer("maxMonthlyValue"), totalsContext), 9);
+  assert.equal(evaluate(initializer("selectedMonthlyMonth"), { ...totalsContext, selectedMonthlyBarIndex: 2 }).fullLabel, "Oct 2026");
+  assert.equal(evaluate(initializer("selectedMonthlyMonth"), { ...totalsContext, selectedMonthlyBarIndex: null }), undefined);
+});
+
+test("scrollable chart values have real space within the viewport and selected bars render above siblings", () => {
+  const wanted: Record<string, string> = {};
+  function visit(node: ts.Node) {
+    if (ts.isPropertyAssignment(node) && ["scrollChartRow", "selectedChartBar", "barTooltipText"].includes(node.name.getText(source))) {
+      wanted[node.name.getText(source)] = node.initializer.getText(source);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  const row = evaluate(wanted.scrollChartRow, {});
+  const text = evaluate(wanted.barTooltipText, { OrgDesign: { fonts: { bold: "bold" } } });
+  assert.ok(row.paddingTop >= text.lineHeight + 8 + 6, "Reserve the tooltip height, padding and gap inside ScrollView");
+  assert.ok(row.paddingHorizontal >= 16, "First and last tooltip edges must remain in the viewport");
+  assert.ok(evaluate(wanted.selectedChartBar, {}).zIndex > 0);
+  assert.match(source.text, /style=\{\[styles\.barTouchTarget, isSelected && styles\.selectedChartBar\]\}/);
+  assert.equal((source.text.match(/removeClippedSubviews=\{false\}/g) || []).length, 2);
+  assert.match(source.text, /testID="hourly-selection"/, "Selected hour and its value also remain visible outside the scroll viewport");
+});
+
+test("monthly period changes clear the selected value; tapping a monthly bar selects and deselects it", () => {
+  let periodCallback = "";
+  let monthlyMap = "";
+  function visit(node: ts.Node) {
+    if (ts.isArrowFunction(node) && node.getText(source).includes("setMonthlyTrendMonths(v);")) periodCallback = node.getText(source);
+    if (ts.isCallExpression(node) && node.expression.getText(source) === "currentMonthlyData.map") monthlyMap = node.getText(source);
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  let period = 6, selected: number | null = 1, haptics = 0;
+  const setSelectedMonthlyBarIndex = (value: number | null) => { selected = value; };
+  const callback = evaluate(periodCallback, {
+    setMonthlyTrendMonths: (value: number) => { period = value; }, setSelectedMonthlyBarIndex,
+  });
+  callback(3);
+  assert.equal(period, 3);
+  assert.equal(selected, null);
+  const renderBars = () => evaluate(monthlyMap, {
+    React: { createElement: (type: unknown, props: unknown) => ({ type, props }) },
+    ChartBar: "ChartBar",
+    currentMonthlyData: buildMonthlyServedTrend(new Map(), "2026-10-04", period),
+    maxMonthlyValue: 0, selectedMonthlyBarIndex: selected, setSelectedMonthlyBarIndex,
+    Haptics: { impactAsync: () => { haptics++; }, ImpactFeedbackStyle: { Light: "light" } },
+  });
+  renderBars()[1].props.onPress();
+  assert.equal(selected, 1);
+  renderBars()[1].props.onPress();
+  assert.equal(selected, null);
+  assert.equal(haptics, 2);
 });

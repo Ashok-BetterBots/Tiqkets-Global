@@ -4,7 +4,7 @@ description: Product scope for the mobile Home performance cards and charts.
 ---
 
 Organisation mobile Home's Today's Performance, Served Report, Weekly Trend,
-and Hourly Trend must show the selected branch, service and desk, across all
+Hourly Trend and Monthly Trend must show the selected branch, service and desk, across all
 staff—not only activity processed by the logged-in user. All Desks includes
 every desk in the selected branch/service.
 
@@ -26,3 +26,12 @@ Server-time hour grouping and a 9AM–11PM-only chart also hid some transactions
 **How to apply:** Home uses the organisation timezone, not the device timezone.
 The user subsequently requested that all reports use that same organisation
 calendar; keep explicit staff filters intact. See [organisation timezone](organisation-timezone.md).
+
+Monthly Trend uses calendar-month totals, not rolling 30-day blocks; include
+zero-activity months and clearly mark the current month as month-to-date.
+
+**Why:** Month labels and month-to-date reporting must match the organisation
+calendar, including different month lengths and year boundaries.
+
+**How to apply:** Keep month grouping aligned with the organisation date keys
+and preserve Home's branch/service/desk scope across all staff.

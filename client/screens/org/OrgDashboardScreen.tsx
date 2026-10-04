@@ -17,9 +17,17 @@ import { getRoleLabel } from "@/types/organization";
 import { useQuery } from "@tanstack/react-query";
 import { getApiUrl } from "@/lib/query-client";
 import { createHomeReportCalendar, shiftHomeReportDate, resolveOrganizationTimezone } from "@shared/home-report-calendar";
+import { buildMonthlyServedTrend } from "@shared/home-monthly-trend";
 
 type ReportPeriod = 7 | 14 | 30;
 type TrendPeriod = 30 | 60 | 90 | 180 | 365;
+type MonthlyTrendMonths = 3 | 6 | 12;
+
+const MONTHLY_PERIODS: { value: MonthlyTrendMonths; label: string }[] = [
+  { value: 3, label: "3M" },
+  { value: 6, label: "6M" },
+  { value: 12, label: "1Y" },
+];
 
 const TREND_PERIODS: { value: TrendPeriod; label: string }[] = [
   { value: 30, label: "1M" },
@@ -83,7 +91,14 @@ function ChartBar({
 }) {
   const h = max > 0 ? Math.max(6, (value / max) * heightMax) : 6;
   return (
-    <Pressable style={styles.barTouchTarget} onPress={onPress} testID={testID}>
+    <Pressable
+      style={[styles.barTouchTarget, isSelected && styles.selectedChartBar]}
+      onPress={onPress}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={`${label ? `${label}, ` : ""}${value} served`}
+      accessibilityState={{ selected: isSelected }}
+    >
       <View style={[styles.barContainer, { height: heightMax }]}>
         {isSelected ? (
           <View style={styles.barTooltip}>
@@ -134,6 +149,8 @@ export default function OrgDashboardScreen() {
   const [selectedBarIndex, setSelectedBarIndex] = useState<number | null>(null);
   const [selectedWeeklyBarIndex, setSelectedWeeklyBarIndex] = useState<number | null>(null);
   const [selectedHourlyBarIndex, setSelectedHourlyBarIndex] = useState<number | null>(null);
+  const [monthlyTrendMonths, setMonthlyTrendMonths] = useState<MonthlyTrendMonths>(6);
+  const [selectedMonthlyBarIndex, setSelectedMonthlyBarIndex] = useState<number | null>(null);
 
   const waitingCount = queue.filter((c) => c.status === "waiting").length;
 
@@ -153,6 +170,7 @@ export default function OrgDashboardScreen() {
     : availableDesks.find(desk => desk.id === selectedDeskId)?.id;
   const analyticsTimeZone = resolveOrganizationTimezone(organization?.timezone);
   const homeCalendar = useMemo(() => createHomeReportCalendar(analyticsTimeZone), [analyticsTimeZone]);
+  const reportingDateKey = homeCalendar.dateKey(new Date());
   const analyticsScopeReady = !!organization?.id && !!activeBranch?.id && !!analyticsServiceId
     && (selectedDeskId === "all" || !!analyticsDeskId);
 
@@ -183,7 +201,7 @@ export default function OrgDashboardScreen() {
 
   // Real analytics from /api/reports/:orgId/summary. We fetch once with a
   // 365-day window which gives us the daily breakdown used for the Served
-  // Report and Weekly Trend charts. The Hourly Trend uses a separate query
+  // Report, Weekly Trend and Monthly Trend charts. The Hourly Trend uses a separate query
   // keyed by its period because the endpoint returns hourly aggregates for
   // the *whole* filter window — we need a fresh fetch when the user picks
   // a different period.
@@ -287,6 +305,14 @@ export default function OrgDashboardScreen() {
     }
     return { total, avgPerWeek: Math.round(total / numWeeks), peakWeek: peak };
   }, [buildDailySeries, weeklyTrendPeriod]);
+
+  const currentMonthlyData = useMemo(() => buildMonthlyServedTrend(
+    dailyCompletedByDate, reportingDateKey, monthlyTrendMonths,
+  ), [dailyCompletedByDate, reportingDateKey, monthlyTrendMonths]);
+  const totalMonthly = currentMonthlyData.reduce((sum, month) => sum + month.value, 0);
+  const avgPerMonth = Math.round(totalMonthly / monthlyTrendMonths);
+  const maxMonthlyValue = Math.max(0, ...currentMonthlyData.map(month => month.value));
+  const selectedMonthlyMonth = selectedMonthlyBarIndex === null ? undefined : currentMonthlyData[selectedMonthlyBarIndex];
 
   // Hourly trend = served count at every hour over the selected window.
   const currentHourlyData = useMemo(() => {
@@ -913,6 +939,53 @@ export default function OrgDashboardScreen() {
 
         <View style={[cardStyle, styles.reportCard]}>
           <View style={styles.reportHeader}>
+            <ThemedText style={styles.cardTitle}>Hourly Trend</ThemedText>
+            <ThemedText style={[styles.todayLabel, { color: colors.textSecondary }]}>By hour</ThemedText>
+          </View>
+          <View style={styles.statGrid}>
+            <View style={styles.statCol}>
+              <ThemedText style={[styles.statValue, { color: OrgDesign.primary }]}>{totalHourly}</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Total Served</ThemedText>
+            </View>
+            <View style={styles.statCol}>
+              <ThemedText style={[styles.statValue, { color: OrgDesign.success }]}>{avgPerHour}</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Avg/Hour</ThemedText>
+            </View>
+            <View style={styles.statCol}>
+              <ThemedText style={[styles.statValue, { color: OrgDesign.warning }]}>{peakHourLabel}</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Peak Hour</ThemedText>
+            </View>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} removeClippedSubviews={false}>
+          <View style={[styles.chartRow, styles.scrollChartRow]}>
+            {currentHourlyData.map((value, index) => (
+              <ChartBar
+                key={index}
+                value={value}
+                max={maxHourlyValue}
+                isLast={index === currentHourlyData.length - 1}
+                isSelected={selectedHourlyBarIndex === index}
+                label={HOUR_LABELS[index]}
+                heightMax={72}
+                radius={4}
+                testID={`hourly-bar-${index}`}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedHourlyBarIndex(selectedHourlyBarIndex === index ? null : index);
+                }}
+              />
+            ))}
+          </View>
+          </ScrollView>
+          {selectedHourlyBarIndex !== null ? (
+            <ThemedText style={[styles.chartCaption, { color: colors.textSecondary }]} accessibilityLiveRegion="polite" testID="hourly-selection">
+              {formatHour(HOUR_VALUES[selectedHourlyBarIndex])} · {currentHourlyData[selectedHourlyBarIndex]} served
+            </ThemedText>
+          ) : null}
+        </View>
+
+        <View style={[cardStyle, styles.reportCard]}>
+          <View style={styles.reportHeader}>
             <ThemedText style={styles.cardTitle}>Weekly Trend</ThemedText>
             {renderPeriodPills(
               TREND_PERIODS,
@@ -955,46 +1028,58 @@ export default function OrgDashboardScreen() {
           </View>
         </View>
 
-        <View style={[cardStyle, styles.reportCard]}>
+        <View style={[cardStyle, styles.reportCard]} testID="monthly-trend">
           <View style={styles.reportHeader}>
-            <ThemedText style={styles.cardTitle}>Hourly Trend</ThemedText>
-            <ThemedText style={[styles.todayLabel, { color: colors.textSecondary }]}>Today</ThemedText>
+            <ThemedText style={styles.cardTitle}>Monthly Trend</ThemedText>
+            {renderPeriodPills(
+              MONTHLY_PERIODS,
+              monthlyTrendMonths,
+              (v) => { setMonthlyTrendMonths(v); setSelectedMonthlyBarIndex(null); },
+            )}
           </View>
           <View style={styles.statGrid}>
             <View style={styles.statCol}>
-              <ThemedText style={[styles.statValue, { color: OrgDesign.primary }]}>{totalHourly}</ThemedText>
+              <ThemedText style={[styles.statValue, { color: OrgDesign.primary }]}>{totalMonthly}</ThemedText>
               <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Total Served</ThemedText>
             </View>
             <View style={styles.statCol}>
-              <ThemedText style={[styles.statValue, { color: OrgDesign.success }]}>{avgPerHour}</ThemedText>
-              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Avg/Hour</ThemedText>
+              <ThemedText style={[styles.statValue, { color: OrgDesign.success }]}>{avgPerMonth}</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Avg/Month</ThemedText>
             </View>
             <View style={styles.statCol}>
-              <ThemedText style={[styles.statValue, { color: OrgDesign.warning }]}>{peakHourLabel}</ThemedText>
-              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Peak Hour</ThemedText>
+              <ThemedText style={[styles.statValue, { color: OrgDesign.warning }]}>{maxMonthlyValue}</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Peak Month</ThemedText>
             </View>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={[styles.chartRow, { width: 576 }]}>
-            {currentHourlyData.map((value, index) => (
-              <ChartBar
-                key={index}
-                value={value}
-                max={maxHourlyValue}
-                isLast={index === currentHourlyData.length - 1}
-                isSelected={selectedHourlyBarIndex === index}
-                label={HOUR_LABELS[index]}
-                heightMax={72}
-                radius={4}
-                testID={`hourly-bar-${index}`}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setSelectedHourlyBarIndex(selectedHourlyBarIndex === index ? null : index);
-                }}
-              />
-            ))}
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} removeClippedSubviews={false}>
+            <View style={[styles.chartRow, styles.scrollChartRow, { width: Math.max(288, monthlyTrendMonths * 48) }]}>
+              {currentMonthlyData.map((month, index) => (
+                <ChartBar
+                  key={month.key}
+                  value={month.value}
+                  max={maxMonthlyValue}
+                  isLast={index === currentMonthlyData.length - 1}
+                  isSelected={selectedMonthlyBarIndex === index}
+                  label={month.label}
+                  heightMax={72}
+                  radius={5}
+                  testID={`monthly-bar-${index}`}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedMonthlyBarIndex(selectedMonthlyBarIndex === index ? null : index);
+                  }}
+                />
+              ))}
+            </View>
           </ScrollView>
+          {selectedMonthlyMonth ? (
+            <ThemedText style={[styles.chartCaption, { color: colors.textSecondary }]} accessibilityLiveRegion="polite" testID="monthly-selection">
+              {selectedMonthlyMonth.fullLabel} · {selectedMonthlyMonth.value} served
+            </ThemedText>
+          ) : null}
+          <ThemedText style={[styles.chartCaption, { color: colors.textSecondary }]}>
+            Last {monthlyTrendMonths} calendar months · current month to date
+          </ThemedText>
         </View>
         </>
         ) : null}
@@ -1508,6 +1593,16 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 16,
   },
+  // Tooltips must stay INSIDE the horizontal scroll viewport. zIndex alone
+  // cannot lift a child through a native ScrollView's clipping boundary.
+  scrollChartRow: {
+    width: 576,
+    paddingTop: 40,
+    paddingHorizontal: 18,
+  },
+  selectedChartBar: {
+    zIndex: 1,
+  },
   barTouchTarget: {
     flex: 1,
     minWidth: 6,
@@ -1550,6 +1645,7 @@ const styles = StyleSheet.create({
   },
   barTooltipText: {
     fontSize: 12,
+    lineHeight: 16,
     fontFamily: OrgDesign.fonts.bold,
     color: "#FFFFFF",
     textAlign: "center",
