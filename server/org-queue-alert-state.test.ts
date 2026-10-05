@@ -24,6 +24,11 @@ function harness(lastValue: number | null) {
   };
   const context: any = {
     getBranch: async () => ({ id: "branch", name: "Branch" }),
+    getOrganizationCalendar: async () => ({
+      timeZone: "Asia/Kolkata",
+      dateKey: () => "2026-09-28",
+      dayStart: () => new Date("2026-09-27T18:30:00Z"),
+    }),
     getOrCreateState: async (_branch: string, kind: string) =>
       kind === "queue_status"
         ? { lastValue }

@@ -15,26 +15,25 @@ nothing accepts tickets until staff explicitly Start it. Join gating
 (branches/services/desks) are still `"active"`, so resources created later via the
 dashboard still come up active unless that is changed separately.
 
-## Auto-end idle queues (server/queue-auto-end.ts)
-Scheduler mirrors `server/billing-reminders.ts` (single-start guard, unref'd timer,
-wired in `server/index.ts` right after `startBillingReminders()`). Scans every 5 min;
-ends any active service with **zero `waiting` tickets** that has been idle ≥30 min.
+## Automatic booking close is Dine In only
 
-**Idle reference** = most recent of: max ticket `updated_at`, the `queue_open` anchor
-(`branch_alert_state`), and the service row's own `updatedAt`. `updatedAt` is NOT NULL
-so there is always a reference — a started-but-empty service still gets a sensible
-idle window. **Why:** `queue_open` is only stamped on a status→active transition, so
-many active services have no anchor; without the `updatedAt` fallback those would
-never auto-end.
+The user explicitly requires automatic closing after **30 consecutive minutes
+with no waiting tickets/bookings**, applicable **only to Dine In**. Resolve service
+mode overrides before branch mode; Take Away and all other modes must not close
+under this rule. Closing bookings must not cancel or change already seated,
+called or held customers.
 
-**Atomicity:** before ending, re-count waiting tickets and do a conditional
-`UPDATE ... WHERE queue_status='active'` (returning rows). If the recheck finds a
-waiter or the row was already changed, skip. **Why:** closes the race between the bulk
-snapshot scan and the per-service end.
+**Why:** the user restricted this rule to restaurant Dine In and required the
+normal registered-staff WhatsApp closing alerts.
 
-Auto-end fires the SAME alerts as a manual End: `notifyServiceQueueStatusChange(...,"ended")`
-+ `notifyOrgServiceQueueStatusChange(...,"ended")` (org queue-end WhatsApp/email with
-day stats). `notifyOrgServiceQueueStatusChange` already de-dupes identical transitions.
+**How to apply:** persist waiting-transition anchors so short-lived tickets
+between scans and server restarts do not lose the empty-queue history. Reopening
+or resuming booking starts a fresh window. Do not treat WhatsApp delivery, notes,
+recalls or updates to already seated customers as renewed waiting activity.
+Legacy queues without an anchor can bootstrap conservatively from prior activity.
 
-`AlertTriggerKind` in `server/branch-alerts.ts` gained a documented `"queue_idle"`
-member (reserved; not yet written by any helper).
+Waiting writes and automatic closing must share a service lock; recheck the
+effective mode, open status and waiting count before closing. Send the existing
+staff close alerts after commit, with the actual prior active status, so stale
+notification history cannot suppress a real closure. Respect existing registered
+recipient/channel preferences; do not change recipients or provider templates.

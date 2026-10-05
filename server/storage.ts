@@ -1,5 +1,6 @@
 import { eq, ne, and, gte, gt, lte, lt, desc, asc, sql, inArray, isNull, or } from "drizzle-orm";
 import { db } from "./db";
+import { recordWaitingActivity, withDineInQueueLocks } from "./queue-idle";
 import { getBranchOrganizationCalendar } from "./organization-calendar";
 import { shiftHomeReportDate } from "@shared/home-report-calendar";
 import {
@@ -192,6 +193,17 @@ export class DatabaseStorage {
   }
 
   async updateService(id: string, data: Partial<InsertService>): Promise<Service | undefined> {
+    if (data.queueStatus === "active") {
+      return withDineInQueueLocks([id], async (tx, scopes) => {
+        const [previous] = await tx.select().from(services).where(eq(services.id, id));
+        const [service] = await tx.update(services)
+          .set({ ...data, updatedAt: new Date() }).where(eq(services.id, id)).returning();
+        if (service && previous?.queueStatus !== "active") {
+          await recordWaitingActivity(tx, scopes.get(id), service.updatedAt);
+        }
+        return service;
+      });
+    }
     const [service] = await db.update(services)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(services.id, id))
@@ -424,12 +436,15 @@ export class DatabaseStorage {
     const ticketNumber = data.ticketNumber || await this.getNextTicketNumber(data.branchId, await this.getOrgPrefix(data.branchId));
     const position = await this.getNextQueuePosition(data.branchId, data.serviceId || undefined);
     
-    const [ticket] = await db.insert(tickets).values({
-      ...data,
-      ticketNumber,
-      position,
-    }).returning();
-    return ticket;
+    return withDineInQueueLocks([data.serviceId], async (tx, scopes) => {
+      const [ticket] = await tx.insert(tickets).values({
+        ...data, ticketNumber, position,
+      }).returning();
+      if (ticket.status === "waiting" && ticket.serviceId) {
+        await recordWaitingActivity(tx, scopes.get(ticket.serviceId), ticket.updatedAt);
+      }
+      return ticket;
+    });
   }
 
   // Atomically complete a ticket on its current service and re-queue the same
@@ -517,6 +532,25 @@ export class DatabaseStorage {
   }
 
   async updateTicket(id: string, data: Partial<InsertTicket>): Promise<Ticket | undefined> {
+    if (data.status !== undefined || data.serviceId !== undefined) {
+      const existing = await this.getTicketById(id);
+      if (!existing) return undefined;
+      return withDineInQueueLocks([existing.serviceId, data.serviceId], async (tx, scopes) => {
+        const [previous] = await tx.select().from(tickets).where(eq(tickets.id, id)).for("update");
+        if (!previous) return undefined;
+        const [ticket] = await tx.update(tickets)
+          .set({ ...data, updatedAt: new Date() }).where(eq(tickets.id, id)).returning();
+        if (previous.status !== ticket.status || previous.serviceId !== ticket.serviceId) {
+          if (previous.status === "waiting" && previous.serviceId) {
+            await recordWaitingActivity(tx, scopes.get(previous.serviceId), ticket.updatedAt);
+          }
+          if (ticket.status === "waiting" && ticket.serviceId) {
+            await recordWaitingActivity(tx, scopes.get(ticket.serviceId), ticket.updatedAt);
+          }
+        }
+        return ticket;
+      });
+    }
     const [ticket] = await db.update(tickets)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(tickets.id, id))
