@@ -17,6 +17,15 @@ Gender was `required:true` on mobile but `required:false` on web.
 **Why:** same feature behaving differently per editor surface = inconsistent
 customer validation.
 
+The customer QR web form must not link Share Table visibility to the guest-count
+threshold. Only Split Table is threshold-gated; Share Table remains available
+when enabled by the organisation.
+
+**Why:** the user explicitly corrected the accidental coupling of both fields.
+
+**How to apply:** keep these visibility rules independent when changing customer
+form rendering; preserve the existing Split Table threshold and field toggles.
+
 **seedDineInFields is intentionally conservative:** it no-ops if ANY default field
 is already present, so it never re-adds a field an admin disabled. It does NOT
 backfill partially-seeded data — that is by design (preserving admin toggles wins

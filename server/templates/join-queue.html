@@ -1684,7 +1684,7 @@
       });
 
       // After all fields are in the DOM, apply initial visibility and wire the
-      // partySize input so Split/Share fields only show when guests >= 5.
+      // partySize input so Split Table only shows when guests >= 5.
       syncTableFields();
       const partySizeEl = document.getElementById('field-partySize');
       if (partySizeEl) {
@@ -1693,12 +1693,12 @@
       }
     }
 
-    // Show Split group / Share table only when guest count >= 5.
+    // Show Split Table only when guest count >= 5; Share Table is independent.
     function syncTableFields() {
       const partySizeEl = document.getElementById('field-partySize');
       const count = partySizeEl ? (parseInt(partySizeEl.value, 10) || 0) : 0;
       const show = count >= 5;
-      ['splitGroup', 'shareTable'].forEach(function(id) {
+      ['splitGroup'].forEach(function(id) {
         const group = document.querySelector('[data-field-id="' + id + '"]');
         if (group) group.style.display = show ? '' : 'none';
       });
