@@ -4057,6 +4057,11 @@
 
           <!-- BOOKINGS PAGE -->
           <div x-show="currentPage === 'bookings'" x-transition>
+            <div x-show="isAvailabilityNotApplicable" x-cloak class="card p-6" data-testid="availability-not-applicable">
+              <h3 class="font-bold text-gray-900 mb-2">Availability Not Applicable</h3>
+              <p class="text-sm text-gray-500">Availability details are not applicable to this queue mode. To stop new bookings, close booking on the Home page for the selected branch and service.</p>
+            </div>
+            <div x-show="!isAvailabilityNotApplicable" x-cloak>
             <!-- Tab navigation -->
             <div class="flex items-center gap-1 mb-6 bg-gray-100/80 rounded-xl p-1">
               <template x-for="tab in [{id:'hours',label:'Working Hours',icon:'fa-solid fa-clock'},{id:'breaks',label:'Breaks',icon:'fa-solid fa-mug-hot'},{id:'holidays',label:'Holidays',icon:'fa-solid fa-umbrella-beach'},{id:'slots',label:'Time Slots',icon:'fa-solid fa-table-cells'},{id:'appointments',label:'Appointments',icon:'fa-solid fa-calendar-check'}]" :key="tab.id">
@@ -4370,6 +4375,7 @@
                   <p class="text-xs text-gray-300 mt-1">Bookings will appear here when customers schedule appointments</p>
                 </div>
               </div>
+            </div>
             </div>
           </div>
 
@@ -8543,6 +8549,10 @@
           }
           return branchMode;
         },
+        get isAvailabilityNotApplicable() {
+          const mode = String(this.currentQueueMode || '').toLowerCase().replace(/[\s_-]/g, '');
+          return mode === 'dinein' || mode === 'takeaway';
+        },
         get filteredQueue() {
           if (this.queueFilter === 'completed') {
             return this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show');
@@ -11892,6 +11902,7 @@
             return 'Booking status and calls apply to the highlighted target.';
           }
           if (this.currentPage === 'bookings') {
+            if (this.isAvailabilityNotApplicable) return '';
             if (this.bookingTab === 'appointments') return 'Showing appointments for the selected branch and service.';
             return 'Working hours, breaks and holidays apply to the selected branch + service.';
           }

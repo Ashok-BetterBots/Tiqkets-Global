@@ -25,7 +25,7 @@ import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, BrandColors, headingFont } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Branch, BreakTime, Holiday, DaySchedule, ServiceSettings } from "@/types/organization";
-import { resolveAvailabilityForService } from "@/utils/settingsHierarchy";
+import { getQueueModeForService, resolveAvailabilityForService } from "@/utils/settingsHierarchy";
 
 type TabType = "hours" | "breaks" | "holidays" | "slots";
 
@@ -167,6 +167,11 @@ export default function OrgBookingsScreen() {
   const selectedService = selectedServiceId
     ? branchServices.find((s) => s.id === selectedServiceId)
     : null;
+  const availabilityQueueMode = organization
+    ? getQueueModeForService(organization.settings, selectedBranch?.settings, selectedService?.serviceSettings || undefined)
+    : "fifo";
+  const normalizedAvailabilityMode = String(availabilityQueueMode).toLowerCase().replace(/[\s_-]/g, "");
+  const isAvailabilityNotApplicable = normalizedAvailabilityMode === "dinein" || normalizedAvailabilityMode === "takeaway";
   const wizardSteps: ("branch" | "service")[] = canSelectBranch
     ? ["branch", "service"]
     : ["service"];
@@ -1037,6 +1042,15 @@ export default function OrgBookingsScreen() {
           </View>
         </Pressable>
 
+        {isAvailabilityNotApplicable ? (
+          <Card testID="availability-not-applicable">
+            <ThemedText style={styles.emptyTitle}>Availability Not Applicable</ThemedText>
+            <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              Availability details are not applicable to this queue mode. To stop new bookings, close booking on the Home page for the selected branch and service.
+            </ThemedText>
+          </Card>
+        ) : (
+          <>
         <View style={styles.tabsContainer}>
           {(([
             { key: "hours", label: "Hours" },
@@ -1062,6 +1076,8 @@ export default function OrgBookingsScreen() {
         </View>
 
         {renderTabContent()}
+          </>
+        )}
       </ScrollView>
 
       <Modal
@@ -1197,7 +1213,7 @@ export default function OrgBookingsScreen() {
       </Modal>
 
       <Modal
-        visible={showBreakModal}
+        visible={showBreakModal && !isAvailabilityNotApplicable}
         transparent
         animationType="fade"
         onRequestClose={() => setShowBreakModal(false)}
@@ -1325,7 +1341,7 @@ export default function OrgBookingsScreen() {
       </Modal>
 
       <Modal
-        visible={showHolidayModal}
+        visible={showHolidayModal && !isAvailabilityNotApplicable}
         transparent
         animationType="fade"
         onRequestClose={() => {
@@ -1429,7 +1445,7 @@ export default function OrgBookingsScreen() {
       </Modal>
 
       <Modal
-        visible={showHoursTimePicker}
+        visible={showHoursTimePicker && !isAvailabilityNotApplicable}
         transparent
         animationType="fade"
         onRequestClose={() => setShowHoursTimePicker(false)}
