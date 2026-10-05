@@ -8,7 +8,8 @@ import {
   orgUserPushTokens,
   type BranchAlertRecipient,
 } from "@shared/schema";
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { isDineInMode } from "@shared/dineInFields";
 import { sendWhatsAppMessage, sendWhatsAppAlertTemplate } from "./whatsapp";
 import { getOrganizationCalendar } from "./organization-calendar";
 
@@ -342,15 +343,17 @@ interface QueueEndStats {
 
 /**
  * Aggregate service-level statistics for a closed queue session,
- * looking at every ticket created on or after `since` for the given
- * branch + service. Visitor count sums party sizes when the booking
- * form captured one, otherwise falls back to one visitor per ticket.
+ * Dine In uses bookings joined between opening and closing, seated outcomes
+ * and measured waits. Other modes keep their existing created-since window.
+ * Visitor count sums captured party sizes, or one visitor per ticket.
  */
 async function aggregateQueueEndStats(
   branchId: string,
   serviceId: string,
   since: Date,
+  session?: { dineIn: boolean; endedAt: Date },
 ): Promise<QueueEndStats> {
+  const dineIn = session?.dineIn === true;
   const rows = await db
     .select()
     .from(tickets)
@@ -358,7 +361,8 @@ async function aggregateQueueEndStats(
       and(
         eq(tickets.branchId, branchId),
         eq(tickets.serviceId, serviceId),
-        gte(tickets.createdAt, since),
+        gte(dineIn ? tickets.joinedAt : tickets.createdAt, since),
+        ...(dineIn ? [lte(tickets.joinedAt, session!.endedAt)] : []),
       ),
     );
 
@@ -371,7 +375,8 @@ async function aggregateQueueEndStats(
 
   for (const t of rows) {
     const status = String(t.status || "").toLowerCase();
-    if (status === "completed" || status === "served") served++;
+    const wasServed = status === "completed" || status === "served" || (dineIn && status === "arrived");
+    if (wasServed) served++;
     else if (status === "cancelled" || status === "canceled") cancelled++;
     else if (status === "no_show") noShow++;
 
@@ -382,11 +387,18 @@ async function aggregateQueueEndStats(
     const partySize = Number(fd.partySize ?? fd.guests ?? 0);
     totalVisitors += Number.isFinite(partySize) && partySize > 0 ? partySize : 1;
 
-    // Real wait time is "called - created" when both timestamps exist.
-    // Falls back to estimatedWaitTime so peak wait still reflects load
-    // even before the ticket gets served.
+    // Dine In performance uses measured waits for served/seated bookings,
+    // starting when they joined. Predictions and unfinished bookings are
+    // not actual wait samples. Other modes retain their existing calculation.
     let wait: number | null = null;
-    if (t.calledAt && t.createdAt) {
+    if (dineIn) {
+      const waitEndedAt = t.calledAt || t.servedAt || t.arrivedAt;
+      if (wasServed && waitEndedAt && t.joinedAt) {
+        wait = (new Date(waitEndedAt).getTime() - new Date(t.joinedAt).getTime()) / 60000;
+      } else if (wasServed && typeof t.actualWaitTime === "number") {
+        wait = t.actualWaitTime;
+      }
+    } else if (t.calledAt && t.createdAt) {
       wait = (new Date(t.calledAt).getTime() - new Date(t.createdAt).getTime()) / 60000;
     } else if (typeof t.estimatedWaitTime === "number") {
       wait = t.estimatedWaitTime;
@@ -423,6 +435,9 @@ export async function notifyOrgServiceQueueStatusChange(
   previousStatus?: "active" | "paused" | "ended",
 ): Promise<void> {
   try {
+    // Capture the transition before network delivery. Slow opening alerts must
+    // not move the session anchor past bookings made while they are sending.
+    const transitionAt = new Date();
     const queueTemplateName =
       newStatus === "active"
         ? "org_alert_queue_start"
@@ -462,6 +477,22 @@ export async function notifyOrgServiceQueueStatusChange(
     // distinct triggerKind rather than suffixing the scopeId because
     // the scope_id column is varchar(36) and a UUID already fills it.
     const openedState = await getOrCreateState(branchId, "queue_open", serviceId);
+    const previousStatusCode = previousStatus === undefined
+      ? state.lastValue
+      : previousStatus === "active" ? 1 : previousStatus === "paused" ? 2 : 3;
+    // A fresh start gets its anchor before sending alerts. A resume keeps it.
+    if (newStatus === "active" && (previousStatusCode == null || previousStatusCode === 3)) {
+      await db
+        .update(branchAlertState)
+        .set({ lastTriggeredAt: transitionAt, updatedAt: transitionAt })
+        .where(
+          and(
+            eq(branchAlertState.branchId, branchId),
+            eq(branchAlertState.triggerKind, "queue_open"),
+            eq(branchAlertState.scopeId, serviceId),
+          ),
+        );
+    }
 
     const recipients = await getRecipientsFor(branchId, "alertOnQueueOpenClose");
     if (queueTemplateName && recipients.length === 0) {
@@ -473,7 +504,7 @@ export async function notifyOrgServiceQueueStatusChange(
       const label =
         newStatus === "active" ? "OPENED" : newStatus === "paused" ? "PAUSED" : "CLOSED";
       const title = `Tiqkets · Queue ${label}`;
-      const now = new Date();
+      const now = transitionAt;
       const location = locationLabelFor(branch);
       const body = `Branch: ${branch.name}\nService: ${serviceName}\nTime: ${now.toLocaleString("en-IN", { timeZone: calendar.timeZone })}`;
 
@@ -496,7 +527,13 @@ export async function notifyOrgServiceQueueStatusChange(
             ? openedState.lastTriggeredAt
             : calendar.dayStart(calendar.dateKey(now));
 
-        const stats = await aggregateQueueEndStats(branchId, serviceId, startedAt);
+        const service = await getServiceById(serviceId);
+        const mode = (service?.serviceSettings as { queueMode?: string } | undefined)?.queueMode
+          || branch.queueMode;
+        const stats = await aggregateQueueEndStats(branchId, serviceId, startedAt, {
+          dineIn: isDineInMode(mode),
+          endedAt: now,
+        });
 
         // org_alert_queue_end body params (after {{1}} recipient name):
         // {{2}} service, {{3}} location, {{4}} date, {{5}} start time,
@@ -531,7 +568,6 @@ export async function notifyOrgServiceQueueStatusChange(
       await sendAlertToRecipients(recipients, payload);
     }
 
-    const transitionAt = new Date();
     await db
       .update(branchAlertState)
       .set({ lastValue: statusCode, lastTriggeredAt: transitionAt, updatedAt: transitionAt })
@@ -543,30 +579,6 @@ export async function notifyOrgServiceQueueStatusChange(
         ),
       );
 
-    // Stamp the queue-open anchor only on a *fresh* session start —
-    // i.e. the queue moves to active from "never started" (lastValue
-    // null) or from "ended" (lastValue 3). Active-after-paused keeps
-    // the existing anchor so a mid-day pause/resume doesn't reset the
-    // session window used by end-of-queue stats. Pause / end transitions
-    // never touch this row.
-    const previousStatusCode = previousStatus === undefined
-      ? state.lastValue
-      : previousStatus === "active" ? 1 : previousStatus === "paused" ? 2 : 3;
-    if (
-      newStatus === "active" &&
-      (previousStatusCode == null || previousStatusCode === 3)
-    ) {
-      await db
-        .update(branchAlertState)
-        .set({ lastTriggeredAt: transitionAt, updatedAt: transitionAt })
-        .where(
-          and(
-            eq(branchAlertState.branchId, branchId),
-            eq(branchAlertState.triggerKind, "queue_open"),
-            eq(branchAlertState.scopeId, serviceId),
-          ),
-        );
-    }
   } catch (err) {
     console.error("notifyOrgServiceQueueStatusChange error:", err);
   }

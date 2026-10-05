@@ -24,6 +24,8 @@ function harness(lastValue: number | null) {
   };
   const context: any = {
     getBranch: async () => ({ id: "branch", name: "Branch" }),
+    getServiceById: async () => undefined,
+    isDineInMode: () => false,
     getOrganizationCalendar: async () => ({
       timeZone: "Asia/Kolkata",
       dateKey: () => "2026-09-28",

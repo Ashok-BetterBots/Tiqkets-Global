@@ -10,3 +10,15 @@ Every org "served" metric (Today's Performance Served, Served Report, Weekly/Hou
 **Why:** An active dine-in branch showed 0 across the entire dashboard because every ticket sat in `arrived` forever while metrics counted only `completed`. The in-progress buckets (waiting/serving/called) also exclude `arrived`, so seated guests were invisible everywhere until counted as served.
 
 **How to apply:** Counting both is safe because a ticket holds one status at a time (no double-count). Time-sample math degrades gracefully: service-time needs `completedAt` (arrived skips it), wait-time needs `calledAt` (arrived includes it). When introducing a new queue mode or metric, decide its terminal "served" status explicitly rather than assuming `completed`.
+
+Dine In closing notifications report actual session performance: measured waits
+for served/seated bookings, not estimated waits or predictions for unfinished
+bookings. The session begins at opening, not when opening notifications finish.
+
+**Why:** the user reported closing figures did not match actual transactions.
+Predictions mixed with measurements and notification-delayed session anchors
+produce misleading performance figures.
+
+**How to apply:** preserve real session boundaries, organisation timezone and
+service scope; do not change queue transactions or other modes' calculations to
+correct a Dine In summary.
