@@ -14,6 +14,9 @@ assert.ok(webScript);
 const web = ts.createSourceFile("dashboard.js", webScript, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
 const declarations: Record<string, string> = {};
 const getters: Record<string, string> = {};
+const navigatorText = readFileSync(new URL("../client/navigation/OrgTabNavigator.tsx", import.meta.url), "utf8");
+const navigator = ts.createSourceFile("OrgTabNavigator.tsx", navigatorText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const navDeclarations: Record<string, string> = {};
 let mobileContent = "";
 function visitMobile(node: ts.Node) {
   if (ts.isVariableDeclaration(node) && node.initializer) declarations[node.name.getText(mobile)] = node.initializer.getText(mobile);
@@ -26,16 +29,22 @@ function visitWeb(node: ts.Node) {
 }
 visitMobile(mobile);
 visitWeb(web);
+function visitNavigator(node: ts.Node) {
+  if (ts.isVariableDeclaration(node) && node.initializer) navDeclarations[node.name.getText(navigator)] = node.initializer.getText(navigator);
+  ts.forEachChild(node, visitNavigator);
+}
+visitNavigator(navigator);
 function evaluate(expression: string, context: Record<string, unknown> = {}) {
   return runInNewContext(ts.transpileModule(`const result = ${expression}; result;`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },
   }).outputText, { ...context });
 }
-function mobileHidden(branchMode: string, serviceMode?: string | null, orgMode = "fifo") {
+function mobileHidden(branchMode: string, serviceMode?: string | null, orgMode = "fifo", platform = "ios") {
   const context: Record<string, any> = {
     getQueueModeForService, organization: { settings: { queueMode: orgMode } },
     selectedBranch: { settings: { queueMode: branchMode } },
     selectedService: { serviceSettings: { queueMode: serviceMode } },
+    Platform: { OS: platform },
   };
   context.availabilityQueueMode = evaluate(declarations.availabilityQueueMode, context);
   context.normalizedAvailabilityMode = evaluate(declarations.normalizedAvailabilityMode, context);
@@ -56,12 +65,14 @@ function webState(branchMode: string, serviceMode?: string | null) {
   return state;
 }
 
-test("mobile and web hide Availability only for Dine In and Take Away, including inherited modes", () => {
+test("Dine In and Take Away Availability is hidden on mobile but editable on web, including inherited modes", () => {
   for (const mode of ["dine_in", "dinein", "Dine In", "takeaway", "Take Away", "take_away"]) {
     assert.equal(mobileHidden("fifo", mode), true, `Mobile service: ${mode}`);
-    assert.equal(webState("fifo", mode).isAvailabilityNotApplicable, true, `Web service: ${mode}`);
+    assert.equal(webState("fifo", mode).isAvailabilityNotApplicable, false, `Web service: ${mode}`);
+    assert.equal(mobileHidden("fifo", mode, "fifo", "web"), false, `Expo web: ${mode}`);
     assert.equal(mobileHidden(mode, null), true, `Mobile inherited: ${mode}`);
-    assert.equal(webState(mode, null).isAvailabilityNotApplicable, true, `Web inherited: ${mode}`);
+    assert.equal(webState(mode, null).isAvailabilityNotApplicable, false, `Web inherited: ${mode}`);
+    assert.equal(mobileHidden(mode, null, "fifo", "android"), true, `Android inherited: ${mode}`);
   }
   for (const mode of ["fifo", "selective", "checkin", "check_in", "multistage", "multi_stage"]) {
     assert.equal(mobileHidden("dine_in", mode), false);
@@ -74,11 +85,11 @@ test("the selected branch and service drive visibility, and switching restores t
   const original = JSON.stringify(state.branches);
   assert.equal(state.isAvailabilityNotApplicable, false, "Do not use another service or another branch's mode");
   state.selectedServiceId = "service-b";
-  assert.equal(state.isAvailabilityNotApplicable, true);
+  assert.equal(state.isAvailabilityNotApplicable, false);
   state.selectedServiceId = "service-a";
   assert.equal(state.isAvailabilityNotApplicable, false);
   state.selectedBranchId = "branch-b";
-  assert.equal(state.isAvailabilityNotApplicable, true);
+  assert.equal(state.isAvailabilityNotApplicable, false);
   state.selectedBranchId = "branch-a";
   assert.equal(state.isAvailabilityNotApplicable, false);
   assert.equal(JSON.stringify(state.branches), original, "Visibility checks never mutate settings");
@@ -112,7 +123,7 @@ test("mobile replaces all four tabs and editor content with the message, preserv
   assert.ok(mobileText.includes("visible={showBranchPicker}"), "Keep branch/service switching available");
 });
 
-test("web hides the complete Availability section under a balanced wrapper, not adjacent pages or dialogs", () => {
+test("web shows the complete original Availability section with balanced markup and the old not-applicable message hidden", () => {
   const section = html.slice(html.indexOf("<!-- BOOKINGS PAGE -->"), html.indexOf("<!-- MANUAL ADD TO QUEUE MODAL -->"))
     .replace(/<!--[\s\S]*?-->/g, "");
   const stack: any[] = [];
@@ -135,10 +146,57 @@ test("web hides the complete Availability section under a balanced wrapper, not 
   assert.equal(message?.parent, page);
   assert.equal(editors?.parent, page);
   assert.ok(message.markup.includes('x-show="isAvailabilityNotApplicable"'));
+  assert.equal(webState("dinein").isAvailabilityNotApplicable, false);
+  assert.equal(webState("takeaway").isAvailabilityNotApplicable, false);
   for (const tab of ["hours", "breaks", "holidays", "slots", "appointments"]) {
     const body = nodes.find(node => node.markup.includes(`bookingTab === '${tab}'`));
     assert.equal(body?.parent, editors, `${tab} belongs inside the visibility guard`);
   }
   assert.match(section, /Availability details are not applicable to this queue mode/);
   assert.match(section, /Home page for the selected branch and service/);
+});
+
+test("mobile navigation removes the Availability page only for the selected effective food mode", () => {
+  const context: Record<string, any> = {
+    organization: { settings: { queueMode: "fifo" } }, getQueueModeForService,
+    selectedBranchId: "branch-a", selectedServiceId: "service-a",
+    accessibleBranches: [
+      { id: "branch-a", settings: { queueMode: "dinein" } },
+      { id: "branch-b", settings: { queueMode: "takeaway" } },
+    ],
+    getAccessibleServices: () => [
+      { id: "service-a", serviceSettings: { queueMode: "fifo" } },
+      { id: "service-b", serviceSettings: { queueMode: "takeaway" } },
+    ],
+    Platform: { OS: "ios" },
+  };
+  function tabs() {
+    for (const name of ["availabilityBranch", "availabilityServices", "availabilityService", "availabilityMode", "normalizedAvailabilityMode", "hideMobileAvailability"]) {
+      context[name] = evaluate(navDeclarations[name], context);
+    }
+    return evaluate(navDeclarations.tabs, {
+      ...context, useMemo: (fn: () => unknown) => fn(),
+      isEventAccount: false, hasPermission: () => true, hasAnyPermission: () => true,
+      ORG_QUEUE_NAV_PERMISSIONS: [],
+      OrgDashboardScreen: "Home", OrgQueueScreen: "Queue", OrgServicesScreen: "Branches",
+      OrgBookingsScreen: "Availability", OrgSettingsScreen: "Settings",
+    });
+  }
+  assert.ok(tabs().some((tab: any) => tab.name === "OrgBookings"), "A FIFO override remains visible on a Dine In branch");
+  context.selectedServiceId = "service-b";
+  assert.equal(tabs().some((tab: any) => tab.name === "OrgBookings"), false);
+  for (const mode of ["dine_in", "Dine In", "dine-in", "Take Away", "take_away"]) {
+    context.getAccessibleServices = () => [{ id: "service-b", serviceSettings: { queueMode: mode } }];
+    assert.equal(tabs().some((tab: any) => tab.name === "OrgBookings"), false, mode);
+    context.Platform.OS = "web";
+    assert.ok(tabs().some((tab: any) => tab.name === "OrgBookings"), `Web ${mode}`);
+    context.Platform.OS = "android";
+    assert.equal(tabs().some((tab: any) => tab.name === "OrgBookings"), false, `Android ${mode}`);
+  }
+  context.selectedServiceId = "stale-service";
+  assert.equal(tabs().some((tab: any) => tab.name === "OrgBookings"), false, "Fallback follows the first accessible service");
+  context.getAccessibleServices = () => [{ id: "service-a", serviceSettings: { queueMode: "fifo" } }];
+  assert.ok(tabs().some((tab: any) => tab.name === "OrgBookings"), "Switching back restores Availability");
+  assert.match(navigatorText, /hasPermission\("org\.bookings\.view"\) && !hideMobileAvailability/);
+  assert.match(navigatorText, /isEventAccount, hideMobileAvailability\]/, "Mode changes recompute the tab list");
 });

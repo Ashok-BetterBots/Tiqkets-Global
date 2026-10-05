@@ -6,16 +6,18 @@ description: How Availability (hours/breaks/holidays/slots) resolves per service
 Availability (working hours, breaks, holidays, slot duration/capacity) is scoped to the
 SELECTED branch AND SELECTED service, with branch values as the fallback.
 
-For Dine In and Take Away, both mobile and web Availability pages hide their
-tabs and editors and explain that Availability details are not applicable.
-The message directs staff to close bookings on Home to stop new bookings.
+For Dine In and Take Away, display Availability options only on web (including
+Expo web). Do not show the Availability page or navigation tab on native mobile.
 Service queue-mode overrides take precedence over the branch's mode.
 
-**Why:** the user requested this as an Availability-page-only change, not a
-change to stored schedules, booking controls or customer registration behaviour.
+**Why:** the user explicitly corrected the earlier hide-on-both-platforms rule:
+"display the Availability options only in web application. Do not show that
+page in mobile application."
 
-**How to apply:** preserve existing settings and restore the original tabs for
-other modes. Keep branch/service selection available so staff can switch scope.
+**How to apply:** use the selected accessible branch/service's effective mode to
+hide native navigation, and restore the tab when switching to another mode.
+Preserve web editors, permissions, stored settings and customer availability
+checks; this is a platform-specific presentation change only.
 
 **Storage model:** per-service overrides live as FULL arrays/values inside
 `services.serviceSettings` jsonb (`operatingHours`, `holidays`, `defaultSlotDuration`,

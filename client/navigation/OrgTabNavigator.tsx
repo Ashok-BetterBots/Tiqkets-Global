@@ -28,6 +28,7 @@ import {
   EVENTS_NAV_PERMISSIONS,
 } from "@shared/permissions";
 import { Spacing } from "@/constants/theme";
+import { getQueueModeForService } from "@/utils/settingsHierarchy";
 
 export type OrgTabParamList = {
   OrgDashboard: undefined;
@@ -121,7 +122,20 @@ function NoAccessScreen() {
 export default function OrgTabNavigator() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { hasPermission, hasAnyPermission, organization } = useOrganization();
+  const {
+    hasPermission, hasAnyPermission, organization,
+    selectedBranchId, selectedServiceId, getAccessibleBranches, getAccessibleServices,
+  } = useOrganization();
+  const accessibleBranches = getAccessibleBranches();
+  const availabilityBranch = accessibleBranches.find(branch => branch.id === selectedBranchId) || accessibleBranches[0];
+  const availabilityServices = availabilityBranch ? getAccessibleServices(availabilityBranch.id) : [];
+  const availabilityService = availabilityServices.find(service => service.id === selectedServiceId) || availabilityServices[0];
+  const availabilityMode = organization ? getQueueModeForService(
+    organization.settings, availabilityBranch?.settings, availabilityService?.serviceSettings || undefined,
+  ) : "fifo";
+  const normalizedAvailabilityMode = String(availabilityMode).toLowerCase().replace(/[\s_-]/g, "");
+  const hideMobileAvailability = Platform.OS !== "web"
+    && (normalizedAvailabilityMode === "dinein" || normalizedAvailabilityMode === "takeaway");
   // Event accounts get the event-only app shell: Event console, Locations
   // and Settings — no queue / availability / dine-in tabs. Organisation
   // accounts keep the classic tab set untouched.
@@ -200,7 +214,7 @@ export default function OrgTabNavigator() {
         icon: { family: "mci", name: "storefront-outline" },
       });
     }
-    if (hasPermission("org.bookings.view")) {
+    if (hasPermission("org.bookings.view") && !hideMobileAvailability) {
       list.push({
         name: "OrgBookings",
         component: OrgBookingsScreen,
@@ -219,7 +233,7 @@ export default function OrgTabNavigator() {
       });
     }
     return list;
-  }, [hasPermission, hasAnyPermission, isEventAccount]);
+  }, [hasPermission, hasAnyPermission, isEventAccount, hideMobileAvailability]);
 
   const initialRouteName: keyof OrgTabParamList =
     tabs.length > 0 ? tabs[0].name : "OrgNoAccess";

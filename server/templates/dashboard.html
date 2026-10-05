@@ -8555,8 +8555,8 @@
           return branchMode;
         },
         get isAvailabilityNotApplicable() {
-          const mode = String(this.currentQueueMode || '').toLowerCase().replace(/[\s_-]/g, '');
-          return mode === 'dinein' || mode === 'takeaway';
+          // Availability options remain editable on web in every queue mode.
+          return false;
         },
         get filteredQueue() {
           if (this.queueFilter === 'completed') {

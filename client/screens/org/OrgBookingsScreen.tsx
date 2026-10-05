@@ -171,7 +171,8 @@ export default function OrgBookingsScreen() {
     ? getQueueModeForService(organization.settings, selectedBranch?.settings, selectedService?.serviceSettings || undefined)
     : "fifo";
   const normalizedAvailabilityMode = String(availabilityQueueMode).toLowerCase().replace(/[\s_-]/g, "");
-  const isAvailabilityNotApplicable = normalizedAvailabilityMode === "dinein" || normalizedAvailabilityMode === "takeaway";
+  const isAvailabilityNotApplicable = Platform.OS !== "web"
+    && (normalizedAvailabilityMode === "dinein" || normalizedAvailabilityMode === "takeaway");
   const wizardSteps: ("branch" | "service")[] = canSelectBranch
     ? ["branch", "service"]
     : ["service"];
