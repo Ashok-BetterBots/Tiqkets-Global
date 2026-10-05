@@ -1,6 +1,6 @@
 ---
-name: Queue page forced single-service scope (web dashboard)
-description: Why the web dashboard Queue page always keeps one service selected and never offers "All Services"/"All Branches".
+name: Queue page scope and search
+description: Single branch/service scope and current-tab-only search on mobile and web Queue pages.
 ---
 
 The web org dashboard Queue page (server/templates/dashboard.html) intentionally
@@ -29,3 +29,15 @@ behavior; that reverses an intentional decision.
 - Mobile gotcha: queue-status mutation must gate on `selectedServiceId &&
   selectedService` (validity), NOT just `selectedServiceId` truthiness, so a stale
   service id can never receive the status update — it must fall back to branch.
+
+Queue search by name, Booking ID or phone number must search **only the currently
+selected tab**, within the existing accessible branch/service/stage scope. Staff
+must still be able to perform the required transactions on filtered entries.
+
+**Why:** the user explicitly requested current-tab-only search with transactions
+remaining available. Search must never turn a filtered entry's action into an
+operation on an unseen next customer.
+
+**How to apply:** filter display lists, not underlying queue state or totals.
+Preserve original booking IDs and queue positions. Keep normal FIFO behaviour
+outside search and retain existing server permission checks.

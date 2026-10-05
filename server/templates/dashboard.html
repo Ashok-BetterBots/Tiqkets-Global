@@ -1023,9 +1023,19 @@
                 <span class="text-xs text-gray-400" x-text="getQueueModeDescription(currentQueueMode)"></span>
               </div>
               <div class="flex items-center gap-3">
+                <button @click="queueSearchOpen = !queueSearchOpen; if (!queueSearchOpen) { queueSearch = ''; selectedTicket = null; } else { $nextTick(() => $refs.queueSearchInput.focus()); }" class="flex items-center gap-1.5 text-xs font-semibold text-brand" aria-label="Search current queue tab" data-testid="queue-search-button"><i class="fa-solid fa-magnifying-glass"></i><span x-text="queueSearchOpen ? 'Close search' : 'Search'"></span></button>
                 <button @click="refreshQueuePage()" :disabled="queueRefreshing" class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-60"><i class="fa-solid fa-arrows-rotate" :class="{ 'fa-spin': queueRefreshing }"></i>Refresh</button>
                 <button x-show="hasPerm('org.queue.manual_add')" @click="openManualAddModal()" class="btn-primary text-xs"><i class="fa-solid fa-user-plus mr-1.5"></i>Add to Queue</button>
               </div>
+            </div>
+
+            <div x-show="queueSearchOpen" x-cloak class="mb-5">
+              <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
+                <i class="fa-solid fa-magnifying-glass text-gray-400"></i>
+                <input x-ref="queueSearchInput" x-model="queueSearch" @input="selectedTicket = null" @keydown.escape="queueSearch = ''; queueSearchOpen = false; selectedTicket = null" type="search" placeholder="Name, Booking ID or phone number" aria-label="Search by name, booking ID or phone number" autocomplete="off" class="flex-1 min-w-0 text-sm outline-none py-1" data-testid="queue-search-input">
+                <button x-show="queueSearch" @click="queueSearch = ''; selectedTicket = null; $refs.queueSearchInput.focus()" class="text-xs text-gray-500 p-2" aria-label="Clear search">Clear</button>
+              </div>
+              <p class="text-xs text-gray-400 mt-2">Searches the current tab only.</p>
             </div>
 
             <!-- Queue Status Control -->
@@ -1114,7 +1124,7 @@
 
                 <!-- Waiting Tab -->
                 <div x-show="checkInTab === 'waiting'" class="space-y-3">
-                  <template x-for="ticket in queueTickets.filter(t => t.status === 'waiting')" :key="ticket.id">
+                  <template x-for="ticket in searchQueueEntries(queueTickets.filter(t => t.status === 'waiting'))" :key="ticket.id">
                     <div class="ticket-card ticket-waiting">
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-4">
@@ -1135,7 +1145,7 @@
                       </div>
                     </div>
                   </template>
-                  <div x-show="queueTickets.filter(t => t.status === 'waiting').length === 0" class="dash-card text-center py-16">
+                  <div x-show="searchQueueEntries(queueTickets.filter(t => t.status === 'waiting')).length === 0" class="dash-card text-center py-16">
                     <div class="w-16 h-16 mx-auto rounded-2xl bg-brand-50/60 flex items-center justify-center mb-4"><i class="fa-solid fa-clock text-2xl text-brand/30"></i></div>
                     <p class="text-sm font-bold text-gray-400">No customers waiting</p>
                     <p class="text-xs text-gray-300 mt-1">New registrations will appear here</p>
@@ -1144,7 +1154,7 @@
 
                 <!-- Checked In Tab -->
                 <div x-show="checkInTab === 'checkedin'" class="space-y-3">
-                  <template x-for="ticket in queueTickets.filter(t => t.status === 'serving' || t.status === 'completed')" :key="ticket.id">
+                  <template x-for="ticket in searchQueueEntries(queueTickets.filter(t => t.status === 'serving' || t.status === 'completed'))" :key="ticket.id">
                     <div class="ticket-card ticket-serving">
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
@@ -1158,7 +1168,7 @@
                       </div>
                     </div>
                   </template>
-                  <div x-show="queueTickets.filter(t => t.status === 'serving' || t.status === 'completed').length === 0" class="dash-card text-center py-16">
+                  <div x-show="searchQueueEntries(queueTickets.filter(t => t.status === 'serving' || t.status === 'completed')).length === 0" class="dash-card text-center py-16">
                     <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-user-check text-xl text-gray-300"></i></div>
                     <p class="text-sm font-bold text-gray-400">No check-ins yet today</p>
                   </div>
@@ -1166,7 +1176,7 @@
 
                 <!-- No Show Tab -->
                 <div x-show="checkInTab === 'noshow'" class="space-y-3">
-                  <template x-for="ticket in queueTickets.filter(t => t.status === 'no_show')" :key="ticket.id">
+                  <template x-for="ticket in searchQueueEntries(queueTickets.filter(t => t.status === 'no_show'))" :key="ticket.id">
                     <div class="ticket-card" style="border-left: 3px solid #f59e0b; opacity: 0.75;">
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
@@ -1180,7 +1190,7 @@
                       </div>
                     </div>
                   </template>
-                  <div x-show="queueTickets.filter(t => t.status === 'no_show').length === 0" class="dash-card text-center py-16">
+                  <div x-show="searchQueueEntries(queueTickets.filter(t => t.status === 'no_show')).length === 0" class="dash-card text-center py-16">
                     <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-user-xmark text-xl text-gray-300"></i></div>
                     <p class="text-sm font-bold text-gray-400">No no-shows today</p>
                   </div>
@@ -1205,7 +1215,7 @@
                 </div>
                 <!-- Preparing Tab -->
                 <div x-show="takeawayTab === 'preparing'" class="space-y-3">
-                  <template x-for="ticket in queueTickets.filter(t => t.status === 'waiting')" :key="ticket.id">
+                  <template x-for="ticket in searchQueueEntries(queueTickets.filter(t => t.status === 'waiting'))" :key="ticket.id">
                     <div class="ticket-card ticket-waiting">
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-4">
@@ -1225,7 +1235,7 @@
                       </div>
                     </div>
                   </template>
-                  <div x-show="queueTickets.filter(t => t.status === 'waiting').length === 0" class="dash-card text-center py-16">
+                  <div x-show="searchQueueEntries(queueTickets.filter(t => t.status === 'waiting')).length === 0" class="dash-card text-center py-16">
                     <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-50/60 flex items-center justify-center mb-4"><i class="fa-solid fa-fire text-2xl text-amber-300"></i></div>
                     <p class="text-sm font-bold text-gray-400">No orders being prepared</p>
                     <p class="text-xs text-gray-300 mt-1">New orders will appear here</p>
@@ -1234,7 +1244,7 @@
 
                 <!-- Ready Tab -->
                 <div x-show="takeawayTab === 'ready'" class="space-y-3">
-                  <template x-for="ticket in queueTickets.filter(t => t.status === 'called' || t.status === 'serving')" :key="ticket.id">
+                  <template x-for="ticket in searchQueueEntries(queueTickets.filter(t => t.status === 'called' || t.status === 'serving'))" :key="ticket.id">
                     <div class="ticket-card ticket-called">
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-4">
@@ -1255,7 +1265,7 @@
                       </div>
                     </div>
                   </template>
-                  <div x-show="queueTickets.filter(t => t.status === 'called' || t.status === 'serving').length === 0" class="dash-card text-center py-16">
+                  <div x-show="searchQueueEntries(queueTickets.filter(t => t.status === 'called' || t.status === 'serving')).length === 0" class="dash-card text-center py-16">
                     <div class="w-16 h-16 mx-auto rounded-2xl bg-blue-50/60 flex items-center justify-center mb-4"><i class="fa-solid fa-bell text-2xl text-blue-300"></i></div>
                     <p class="text-sm font-bold text-gray-400">No orders ready for pickup</p>
                     <p class="text-xs text-gray-300 mt-1">Mark orders as ready to move them here</p>
@@ -1264,7 +1274,7 @@
 
                 <!-- Delivered Tab -->
                 <div x-show="takeawayTab === 'delivered'" class="space-y-3">
-                  <template x-for="ticket in queueTickets.filter(t => t.status === 'completed')" :key="ticket.id">
+                  <template x-for="ticket in searchQueueEntries(queueTickets.filter(t => t.status === 'completed'))" :key="ticket.id">
                     <div class="ticket-card ticket-completed">
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-4">
@@ -1278,7 +1288,7 @@
                       </div>
                     </div>
                   </template>
-                  <div x-show="queueTickets.filter(t => t.status === 'completed').length === 0" class="dash-card text-center py-16">
+                  <div x-show="searchQueueEntries(queueTickets.filter(t => t.status === 'completed')).length === 0" class="dash-card text-center py-16">
                     <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-circle-check text-2xl text-gray-300"></i></div>
                     <p class="text-sm font-bold text-gray-400">No delivered orders yet</p>
                   </div>
@@ -1315,7 +1325,7 @@
                 </div>
                 <!-- Reservations Tab Content -->
                 <div x-show="dineInTab === 'reservations'" class="space-y-3">
-                  <template x-for="res in dineInReservations.filter(r => r.status === 'confirmed')" :key="res.id">
+                  <template x-for="res in searchQueueEntries(dineInReservations.filter(r => r.status === 'confirmed'))" :key="res.id">
                     <div class="ticket-card border-l-4 border-l-purple-400">
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-4">
@@ -1337,7 +1347,7 @@
                       </div>
                     </div>
                   </template>
-                  <div x-show="dineInReservations.filter(r => r.status === 'confirmed').length === 0" class="dash-card text-center py-16">
+                  <div x-show="searchQueueEntries(dineInReservations.filter(r => r.status === 'confirmed')).length === 0" class="dash-card text-center py-16">
                     <div class="w-16 h-16 mx-auto rounded-2xl bg-purple-50/60 flex items-center justify-center mb-4">
                       <i class="fa-solid fa-calendar-check text-2xl text-purple-300"></i>
                     </div>
@@ -1347,7 +1357,7 @@
                   <template x-if="dineInReservations.filter(r => r.status === 'checked_in').length > 0">
                     <div>
                       <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-4 mb-2">Already Checked In</p>
-                      <template x-for="res in dineInReservations.filter(r => r.status === 'checked_in')" :key="res.id">
+                      <template x-for="res in searchQueueEntries(dineInReservations.filter(r => r.status === 'checked_in'))" :key="res.id">
                         <div class="ticket-card opacity-60 border-l-4 border-l-green-400 mb-2">
                           <div class="flex items-center justify-between">
                             <div class="flex items-center gap-4">
@@ -1477,12 +1487,6 @@
                         Completed
                         <span class="ml-1 px-1.5 py-0.5 rounded-md text-[9px]" :class="queueListTab === 'completed' ? 'bg-gray-200 text-gray-600' : 'bg-gray-100 text-gray-500'" x-text="getQueueTabCount('completed')"></span>
                       </button>
-                    </div>
-                    <div class="px-3 py-2.5 border-b border-gray-50">
-                      <div class="relative">
-                        <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
-                        <input type="text" x-model="queueSearch" class="w-full border border-gray-200 rounded-lg py-1.5 pl-7 pr-2 text-[11px] outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-gray-50/50" placeholder="Search...">
-                      </div>
                     </div>
                     <div class="flex-1 overflow-y-auto">
                       <template x-for="(ticket, idx) in getQueueListFiltered()" :key="ticket.id">
@@ -7986,6 +7990,7 @@
         queueListTab: 'active',
         checkInTab: 'waiting',
         queueSearch: '',
+        queueSearchOpen: false,
         selectedServiceId: '',
         statsRefreshing: false,
         queueDeskFilter: '',
@@ -11133,11 +11138,21 @@
           // which counter the customer is called to (its name is attached to
           // the call/notification message). The queue list keeps showing every
           // customer regardless of the selected desk.
-          if (this.queueSearch.trim()) {
-            const s = this.queueSearch.toLowerCase().trim();
-            tickets = tickets.filter(t => (t.customerName || '').toLowerCase().includes(s) || (t.ticketNumber || '').toLowerCase().includes(s) || (t.customerPhone || '').includes(s));
-          }
-          return tickets;
+          return this.searchQueueEntries(tickets);
+        },
+        // Keep matching in parity with shared/queue-search.ts. Call AFTER tab
+        // and scope filtering, and return original entries so actions retain IDs.
+        searchQueueEntries(entries) {
+          const term = this.queueSearch.trim().toLowerCase();
+          if (!term) return entries;
+          const digits = /^[+\d\s().-]+$/.test(term) ? term.replace(/\D/g, '') : '';
+          return entries.filter(entry => {
+            const textFields = [entry.customerName, entry.ticketNumber, entry.bookingId, entry.confirmationCode, entry.id];
+            if (textFields.some(value => String(value || '').toLowerCase().includes(term))) return true;
+            const phones = [entry.customerPhone, entry.whatsappPhone];
+            if (phones.some(value => String(value || '').toLowerCase().includes(term))) return true;
+            return !!digits && phones.some(value => String(value || '').replace(/\D/g, '').includes(digits));
+          });
         },
         // Tab count badges must use the SAME service/stage scoping as the list
         // (getQueueListFiltered), otherwise the "Completed" badge counts tickets
@@ -12403,9 +12418,9 @@
           return desc[mode] || '';
         },
         getDineInFiltered() {
-          if (this.dineInTab === 'completed') return this.queueTickets.filter(t => t.status === 'arrived' || t.status === 'serving' || t.status === 'completed' || t.status === 'no_show');
-          if (this.dineInTab === 'called') return this.queueTickets.filter(t => t.status === 'called');
-          return this.queueTickets.filter(t => t.status === this.dineInTab);
+          if (this.dineInTab === 'completed') return this.searchQueueEntries(this.queueTickets.filter(t => t.status === 'arrived' || t.status === 'serving' || t.status === 'completed' || t.status === 'no_show'));
+          if (this.dineInTab === 'called') return this.searchQueueEntries(this.queueTickets.filter(t => t.status === 'called'));
+          return this.searchQueueEntries(this.queueTickets.filter(t => t.status === this.dineInTab));
         },
         openManualAddModal() {
           this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', whatsappPhone: '', preferredLanguage: 'en', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} };

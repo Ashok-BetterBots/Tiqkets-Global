@@ -25,7 +25,7 @@
 - [Alpine boolean attributes need booleans](alpine-boolean-attributes.md) — x-bind disabled must return true/false; an idle empty string can remain disabled="" and silently block clicks.
 - [Apply-to-all branch scope](apply-to-all-branch-scope.md) — "All Branches" must rebuild each branch's own array (updateBranchSettings diffs by row id); edits/deletes of existing break/holiday rows stay single-branch.
 - [Dashboard shared scope state](dashboard-shared-scope-state.md) — Home Queue Control scope (branch/service/desk) state is shared by OrgDashboardScreen + WebOrgDashboard; reconcile effects run on both, so change both in lockstep.
-- [Queue page forced single-service scope](queue-page-forced-service-scope.md) — web dashboard Queue page intentionally never offers All Branches/All Services; status control is service-scoped by default. Don't re-add "all".
+- [Queue page scope and search](queue-page-forced-service-scope.md) — select one branch/service; search stays in the active tab and actions must target the filtered booking, not an unseen next customer.
 - [Production-required secrets](prod-required-secrets.md) — ORG_SESSION_SECRET & SUPER_ADMIN_TOKEN must exist in prod or server crash-loops and publish fails the startup probe.
 - [Org user name field](org-user-name-field.md) — org_users display name is the `name` column, not `fullName`; a `fullName` ref silently falls back to email in pickers.
 - [RBAC permission backfills](rbac-permission-backfill.md) — adding an existing perm key to one more built-in role needs a persisted systemSettings marker; the group "anyHasIt" gate can't do it.

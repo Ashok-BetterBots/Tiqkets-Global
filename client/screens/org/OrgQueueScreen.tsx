@@ -1,5 +1,7 @@
 import { logHandledError } from "@/lib/logger";
 import { resolveOrganizationTimezone } from "@shared/home-report-calendar";
+import { matchesQueueSearch } from "@shared/queue-search";
+import { QueueSearchBar } from "@/components/QueueSearchBar";
 import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
@@ -936,6 +938,7 @@ export default function OrgQueueScreen() {
   );
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("waiting");
+  const [queueSearch, setQueueSearch] = useState("");
   const [fifoTab, setFifoTab] = useState<"waiting" | "hold" | "completed">("waiting");
   const [checkInTab, setCheckInTab] = useState<"waiting" | "checkedin" | "noshow">("waiting");
   const [msTab, setMsTab] = useState<"waiting" | "completed">("waiting");
@@ -1091,6 +1094,9 @@ export default function OrgQueueScreen() {
   const isTakeawayMode = branchQueueMode === "takeaway";
   const isDineInMode = branchQueueMode === "dinein";
   const isMultiStageMode = branchQueueMode === "multistage";
+  useEffect(() => { setQueueSearch(""); }, [currentBranchId, effectiveServiceId, branchQueueMode]);
+  const matchesSearch = (entry: QueueCustomer) => matchesQueueSearch(entry, queueSearch);
+  const renderQueueSearch = () => <QueueSearchBar value={queueSearch} onChange={setQueueSearch} />;
   const branchServices = currentBranch?.services?.filter(s => s.isActive) || [];
   const selectedAddService = branchServices.find(s => s.id === addToQueueServiceId);
 
@@ -1787,7 +1793,7 @@ export default function OrgQueueScreen() {
     const ciWaiting   = queue.filter((c) => svcScoped(c) && c.status === "waiting");
     const ciCheckedIn = queue.filter((c) => svcScoped(c) && (c.status === "serving" || c.status === "completed"));
     const ciNoShow    = queue.filter((c) => svcScoped(c) && c.status === "no_show");
-    const ciTabList   = checkInTab === "checkedin" ? ciCheckedIn : checkInTab === "noshow" ? ciNoShow : ciWaiting;
+    const ciTabList   = (checkInTab === "checkedin" ? ciCheckedIn : checkInTab === "noshow" ? ciNoShow : ciWaiting).filter(matchesSearch);
 
     const getInitials = (name: string) => {
       const parts = (name || "?").trim().split(/\s+/);
@@ -1822,6 +1828,7 @@ export default function OrgQueueScreen() {
       <ThemedView style={styles.container}>
 
         {/* ── Scan / Enter section (fixed header card) ─────────────────── */}
+        {renderQueueSearch()}
         <View style={[styles.ciScanCard, { backgroundColor: colors.surface, borderBottomColor: colors.borderSubtle }]}>
           <View style={styles.ciScanHeader}>
             <View style={[styles.ciScanIconWrap, { backgroundColor: colors.primary + "18" }]}>
@@ -1911,10 +1918,10 @@ export default function OrgQueueScreen() {
               />
             </View>
             <ThemedText style={[styles.ciEmptyTitle, { color: colors.text }]}>
-              {checkInTab === "waiting" ? "No customers waiting" : checkInTab === "checkedin" ? "No check-ins yet" : "No no-shows recorded"}
+              {queueSearch.trim() ? "No matching entries" : checkInTab === "waiting" ? "No customers waiting" : checkInTab === "checkedin" ? "No check-ins yet" : "No no-shows recorded"}
             </ThemedText>
             <ThemedText style={[styles.ciEmptySubtitle, { color: colors.textSecondary }]}>
-              {checkInTab === "waiting" ? "Customers will appear here when they join the queue" : checkInTab === "checkedin" ? "Checked-in customers will appear here" : "Customers marked no-show will appear here"}
+              {queueSearch.trim() ? "Try another name, Booking ID or phone number." : checkInTab === "waiting" ? "Customers will appear here when they join the queue" : checkInTab === "checkedin" ? "Checked-in customers will appear here" : "Customers marked no-show will appear here"}
             </ThemedText>
           </View>
         ) : (
@@ -2126,6 +2133,7 @@ export default function OrgQueueScreen() {
     return (
       <ThemedView style={styles.container}>
         {/* Tab bar — same visual language as dine-in */}
+        {renderQueueSearch()}
         <View style={[styles.diTabBar, { borderBottomColor: colors.borderSubtle }]}>
           {twTabs.map((tab) => {
             const active = takeawayTab === tab.key;
@@ -2158,38 +2166,39 @@ export default function OrgQueueScreen() {
         <ScrollView
           style={styles.queueList}
           contentContainerStyle={[styles.dineInContent, { paddingBottom: insets.bottom + 80 }]}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
         >
-          {takeawayTab === "active" && preparingOrders.length === 0 ? (
+          {takeawayTab === "active" && preparingOrders.filter(matchesSearch).length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconCircle}>
                 <Feather name="shopping-bag" size={26} color={colors.textSecondary} />
               </View>
-              <ThemedText style={styles.emptyTitle}>No active orders</ThemedText>
+              <ThemedText style={styles.emptyTitle}>{queueSearch.trim() ? "No matching entries" : "No active orders"}</ThemedText>
             </View>
           ) : null}
-          {takeawayTab === "ready" && readyOrders.length === 0 ? (
+          {takeawayTab === "ready" && readyOrders.filter(matchesSearch).length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconCircle}>
                 <Feather name="bell" size={26} color={colors.textSecondary} />
               </View>
-              <ThemedText style={styles.emptyTitle}>No ready orders</ThemedText>
+              <ThemedText style={styles.emptyTitle}>{queueSearch.trim() ? "No matching entries" : "No ready orders"}</ThemedText>
             </View>
           ) : null}
-          {takeawayTab === "delivered" && deliveredOrders.length === 0 ? (
+          {takeawayTab === "delivered" && deliveredOrders.filter(matchesSearch).length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconCircle}>
                 <Feather name="check-circle" size={26} color={colors.textSecondary} />
               </View>
-              <ThemedText style={styles.emptyTitle}>No delivered orders yet</ThemedText>
+              <ThemedText style={styles.emptyTitle}>{queueSearch.trim() ? "No matching entries" : "No delivered orders yet"}</ThemedText>
             </View>
           ) : null}
 
           {/* ── ACTIVE TAB ── */}
-          {takeawayTab === "active" ? preparingOrders.map((order) => {
+          {takeawayTab === "active" ? preparingOrders.filter(matchesSearch).map((order) => {
             const waitMins = getWaitMinutes(order.joinedAt);
             const displayOrderId = (order.formData?.orderReference as string) || (order.formData?.orderId as string) || order.ticketNumber;
             return (
@@ -2232,7 +2241,7 @@ export default function OrgQueueScreen() {
           }) : null}
 
           {/* ── READY TAB ── */}
-          {takeawayTab === "ready" ? readyOrders.map((order) => {
+          {takeawayTab === "ready" ? readyOrders.filter(matchesSearch).map((order) => {
             const displayOrderId = (order.formData?.orderReference as string) || (order.formData?.orderId as string) || order.ticketNumber;
             const orderItems = getOrderItems(order);
             return (
@@ -2295,7 +2304,7 @@ export default function OrgQueueScreen() {
           }) : null}
 
           {/* ── DELIVERED TAB ── */}
-          {takeawayTab === "delivered" ? deliveredOrders.map((order) => {
+          {takeawayTab === "delivered" ? deliveredOrders.filter(matchesSearch).map((order) => {
             const displayOrderId = (order.formData?.orderReference as string) || (order.formData?.orderId as string) || order.ticketNumber;
             const orderItems = getOrderItems(order);
             return (
@@ -2518,10 +2527,10 @@ export default function OrgQueueScreen() {
 
     const getCurrentTabCustomers = () => {
       switch (dineInTab) {
-        case "waiting": return waitingCustomers;
-        case "assigned": return calledCustomers;
-        case "hold": return holdCustomers;
-        case "done": return arrivedCustomers;
+        case "waiting": return waitingCustomers.filter(matchesSearch);
+        case "assigned": return calledCustomers.filter(matchesSearch);
+        case "hold": return holdCustomers.filter(matchesSearch);
+        case "done": return arrivedCustomers.filter(matchesSearch);
         default: return [];
       }
     };
@@ -2904,6 +2913,7 @@ export default function OrgQueueScreen() {
       <ThemedView style={styles.container}>
 
         {/* Dine-In Tab Bar */}
+        {renderQueueSearch()}
         <View style={[styles.diTabBar, { borderBottomColor: colors.borderSubtle }]}>
           {dineInTabs.map((tab) => {
             const active = dineInTab === tab.key;
@@ -2931,6 +2941,7 @@ export default function OrgQueueScreen() {
         <ScrollView
           style={styles.queueList}
           contentContainerStyle={[styles.dineInContent, { paddingBottom: insets.bottom + 80 }]}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -2946,7 +2957,7 @@ export default function OrgQueueScreen() {
                 />
               </View>
               <ThemedText style={styles.emptyTitle}>
-                {dineInTab === "waiting" ? "No customers waiting" : dineInTab === "assigned" ? "No assigned tables" : dineInTab === "hold" ? "No customers on hold" : "No seated customers"}
+                {queueSearch.trim() ? "No matching entries" : dineInTab === "waiting" ? "No customers waiting" : dineInTab === "assigned" ? "No assigned tables" : dineInTab === "hold" ? "No customers on hold" : "No seated customers"}
               </ThemedText>
             </View>
           ) : null}
@@ -2996,7 +3007,7 @@ export default function OrgQueueScreen() {
                       </View>
                     </View>
                   </View>
-                  <ThemedText style={styles.diPosLabel}>#{index + 1}</ThemedText>
+                  <ThemedText style={styles.diPosLabel}>#{waitingCustomers.indexOf(customer) + 1}</ThemedText>
                 </View>
 
                 {(cardData.gender || shareChip != null || splitChip != null) ? (
@@ -3853,7 +3864,7 @@ export default function OrgQueueScreen() {
     );
     const msCompleted = [...msCompletedHere, ...msMovedPast, ...msCancelled];
 
-    const msCurList = msTab === "completed" ? msCompleted : msWaiting;
+    const msCurList = (msTab === "completed" ? msCompleted : msWaiting).filter(matchesSearch);
     const msFilters: { key: "waiting" | "completed"; label: string; count: number }[] = [
       { key: "waiting", label: "Active", count: msWaiting.length },
       { key: "completed", label: "Completed", count: msCompleted.length },
@@ -3892,6 +3903,7 @@ export default function OrgQueueScreen() {
       <ThemedView style={[styles.container, styles.fifoContainer]}>
 
         {/* Journey selector */}
+        {renderQueueSearch()}
         {journeys.length > 1 ? (
           <View style={styles.journeySelector}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -3985,6 +3997,7 @@ export default function OrgQueueScreen() {
         <ScrollView
           style={styles.queueList}
           contentContainerStyle={[styles.queueContent, { paddingBottom: insets.bottom + 100 }]}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
@@ -3994,10 +4007,10 @@ export default function OrgQueueScreen() {
                 <Feather name={msTab === "completed" ? "check-circle" : "users"} size={26} color={colors.textSecondary} />
               </View>
               <ThemedText style={styles.emptyTitle}>
-                {msTab === "completed" ? "No completed customers" : "No customers at this stage"}
+                {queueSearch.trim() ? "No matching entries" : msTab === "completed" ? "No completed customers" : "No customers at this stage"}
               </ThemedText>
               <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                {msTab === "completed"
+                {queueSearch.trim() ? "Try another name, Booking ID or phone number." : msTab === "completed"
                   ? "Completed and forwarded customers appear here."
                   : `${currentStage?.serviceName || "Stage"} is currently empty.`}
               </ThemedText>
@@ -4012,7 +4025,7 @@ export default function OrgQueueScreen() {
                   customer={customer}
                   expanded={msTab === "waiting" && index === 0}
                   tab={msTab === "completed" ? "completed" : "waiting"}
-                  displayPosition={index + 1}
+                  displayPosition={(msTab === "completed" ? msCompleted : msWaiting).indexOf(customer) + 1}
                   inputFields={svcInputFields}
                   callLabel="Call"
                   onCallNow={customer.status === "waiting"
@@ -4339,6 +4352,7 @@ export default function OrgQueueScreen() {
 
   return (
     <ThemedView style={[styles.container, (isFifoMode || isSelectiveMode) ? styles.fifoContainer : undefined]}>
+      {renderQueueSearch()}
 
       {(isFifoMode || isSelectiveMode) ? null : (
         <Pressable
@@ -4640,10 +4654,11 @@ export default function OrgQueueScreen() {
       )}
 
       <FlatList
-        data={(isFifoMode || isSelectiveMode) ? fifoList : filteredQueue}
+        data={((isFifoMode || isSelectiveMode) ? fifoList : filteredQueue).filter(matchesSearch)}
         keyExtractor={(customer) => customer.id}
         style={styles.queueList}
         contentContainerStyle={[styles.queueContent, { paddingBottom: insets.bottom + 100 }]}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         initialNumToRender={12}
         maxToRenderPerBatch={10}
@@ -4657,9 +4672,9 @@ export default function OrgQueueScreen() {
             <View style={styles.emptyIconCircle}>
               <Feather name="inbox" size={26} color={colors.textSecondary} />
             </View>
-            <ThemedText style={styles.emptyTitle}>All caught up</ThemedText>
+            <ThemedText style={styles.emptyTitle}>{queueSearch.trim() ? "No matching entries" : "All caught up"}</ThemedText>
             <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-              {(isFifoMode || isSelectiveMode)
+              {queueSearch.trim() ? "Try another name, Booking ID or phone number." : (isFifoMode || isSelectiveMode)
                 ? fifoTab === "completed"
                   ? "No completed customers yet."
                   : fifoTab === "hold"
@@ -4677,13 +4692,13 @@ export default function OrgQueueScreen() {
               <FifoCard
                 customer={customer}
                 expanded={fifoTab === "waiting" && index === 0}
-                isAllExpanded={isSelectiveMode}
+                isAllExpanded={isSelectiveMode || !!queueSearch.trim()}
                 tab={fifoTab}
-                displayPosition={index + 1}
-                callLabel={isSelectiveMode ? "Call" : undefined}
+                displayPosition={fifoList.indexOf(customer) + 1}
+                callLabel={isSelectiveMode || queueSearch.trim() ? "Call" : undefined}
                 inputFields={(organization?.services.find((s) => s.id === customer.serviceId)?.inputFields || []).map((f) => ({ id: f.id, label: f.label }))}
                 onCallNow={customer.status === "waiting"
-                  ? (isSelectiveMode ? () => handleCall(customer.id) : handleCallNext)
+                  ? (isSelectiveMode || queueSearch.trim() ? () => handleCall(customer.id) : handleCallNext)
                   : () => handleCallAgain(customer.id)}
                 onStart={() => handleServe(customer.id)}
                 onDone={() => handleComplete(customer.id)}
