@@ -10,6 +10,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { ProfileModal } from "@/components/ProfileModal";
+import { profileImageUri } from "@/lib/profile-images";
 import { Colors, Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
 import { OrgDesign } from "@/constants/orgDesign";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -551,7 +552,7 @@ export default function OrgDashboardScreen() {
                 <View style={styles.profileRingGlass}>
                   {currentUser.profilePictureUrl ? (
                     <Image
-                      source={{ uri: currentUser.profilePictureUrl }}
+                      source={{ uri: profileImageUri(currentUser.profilePictureUrl) }}
                       style={styles.profileAvatar}
                     />
                   ) : (
@@ -637,7 +638,7 @@ export default function OrgDashboardScreen() {
             <View style={[styles.profileChipAvatar, { backgroundColor: OrgDesign.primary + "18" }]}>
               {currentUser.profilePictureUrl ? (
                 <Image
-                  source={{ uri: currentUser.profilePictureUrl }}
+                  source={{ uri: profileImageUri(currentUser.profilePictureUrl) }}
                   style={styles.profileChipAvatarImg}
                 />
               ) : (

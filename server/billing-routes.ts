@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { storage, hashPassword } from "./storage";
+import { permanentProfilePicture, ProfilePictureError } from "./profile-images";
 import crypto from "crypto";
 import { normalizeWaMode } from "@shared/wa-templates";
 import { isValidIanaTimezone } from "@shared/timezone";
@@ -1295,7 +1296,14 @@ export function registerBillingRoutes(app: Express) {
       if (branchIdNorm !== undefined) updateData.branchId = branchIdNorm;
       if (assignedServiceIds !== undefined) updateData.assignedServiceIds = assignedServiceIds;
       if (isActive !== undefined) updateData.isActive = isActive;
-      if (profilePictureUrl !== undefined) updateData.profilePictureUrl = profilePictureUrl;
+      if (profilePictureUrl !== undefined) {
+        try {
+          updateData.profilePictureUrl = permanentProfilePicture(profilePictureUrl, target.profilePictureUrl);
+        } catch (error) {
+          if (error instanceof ProfilePictureError) return res.status(400).json({ error: error.message });
+          throw error;
+        }
+      }
       if (password) {
         updateData.passwordHash = await hashPassword(password);
       }

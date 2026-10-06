@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
+  Alert,
   View,
   StyleSheet,
   Modal,
@@ -22,6 +23,7 @@ import Animated, {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { profileImageUri, uploadProfilePicture } from "@/lib/profile-images";
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
@@ -98,6 +100,7 @@ export function EditProfileModal({
   const [email, setEmail] = useState(initialData.email);
   const [phone, setPhone] = useState(initialData.phone);
   const [avatarUri, setAvatarUri] = useState(initialData.avatarUri);
+  const [pendingAvatar, setPendingAvatar] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [saving, setSaving] = useState(false);
 
   const translateY = useSharedValue(600);
@@ -109,6 +112,7 @@ export function EditProfileModal({
       setEmail(initialData.email);
       setPhone(initialData.phone);
       setAvatarUri(initialData.avatarUri);
+      setPendingAvatar(null);
       translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
       backdropOpacity.value = withTiming(1, { duration: 200 });
     }
@@ -155,10 +159,12 @@ export function EditProfileModal({
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
+      base64: true,
     });
 
     if (!result.canceled && result.assets[0]) {
       setAvatarUri(result.assets[0].uri);
+      setPendingAvatar(result.assets[0]);
     }
   };
 
@@ -172,16 +178,18 @@ export function EditProfileModal({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      const savedAvatarUri = pendingAvatar ? await uploadProfilePicture(pendingAvatar) : avatarUri;
       await onSave({
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        avatarUri,
+        avatarUri: savedAvatarUri,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       closeModal();
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Profile picture", error instanceof Error ? error.message : "The profile picture could not be saved. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -233,7 +241,7 @@ export function EditProfileModal({
                 <Pressable onPress={handlePickImage} testID="button-change-avatar">
                   <View style={styles.avatarWrapper}>
                     {avatarUri ? (
-                      <Image source={{ uri: avatarUri }} style={styles.avatar} />
+                      <Image source={{ uri: profileImageUri(avatarUri) }} style={styles.avatar} />
                     ) : (
                       <Image
                         source={require("../../assets/images/avatar-placeholder.png")}

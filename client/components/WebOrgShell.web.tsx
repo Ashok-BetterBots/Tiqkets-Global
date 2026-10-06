@@ -15,6 +15,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { ORG_QUEUE_NAV_PERMISSIONS, EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
 import { ProfileModal } from "@/components/ProfileModal";
+import { profileImageUri } from "@/lib/profile-images";
 import { getRoleLabel } from "@/types/organization";
 
 export interface WebShellNavItem {
@@ -233,7 +234,7 @@ export default function WebOrgShell({
           >
             {currentUser?.profilePictureUrl ? (
               <Image
-                source={{ uri: currentUser.profilePictureUrl }}
+                source={{ uri: profileImageUri(currentUser.profilePictureUrl) }}
                 style={styles.userAvatar}
               />
             ) : (
@@ -374,7 +375,7 @@ export default function WebOrgShell({
             >
               {currentUser?.profilePictureUrl ? (
                 <Image
-                  source={{ uri: currentUser.profilePictureUrl }}
+                  source={{ uri: profileImageUri(currentUser.profilePictureUrl) }}
                   style={styles.profileTopAvatar}
                 />
               ) : (

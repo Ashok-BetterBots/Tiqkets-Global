@@ -8742,7 +8742,7 @@
               if (savedUser) {
                 try { this.currentUser = JSON.parse(savedUser); } catch (e) { localStorage.removeItem('tiqkets_user'); }
               } else {
-                this.currentUser = { id: null, name: data.name, email: data.email, role: 'admin', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' };
+                this.currentUser = { id: null, name: data.name, email: data.email, role: 'admin', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: data.logoUrl || '' };
               }
               await this.refreshOrgPermissions();
               this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
@@ -8973,7 +8973,7 @@
                 phone: data.currentUser.phone || '',
               };
             } else {
-              this.currentUser = { id: null, name: data.organization.name, email: data.organization.email, role: 'admin', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' };
+              this.currentUser = { id: null, name: data.organization.name, email: data.organization.email, role: 'admin', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: data.organization.logoUrl || '' };
             }
             localStorage.setItem('tiqkets_user', JSON.stringify(this.currentUser));
             // Hygiene: a successful login means any pending OTP state is
@@ -9335,8 +9335,23 @@
           this.authMode = 'signin';
         },
 
+        async refreshProfilePicture() {
+          try {
+            const data = await api('/api/organizations/me');
+            if (data.mode === 'owner' && data.organization && data.organization.logoUrl !== undefined) {
+              this.currentUser.profilePictureUrl = data.organization.logoUrl || '';
+              this.org.logoUrl = data.organization.logoUrl;
+              localStorage.setItem('tiqkets_org', JSON.stringify(this.org));
+            } else if (data.currentUser?.id === this.currentUser.id && data.currentUser.profilePictureUrl !== undefined) {
+              this.currentUser.profilePictureUrl = data.currentUser.profilePictureUrl || '';
+            }
+            localStorage.setItem('tiqkets_user', JSON.stringify(this.currentUser));
+          } catch (e) { console.error('Profile picture refresh failed', e); }
+        },
+
         async loadAllData() {
           if (!this.org) return;
+          await this.refreshProfilePicture();
           await Promise.all([
             this.loadBranches(),
             this.loadUsers(),

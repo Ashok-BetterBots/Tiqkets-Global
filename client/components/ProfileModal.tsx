@@ -19,6 +19,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { profileImageUri, uploadProfilePicture } from "@/lib/profile-images";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { Card } from "@/components/Card";
@@ -132,10 +133,12 @@ export function ProfileModal({
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        base64: true,
       });
 
       if (!result.canceled && result.assets[0]) {
-        await onUpdateUser({ profilePictureUrl: result.assets[0].uri });
+        const profilePictureUrl = await uploadProfilePicture(result.assets[0]);
+        await onUpdateUser({ profilePictureUrl });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error) {
@@ -272,7 +275,7 @@ export function ProfileModal({
                 <View style={styles.avatarContainer}>
                   {user.profilePictureUrl ? (
                     <Image
-                      source={{ uri: user.profilePictureUrl }}
+                      source={{ uri: profileImageUri(user.profilePictureUrl) }}
                       style={[styles.avatar, styles.avatarBorder]}
                     />
                   ) : (

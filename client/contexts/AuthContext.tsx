@@ -87,8 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateUser = async (updates: Partial<User>) => {
     if (!user) return;
     const updatedUser = { ...user, ...updates };
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
-    setUser(updatedUser);
+    const pictureChanged = updates.avatarUrl !== undefined && updates.avatarUrl !== user.avatarUrl;
+    const saveLocalUser = async () => {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+      setUser(updatedUser);
+    };
+    if (!pictureChanged) await saveLocalUser();
 
     if (user.id && !user.id.startsWith("user_")) {
       try {
@@ -101,8 +105,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         logHandledError("Failed to sync profile update", error);
+        if (pictureChanged) throw error;
       }
     }
+    if (pictureChanged) await saveLocalUser();
   };
 
   return (

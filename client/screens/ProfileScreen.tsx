@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { profileImageUri } from "@/lib/profile-images";
 import {
   View,
   StyleSheet,
@@ -198,7 +199,7 @@ export default function ProfileScreen() {
           testID="button-edit-profile"
         >
           {user?.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+            <Image source={{ uri: profileImageUri(user.avatarUrl) }} style={styles.avatar} />
           ) : (
             <Image
               source={require("../../assets/images/avatar-placeholder.png")}

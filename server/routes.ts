@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import { timingSafeEqual, randomBytes } from "node:crypto";
 import path from "path";
 import fs from "fs";
+import { permanentProfilePicture, ProfilePictureError } from "./profile-images";
 
 // Resolve template paths from the project root rather than __dirname.
 // The production build is bundled as ESM (`esbuild --format=esm`), where
@@ -308,7 +309,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData: Record<string, any> = {};
       if (name !== undefined) updateData.name = name;
       if (email !== undefined) updateData.email = email;
-      if (profilePictureUrl !== undefined) updateData.profilePictureUrl = profilePictureUrl;
+      if (profilePictureUrl !== undefined) {
+        const previous = await storage.getCustomerById(req.params.customerId as string);
+        try {
+          updateData.profilePictureUrl = permanentProfilePicture(profilePictureUrl, previous?.profilePictureUrl);
+        } catch (error) {
+          if (error instanceof ProfilePictureError) return res.status(400).json({ error: error.message });
+          throw error;
+        }
+      }
 
       const customer = await storage.updateCustomer(req.params.customerId, updateData);
       if (!customer) {
@@ -5305,7 +5314,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData: { name?: string; phone?: string; logoUrl?: string; aiWaitPredictionEnabled?: boolean } = {};
       if (name !== undefined) updateData.name = name;
       if (phone !== undefined) updateData.phone = phone;
-      if (logoUrl !== undefined) updateData.logoUrl = logoUrl;
+      if (logoUrl !== undefined) {
+        const previous = await storage.getOrganizationById(id);
+        try {
+          updateData.logoUrl = permanentProfilePicture(logoUrl, previous?.logoUrl);
+        } catch (error) {
+          if (error instanceof ProfilePictureError) return res.status(400).json({ error: error.message });
+          throw error;
+        }
+      }
       if (aiWaitPredictionEnabled !== undefined) updateData.aiWaitPredictionEnabled = !!aiWaitPredictionEnabled;
       const org = await storage.updateOrganization(id, updateData);
       // The 30s org-flag cache is keyed by branchId, so any flip of
@@ -5394,7 +5411,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData: { name?: string; phone?: string; profilePictureUrl?: string } = {};
       if (name !== undefined) updateData.name = name;
       if (phone !== undefined) updateData.phone = phone;
-      if (profilePictureUrl !== undefined) updateData.profilePictureUrl = profilePictureUrl;
+      if (profilePictureUrl !== undefined) {
+        const previous = await storage.getOrgUserById(userId);
+        try {
+          updateData.profilePictureUrl = permanentProfilePicture(profilePictureUrl, previous?.profilePictureUrl);
+        } catch (error) {
+          if (error instanceof ProfilePictureError) return res.status(400).json({ error: error.message });
+          throw error;
+        }
+      }
       const user = await storage.updateOrgUser(userId, updateData);
       await writeAudit(req, { action: "profile.update", targetType: "org_user", targetId: userId, targetLabel: user?.email, diff: updateData });
       res.json({ user: sanitizeOrgUser(user) });

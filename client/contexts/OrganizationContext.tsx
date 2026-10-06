@@ -1807,15 +1807,20 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     if (!currentUser) return;
     
     const updatedUser = { ...currentUser, ...updates };
-    setCurrentUser(updatedUser);
-    await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(updatedUser));
-    
-    setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updatedUser : u)));
+    const pictureChanged = updates.profilePictureUrl !== undefined
+      && updates.profilePictureUrl !== currentUser.profilePictureUrl;
+    const saveLocalUser = async () => {
+      setCurrentUser(updatedUser);
+      await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(updatedUser));
+      setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updatedUser : u)));
+    };
+    if (!pictureChanged) await saveLocalUser();
 
     try {
       const isOrgAdmin = currentUser.role === "admin";
+      const isOwner = currentUser.id === "admin" || currentUser.id.startsWith("owner:");
 
-      if (currentUser.id && currentUser.id !== "admin") {
+      if (currentUser.id && !isOwner) {
         const apiUpdates: any = {};
         if (updates.name !== undefined) apiUpdates.name = updates.name;
         if (updates.phone !== undefined) apiUpdates.phone = updates.phone;
@@ -1829,19 +1834,21 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         const orgUpdates: any = {};
         if (updates.name !== undefined) orgUpdates.name = updates.name;
         if (updates.phone !== undefined) orgUpdates.phone = updates.phone;
-        if (updates.profilePictureUrl !== undefined) orgUpdates.logoUrl = updates.profilePictureUrl;
+        if (isOwner && updates.profilePictureUrl !== undefined) orgUpdates.logoUrl = updates.profilePictureUrl;
         if (Object.keys(orgUpdates).length > 0) {
           await apiRequest("PUT", `/api/organizations/${organization.id}`, orgUpdates);
           if (updates.name) {
             setOrganization((prev) => prev ? { ...prev, name: updates.name! } : prev);
           }
-          if (updates.profilePictureUrl) {
+          if (isOwner && updates.profilePictureUrl !== undefined) {
             setOrganization((prev) => prev ? { ...prev, logoUrl: updates.profilePictureUrl } : prev);
           }
         }
       }
+      if (pictureChanged) await saveLocalUser();
     } catch (error) {
       logHandledError("Error persisting profile update", error);
+      if (pictureChanged) throw error;
     }
   }, [currentUser, organization]);
 

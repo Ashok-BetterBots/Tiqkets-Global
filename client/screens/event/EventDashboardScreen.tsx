@@ -21,6 +21,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { ProfileModal } from "@/components/ProfileModal";
+import { profileImageUri } from "@/lib/profile-images";
 import { EventManualRegModal } from "@/components/EventManualRegModal";
 import { getRoleLabel } from "@/types/organization";
 import { getApiUrl } from "@/lib/query-client";
@@ -262,7 +263,7 @@ export default function EventDashboardScreen() {
           <Pressable onPress={() => setShowProfileModal(true)} style={{ marginLeft: 16, marginRight: 10 }}>
             <Animated.View style={{ width: avatarSize, height: avatarSize, borderRadius: avatarRadius, backgroundColor: BRAND + "18", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
               {currentUser.profilePictureUrl ? (
-                <Animated.Image source={{ uri: currentUser.profilePictureUrl }} style={{ width: avatarSize, height: avatarSize, borderRadius: avatarRadius }} />
+                <Animated.Image source={{ uri: profileImageUri(currentUser.profilePictureUrl) }} style={{ width: avatarSize, height: avatarSize, borderRadius: avatarRadius }} />
               ) : (
                 <ThemedText style={{ color: BRAND, fontWeight: "700", fontSize: 13, lineHeight: 16 }}>
                   {getInitials(currentUser.name || organization?.name)}
