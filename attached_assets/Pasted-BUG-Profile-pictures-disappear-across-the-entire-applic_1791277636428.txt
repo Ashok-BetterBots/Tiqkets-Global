@@ -1,0 +1,84 @@
+BUG: Profile pictures disappear across the entire application. A 
+user uploads a profile picture and it saves and displays, but within 
+minutes, or by the next day, or after closing and reopening the app, 
+the picture is gone and a blank/white area is shown. This has 
+happened repeatedly and earlier fixes did not hold. I need the true 
+root cause found, not another symptom patch.
+
+STEP 1: INVESTIGATE ONLY. Do not change any code, config, data, or 
+files in this step.
+
+1. Trace the full upload path: client picker -> upload request -> 
+   server handler -> where the file is physically stored (local disk 
+   path, Replit Object Storage, S3/other bucket, base64 in database, 
+   etc.). Report the exact storage location and file paths.
+
+2. Report what value is saved in the database for the profile image 
+   (a relative path, absolute URL, signed/presigned URL, or base64). 
+   Query a few real records, read-only, and show me the actual stored 
+   values with any sensitive parts masked.
+
+3. Determine whether the stored value is permanent or temporary:
+   - If it is a signed/presigned URL, what is its expiry time?
+   - If it is a local file path, is that directory inside the 
+     deployment's ephemeral filesystem that gets wiped on redeploy, 
+     restart, or autoscale?
+   - Which deployment type are we using (Autoscale, Reserved VM, 
+     Static), and how does it treat local files between restarts?
+
+4. Check the host/domain in stored image URLs. Do any point to a dev 
+   or preview domain, "tiqketsglobal.replit.app", or any host other 
+   than the current production API domain (queue.tiqkets.in)? Would 
+   those break after a redeploy or domain change?
+
+5. For records whose image is currently blank, check whether the file 
+   actually still exists at the stored location, and whether the URL 
+   returns 404, 403 (expired/unauthorized), or something else when 
+   requested. This tells us whether the file is lost or just the link 
+   is dead.
+
+6. Check how the client renders the image: any caching layer, any 
+   logic that clears or overwrites the profile image field on app 
+   start, session refresh, or profile re-fetch, and whether an empty 
+   or null API response could overwrite a good local value.
+
+7. Check whether any cleanup job, cron task, or "delete unused 
+   uploads" logic could be removing these files.
+
+8. Check whether the same issue affects other uploaded images (event 
+   banners, organization logos, etc.), since "entire application" 
+   suggests a shared storage problem.
+
+Report the findings in a clear table: symptom -> cause -> evidence 
+(file, line, or query result). State plainly which cause you believe 
+is the real one and how confident you are.
+
+STEP 2: FIX (only after I review and confirm your findings)
+
+Once confirmed, propose the fix first. Likely directions, depending 
+on findings:
+- Move uploads to persistent storage (Replit Object Storage or an 
+  external bucket) instead of local disk.
+- Store a permanent object key/path in the database and generate 
+  fresh signed URLs at read time, instead of saving temporary URLs.
+- Store relative paths and build the full URL from one central base 
+  URL config, instead of saving full hostnames.
+- Fix any client code that wipes the image on refresh.
+
+Constraints for the fix:
+- Do not change any feature, screen, UI, or logic unrelated to 
+  profile picture storage and retrieval.
+- Do not delete or alter existing user data. Include a plan to 
+  migrate or repair existing records where the file still exists, 
+  and tell me which ones are unrecoverable and need re-upload.
+- Do not change the upload UI or the user flow.
+- Keep the fix backward compatible, so existing mobile app versions 
+  already installed keep working with the corrected server behavior 
+  wherever possible. Tell me clearly if any part needs a mobile app 
+  update.
+
+AFTER FIXING:
+- Test: upload a picture, redeploy/restart the server, wait, close 
+  and reopen the app, and confirm the picture still displays.
+- Confirm other uploaded images still work.
+- Report every file touched and every database change made.
