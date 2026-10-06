@@ -1980,6 +1980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // full /api/organizations/me refresh on every poll.
       const branch = await storage.getBranchById(branchId);
       const rawServices = branch ? await storage.getServicesByBranch(branchId) : [];
+      const rawDesks = branch ? await storage.getDesksByBranch(branchId) : [];
       const rawJourneys = branch ? await storage.getJourneysByBranch(branchId) : [];
       const journeysWithStages = await Promise.all(
         rawJourneys.map(async (j) => {
@@ -1996,6 +1997,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         services: rawServices.map((s: any) => ({
           id: s.id,
           queueStatus: s.queueStatus || "ended",
+          desks: rawDesks.filter(d => d.serviceId === s.id).map(d => ({
+            id: d.id,
+            queueStatus: d.queueStatus || "ended",
+          })),
           serviceSettings: {
             queueMode: s.serviceSettings?.queueMode
               ? canonicalQueueMode(s.serviceSettings.queueMode)

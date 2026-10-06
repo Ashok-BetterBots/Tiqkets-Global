@@ -1,6 +1,7 @@
 import { logHandledError } from "@/lib/logger";
+import { liveBookingStatus } from "@/utils/queueBookingStatus";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Modal, ActivityIndicator, Platform } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Modal, ActivityIndicator, Platform, AppState } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -133,7 +134,7 @@ export default function OrgDashboardScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, currentUser, queue, refreshStats, refreshQueueForBranch, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, setQueueStatusFor, getAccessibleBranches, getAccessibleServices, hasPermission, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
+  const { organization, currentUser, queue, liveBranchMeta, refreshStats, refreshQueueForBranch, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, setQueueStatusFor, getAccessibleBranches, getAccessibleServices, hasPermission, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
   const canSeeQueueWidget = hasPermission("org.dashboard.queue_widget");
   const canSeeQuickActions = hasPermission("org.dashboard.quick_actions");
   const canSeeAnalytics = hasPermission("org.dashboard.analytics");
@@ -341,11 +342,17 @@ export default function OrgDashboardScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      refreshStats(),
-      refreshHomeAnalytics(),
-    ]);
-    setRefreshing(false);
+    try {
+      await Promise.all([
+        refreshStats(),
+        refreshHomeAnalytics(),
+        activeBranch ? refreshQueueForBranch(activeBranch.id) : Promise.resolve(),
+      ]);
+    } catch (error) {
+      logHandledError("Error refreshing dashboard", error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Pull fresh "Today's Performance" stats and the report-driven charts
@@ -361,14 +368,24 @@ export default function OrgDashboardScreen() {
   // Live auto-refresh of the queue widget while the Home tab is focused, so the
   // waiting/serving counts update the moment a customer joins (mobile, QR scan,
   // or manual add) or a ticket's stage/status changes — without a manual pull.
-  const pollBranchId = getAccessibleBranches()[0]?.id;
+  const pollBranchId = activeBranch?.id;
   useFocusEffect(
     useCallback(() => {
+      const refreshBookingStatus = () => {
+        if (pollBranchId) void refreshQueueForBranch(pollBranchId);
+      };
+      refreshBookingStatus();
+      const appStateSubscription = AppState.addEventListener("change", state => {
+        if (state === "active") refreshBookingStatus();
+      });
       const interval = setInterval(() => {
         void refreshStats();
-        if (pollBranchId) void refreshQueueForBranch(pollBranchId);
+        refreshBookingStatus();
       }, 8000);
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        appStateSubscription.remove();
+      };
     }, [pollBranchId, refreshStats, refreshQueueForBranch])
   );
 
@@ -432,6 +449,12 @@ export default function OrgDashboardScreen() {
   }, [activeBranch?.id, selectedServiceId, branchServiceIdsKey]);
 
   const getCurrentQueueStatus = useCallback(() => {
+    const liveStatus = liveBookingStatus(
+      activeBranch ? liveBranchMeta[activeBranch.id] : undefined,
+      selectedService?.id,
+      selectedDeskId,
+    );
+    if (liveStatus !== undefined) return liveStatus;
     if (selectedDeskId !== "all") {
       const desk = availableDesks.find(d => d.id === selectedDeskId);
       return (desk as any)?.queueStatus || "active";
@@ -440,7 +463,7 @@ export default function OrgDashboardScreen() {
       return (selectedService as any)?.queueStatus || "active";
     }
     return (activeBranch as any)?.queueStatus || "active";
-  }, [selectedServiceId, selectedDeskId, activeBranch, selectedService, availableDesks]);
+  }, [selectedServiceId, selectedDeskId, activeBranch, selectedService, availableDesks, liveBranchMeta]);
 
   const currentQueueStatus = getCurrentQueueStatus();
   const bookingOpen = currentQueueStatus === "active";

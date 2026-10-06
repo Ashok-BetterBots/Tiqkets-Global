@@ -1,4 +1,5 @@
 import { logHandledError } from "@/lib/logger";
+import { patchLiveBookingStatus, type LiveBranchMeta } from "@/utils/queueBookingStatus";
 import { createHomeReportCalendar, resolveOrganizationTimezone } from "@shared/home-report-calendar";
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from "react";
 import { AppState, Platform } from "react-native";
@@ -171,12 +172,7 @@ interface OrganizationContextType {
   // `branches` so updating it does NOT change the `getAccessibleBranches`
   // reference, which would cascade-trigger `refreshOrganizationData` on every
   // poll tick and potentially overwrite the mode with stale server data.
-  liveBranchMeta: Record<string, {
-    settings: { queueMode: string };
-    services: Array<{ id: string; serviceSettings?: { queueMode?: string | null } | null; queueStatus?: string }>;
-    journeys: any[];
-    queueStatus?: string;
-  }>;
+  liveBranchMeta: Record<string, LiveBranchMeta>;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
@@ -589,12 +585,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<QueueCustomer[]>([]);
   // Separate from `branches` so that queue-poll updates don't change
   // getAccessibleBranches' reference and cascade-trigger refreshOrganizationData.
-  const [liveBranchMeta, setLiveBranchMeta] = useState<Record<string, {
-    settings: { queueMode: string };
-    services: Array<{ id: string; serviceSettings?: { queueMode?: string | null } | null; queueStatus?: string }>;
-    journeys: any[];
-    queueStatus?: string;
-  }>>({});
+  const [liveBranchMeta, setLiveBranchMeta] = useState<Record<string, LiveBranchMeta>>({});
+  const bookingStatusEpochRef = useRef(0);
   const [branchReservations, setBranchReservations] = useState<any[]>([]);
   const [bookings, setBookings] = useState<BookingSlot[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
@@ -1571,6 +1563,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshQueueForBranch = useCallback(async (branchId: string) => {
+    const statusEpoch = bookingStatusEpochRef.current;
     try {
       // Cache-bust so the poll/pull-to-refresh always gets the live queue.
       // The server sends an ETag and answers repeat GETs with 304, and the
@@ -1591,7 +1584,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       // By keeping live meta in its own state the mode/journeys are always fresh
       // from the queue poll while `branches` is only updated by the full org
       // refresh, which the useFocusEffect can trigger safely.
-      if (data.branchMeta) {
+      if (data.branchMeta && statusEpoch === bookingStatusEpochRef.current) {
         const meta = data.branchMeta;
         setLiveBranchMeta((prev) => ({
           ...prev,
@@ -1989,6 +1982,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       target.type === "service" ? `/api/dashboard/services/${target.id}/queue-status` :
       `/api/dashboard/desks/${target.id}/queue-status`;
     await apiRequest("PUT", endpoint, { queueStatus: status });
+    bookingStatusEpochRef.current += 1;
+    setLiveBranchMeta(previous => patchLiveBookingStatus(previous, target, status));
     if (target.type === "branch") {
       setBranches(prev => prev.map(b => b.id === target.id ? { ...b, queueStatus: status } as any : b));
     } else if (target.type === "service") {
