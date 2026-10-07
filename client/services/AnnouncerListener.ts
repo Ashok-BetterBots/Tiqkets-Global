@@ -4,6 +4,7 @@ import * as Speech from "expo-speech";
 import RNEventSource from "react-native-sse";
 import { getApiUrl } from "@/lib/query-client";
 import { getLanguage } from "@shared/languages";
+import { AnnouncementQueue, waitForAnnouncementCompletion } from "./AnnouncementQueue";
 
 type AnnouncementPayload = {
   spokenText?: string;
@@ -165,6 +166,12 @@ class AnnouncerListenerImpl {
   private nativeVoiceCache: Record<string, Speech.Voice | null> = {};
   private nativeVoicesLoaded = false;
   private nativeVoices: Speech.Voice[] = [];
+  private playbackCleanup: Promise<void> | null = null;
+  private announcementQueue = new AnnouncementQueue<{ payload: AnnouncementPayload; gen: number }>({
+    play: ({ payload, gen }, signal) => this.playAnnouncement(payload, gen, signal),
+    cancelPlayback: () => this.stopPlayback(),
+    warn: (message, error) => console.warn(`[announcer] ${message}`, ...(error === undefined ? [] : [error])),
+  });
 
   start(orgId: string | null, userId: string | null, branches: BranchInfo[]) {
     const targetBranchIds = (branches || [])
@@ -268,33 +275,41 @@ class AnnouncerListenerImpl {
     this.reconnectTimers.forEach((t) => clearTimeout(t));
     this.reconnectTimers.clear();
 
+    this.announcementQueue.stop();
+    void this.stopPlayback();
+    this.currentSig = "";
+  }
+
+  private stopPlayback(): Promise<void> {
+    if (this.playbackCleanup) return this.playbackCleanup;
     if (this.repeatTimer) {
       clearTimeout(this.repeatTimer);
       this.repeatTimer = null;
     }
 
-    if (this.alertSound) {
-      const s = this.alertSound;
-      this.alertSound = null;
-      s.stopAsync().catch(() => {});
-      s.unloadAsync().catch(() => {});
-    }
-
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      try {
-        (window as any).speechSynthesis?.cancel?.();
-      } catch {
-        // ignore
-      }
-    } else {
-      try {
-        Speech.stop();
-      } catch {
-        // ignore
-      }
-    }
-
-    this.currentSig = "";
+    const sound = this.alertSound;
+    this.alertSound = null;
+    const cleanup = Promise.all([
+      (async () => {
+        if (!sound) return;
+        try { await sound.stopAsync(); } catch { /* already stopped */ }
+        try { await sound.unloadAsync(); } catch { /* already unloaded */ }
+      })(),
+      (async () => {
+        try {
+          if (Platform.OS === "web" && typeof window !== "undefined") {
+            (window as any).speechSynthesis?.cancel?.();
+          } else {
+            await Speech.stop();
+          }
+        } catch { /* playback may already be stopped */ }
+      })(),
+    ]).then(() => {});
+    this.playbackCleanup = cleanup;
+    void cleanup.finally(() => {
+      if (this.playbackCleanup === cleanup) this.playbackCleanup = null;
+    });
+    return cleanup;
   }
 
   private async ensureAudioMode() {
@@ -318,22 +333,19 @@ class AnnouncerListenerImpl {
     this.audioModeReady = true;
   }
 
-  private async fire(payload: AnnouncementPayload, gen: number) {
+  private fire(payload: AnnouncementPayload, gen: number) {
     if (gen !== this.generation) return;
+    this.announcementQueue.enqueue({ payload, gen });
+  }
+
+  private async playAnnouncement(payload: AnnouncementPayload, gen: number, signal: AbortSignal) {
+    if (gen !== this.generation) return;
+    if (this.playbackCleanup) await this.playbackCleanup;
+    if (signal.aborted || gen !== this.generation) return;
     await this.ensureAudioMode();
-    if (gen !== this.generation) return;
+    if (signal.aborted || gen !== this.generation) return;
 
     try {
-      if (this.alertSound) {
-        const old = this.alertSound;
-        this.alertSound = null;
-        try {
-          await old.unloadAsync();
-        } catch {
-          // ignore
-        }
-      }
-
       const customUrl = (payload as any)?.alertSoundUrl as string | undefined;
       let resolvedUri: string | null = null;
       if (customUrl) {
@@ -352,23 +364,33 @@ class AnnouncerListenerImpl {
         source as any,
         { shouldPlay: true, volume: 1.0 },
       );
-      if (gen !== this.generation) {
+      if (signal.aborted || gen !== this.generation) {
         sound.unloadAsync().catch(() => {});
         return;
       }
       this.alertSound = sound;
 
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (gen !== this.generation) return;
-        if (status?.isLoaded && status?.didJustFinish) {
-          sound.unloadAsync().catch(() => {});
-          if (this.alertSound === sound) this.alertSound = null;
-          this.speak(payload, gen);
-        }
+      await waitForAnnouncementCompletion(signal, done => {
+        sound.setOnPlaybackStatusUpdate((status: any) => {
+          if (signal.aborted || gen !== this.generation) return;
+          if (status?.isLoaded && status?.didJustFinish) done();
+        });
       });
-    } catch {
-      this.speak(payload, gen);
+      await sound.unloadAsync().catch(() => {});
+      if (this.alertSound === sound) this.alertSound = null;
+    } catch (error) {
+      if (signal.aborted || gen !== this.generation) return;
+      const failedSound = this.alertSound;
+      this.alertSound = null;
+      if (failedSound) {
+        await failedSound.stopAsync().catch(() => {});
+        await failedSound.unloadAsync().catch(() => {});
+      }
+      // Preserve the existing spoken fallback when the alert cannot be loaded.
+      console.warn("[announcer] Alert playback failed; continuing to speech.", error);
     }
+    if (signal.aborted || gen !== this.generation) return;
+    await this.speak(payload, gen, signal);
   }
 
   private getWebVoice(lang: string): SpeechSynthesisVoice | null {
@@ -444,8 +466,8 @@ class AnnouncerListenerImpl {
     return out;
   }
 
-  private speak(payload: AnnouncementPayload, gen: number) {
-    if (gen !== this.generation) return;
+  private async speak(payload: AnnouncementPayload, gen: number, signal: AbortSignal) {
+    if (signal.aborted || gen !== this.generation) return;
     const utterances = this.resolveUtterances(payload);
     if (!utterances.length) return;
 
@@ -453,9 +475,9 @@ class AnnouncerListenerImpl {
       const synth = (window as any).speechSynthesis;
       const Utter = (window as any).SpeechSynthesisUtterance;
       if (!synth || !Utter) return;
-      try {
-        synth.cancel();
-        for (const u of utterances) {
+      await waitForAnnouncementCompletion(signal, (done, fail) => {
+        const completed = new Set<number>();
+        utterances.forEach((u, index) => {
           const voice = this.getWebVoice(u.lang);
           const utter = new Utter(u.text);
           utter.lang = voice?.lang || u.bcp47;
@@ -464,53 +486,50 @@ class AnnouncerListenerImpl {
           utter.rate = 0.92;
           utter.pitch = 1.05;
           utter.volume = 1.0;
+          utter.onend = () => {
+            completed.add(index);
+            if (completed.size === utterances.length) done();
+          };
+          utter.onerror = (error: unknown) => fail(error);
           synth.speak(utter);
-        }
-      } catch {
-        // ignore
-      }
+        });
+      });
       return;
     }
 
-    const speakOne = (u: { text: string; lang: string; bcp47: string }) => {
-      const voice = this.getNativeVoice(u.lang);
-      try {
-        Speech.speak(u.text, {
-          language: u.bcp47,
-          voice: voice?.identifier,
-          rate: 0.92,
-          pitch: 1.05,
-        });
-      } catch {
-        // ignore
-      }
-    };
-
-    const run = () => {
-      try {
-        Speech.stop();
-        speakOne(utterances[0]);
-        if (this.repeatTimer) clearTimeout(this.repeatTimer);
-        if (utterances.length > 1) {
-          this.repeatTimer = setTimeout(() => {
-            this.repeatTimer = null;
-            if (gen !== this.generation) return;
-            speakOne(utterances[1]);
-          }, 1500);
+    if (!this.nativeVoicesLoaded) await this.ensureNativeVoices();
+    if (signal.aborted || gen !== this.generation) return;
+    await waitForAnnouncementCompletion(signal, (done, fail) => {
+      const completed = new Set<number>();
+      const speakOne = (index: number) => {
+        if (signal.aborted || gen !== this.generation) return;
+        const u = utterances[index];
+        const voice = this.getNativeVoice(u.lang);
+        try {
+          Speech.speak(u.text, {
+            language: u.bcp47,
+            voice: voice?.identifier,
+            rate: 0.92,
+            pitch: 1.05,
+            onDone: () => {
+              completed.add(index);
+              if (completed.size === utterances.length) done();
+            },
+            onStopped: () => fail(new Error("Announcement speech stopped before completion")),
+            onError: (error: unknown) => fail(error),
+          });
+        } catch (error) {
+          fail(error);
         }
-      } catch {
-        // ignore
+      };
+      speakOne(0);
+      if (utterances.length > 1) {
+        this.repeatTimer = setTimeout(() => {
+          this.repeatTimer = null;
+          speakOne(1);
+        }, 1500);
       }
-    };
-
-    if (this.nativeVoicesLoaded) {
-      run();
-    } else {
-      this.ensureNativeVoices().finally(() => {
-        if (gen !== this.generation) return;
-        run();
-      });
-    }
+    });
   }
 }
 
