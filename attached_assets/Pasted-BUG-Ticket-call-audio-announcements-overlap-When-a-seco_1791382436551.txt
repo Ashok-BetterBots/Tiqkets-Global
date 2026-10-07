@@ -1,0 +1,81 @@
+BUG: Ticket-call audio announcements overlap. When a second ticket-call 
+event arrives while the first announcement is still playing, the first 
+announcement is cut off and the second starts immediately. 
+
+REQUIRED BEHAVIOR:
+Announcements must play strictly one after the other, in the order they 
+arrived. Each announcement is one unit, exactly as it works today: 
+alert tone twice, followed by the spoken ticket/table information 
+(including any configured repeat or fallback language). If another 
+event arrives while an announcement is playing, it goes into a queue 
+and starts only after the current announcement has fully finished, plus 
+a pause of 1 second between announcements.
+
+SCOPE (strict):
+- Change ONLY how announcement events are sequenced/queued before 
+  playback. Do NOT change the alert tone, sound files, volume, number of 
+  tone repetitions, speech wording, languages, repeat/fallback logic, or 
+  the conditions that decide which device announces.
+- Do NOT change the event-stream connection, the announcer selection 
+  logic in OrganizationContext, push notifications, or any other 
+  feature or screen.
+- Do NOT add background playback. Audio remains foreground-only (we 
+  intentionally removed the iOS audio background mode). Keep 
+  staysActiveInBackground false and enableBackgroundPlayback false.
+- Do NOT touch the web application unless the same announcer code is 
+  shared. If shared, report it before changing anything.
+
+STEP 1: INVESTIGATE (report before changing anything)
+1. Show how AnnouncerListener.fire() works today: how events arrive, 
+   how the tone and expo-speech are started, and exactly where a new 
+   event interrupts the current one (stop/unload calls, shared player 
+   instances, Speech.stop(), etc.).
+2. Confirm how completion is detected for each stage: when the tone(s) 
+   finish and when speech finishes (e.g., onDone/onStopped/onError for 
+   expo-speech, playback status for the tone). Identify any stage where 
+   completion might never fire, since a queue that waits forever on a 
+   missed callback would freeze all future announcements.
+3. List every other caller of fire() or any other code that plays 
+   announcement audio, so the queue covers all entry points.
+4. Check whether the same event can be delivered twice (stream 
+   reconnects, duplicates). Report whether deduplication already 
+   exists. Do not change it.
+
+STEP 2: IMPLEMENT (after confirming the findings)
+- Add a simple in-memory FIFO queue inside the announcer. New events 
+  are appended. A single worker processes one announcement at a time: 
+  play the full announcement (tone x2 + speech), wait for real 
+  completion, wait 1000 ms, then take the next item.
+- Never run two announcements concurrently and never call stop on an 
+  in-progress announcement because a new event arrived.
+- Safety: add a per-announcement timeout (for example 30 seconds) so 
+  that if a completion callback never fires, the worker logs it, 
+  releases the lock, and continues to the next item. A stuck 
+  announcement must never block the queue permanently. Also make sure 
+  an error in one announcement is caught so the queue continues.
+- Preserve existing behavior when the queue is empty: a single event 
+  must play immediately, as it does today, with no added delay.
+- Clean up properly: when the announcer stops or the listener is torn 
+  down (logout, branch change, announcer deselected), clear the queue 
+  and stop current playback, so old announcements never play later.
+- Keep the queue unbounded for normal use, but if more than 20 items 
+  are waiting, log a warning (do not drop items silently).
+
+TESTING (physical device build, not Expo Go)
+1. Single event: plays tone x2 then speech, with no delay added.
+2. Two events fired back to back: the first plays completely, then a 
+   1 second pause, then the second plays completely.
+3. Three or more events fired quickly: all play in arrival order, none 
+   cut off.
+4. Event arriving during the pause between announcements: queued and 
+   played in order.
+5. Simulate a missing completion callback or speech error: confirm the 
+   timeout releases the queue and later announcements still play.
+6. Logout or announcer change while items are queued: confirm the 
+   queue is cleared and nothing plays afterward.
+7. Confirm foreground-only behavior is unchanged and no other feature 
+   or screen is affected.
+
+Report every file touched, the final queue design, and the results of 
+each test above. Do not claim a test passed unless you actually ran 
+it.
