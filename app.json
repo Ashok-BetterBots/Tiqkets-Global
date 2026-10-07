@@ -22,9 +22,11 @@
       }
     },
     "android": {
+      "icon": "./assets/images/android-launcher.png",
       "adaptiveIcon": {
         "backgroundColor": "#8c1867",
-        "foregroundImage": "./assets/images/icon.png"
+        "foregroundImage": "./assets/images/android-launcher-foreground.png",
+        "monochromeImage": "./assets/images/android-launcher-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "resize",

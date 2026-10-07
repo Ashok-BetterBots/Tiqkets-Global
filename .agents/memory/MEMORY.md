@@ -88,3 +88,4 @@
 - [Event registration fee lock](event-registration-fee-lock.md) — lock the saved paise amount server-side across event and location routes; payout readiness remains a separate gate.
 - [Customer queue WhatsApp boundaries](customer-queue-whatsapp-boundaries.md) — media readiness precedes sending; channels stay independent; deduplication tracks logical actions, not template timing.
 - [TV queue consistency](tv-queue-consistency.md) — reconcile called customers and assignments within device scope; announcements alone are not current queue state.
+- [Android launcher branding](android-launcher-branding.md) — white ticket on raspberry; isolate Android-only branding changes from shared platform assets.
