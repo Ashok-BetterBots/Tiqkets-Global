@@ -1,0 +1,54 @@
+name: Check release automation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      [
+        ".github/workflows/**",
+        "scripts/**",
+        "fastlane/**",
+        "app.config.js",
+        "app.json",
+        "plugins/**",
+        "package*.json",
+        "Gemfile*",
+      ]
+  pull_request:
+    paths:
+      [
+        ".github/workflows/**",
+        "scripts/**",
+        "fastlane/**",
+        "app.config.js",
+        "app.json",
+        "plugins/**",
+        "package*.json",
+        "Gemfile*",
+      ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - run: node --test scripts/release-notes.test.mjs
+      - run: npm ci --no-audit --no-fund
+      - run: node --test scripts/store-permissions.test.mjs
+      - run: ruby -c fastlane/Fastfile && ruby -c fastlane/Matchfile
+      - name: Load Fastlane lanes without accessing store credentials
+        env:
+          FASTLANE_OPT_OUT_USAGE: "1"
+          FASTLANE_SKIP_UPDATE_CHECK: "1"
+        run: bundle exec fastlane lanes
