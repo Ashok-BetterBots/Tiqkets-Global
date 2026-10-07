@@ -1,0 +1,230 @@
+FEATURE: Subscription plans, WhatsApp usage billing, invoicing, online 
+payment and non-payment suspension for the Tiqkets Super Admin portal 
+and web application.
+
+STRICT SCOPE RULES (read first)
+- This is a billing feature. Do NOT change any queue, ticketing, 
+  registration, WhatsApp messaging flow, announcement, mobile app, or 
+  other existing feature, screen, or logic.
+- The existing subscription module (14-day trial, Basic/Premium, 
+  Razorpay auto-renewal, webhooks) and the Razorpay Route / Direct / 
+  Payment Links settings used for CUSTOMER ticket payments are 
+  separate from this. BetterBots' own subscription billing must not 
+  alter how organizations collect payments from their customers.
+- Use additive changes: new tables, new routes, new pages. Do not 
+  drop, rename or rewrite existing tables or columns. Do not delete or 
+  alter existing subscription or payment records.
+- Do not hardcode prices, rates, tax values or dates anywhere in code.
+- Money must be stored as integers in the smallest unit (paise) or as 
+  fixed-precision decimals with explicit rounding rules. Never use 
+  floating point for money. Because WhatsApp rates are fractions of a 
+  rupee (e.g. 0.115), store per-message rates with at least 4 decimal 
+  places and define one rounding rule (round at line-item level to 2 
+  decimals, half-up). Document it.
+
+PHASE 0: INVESTIGATE (report only, change nothing)
+1. Describe the current subscription module: tables, plan definitions, 
+   trial logic, Razorpay auto-renewal, webhook handlers, and how a 
+   subscription's status currently affects access to the service.
+2. Describe how outbound WhatsApp messages are sent today and which 
+   data is already recorded per message: message ID, template name, 
+   category, status updates, branch and organization. Show whether 
+   Meta's delivery/status webhooks are received and stored, and 
+   whether they include the pricing object (billable flag, pricing 
+   category).
+3. List the existing Super Admin pages and settings structure, so the 
+   new pages fit the existing navigation and design.
+4. Identify how organizations map to branches, and whether every 
+   message can be attributed to exactly one organization and branch.
+5. Propose how to migrate existing subscribers to the new plans 
+   without breaking them, and WAIT for my approval.
+Report findings and a proposed schema before building.
+
+PHASE 1: DATA MODEL (additive only)
+Create tables (adjust names to the project's conventions):
+- plans: name, code, monthly price per branch, currency, features 
+  list, is_recommended, is_active, sort order.
+- plan_price_history or effective-dated price versions, so a price 
+  change never rewrites past invoices.
+- whatsapp_pricing_rules: country/region, message category 
+  (utility, service, authentication, marketing, extensible), Meta 
+  cost per message, customer billing rate, markup type (percentage or 
+  fixed) and value, minimum billing rate, currency, free message 
+  allowance, who bears cost (passed to customer or absorbed by 
+  BetterBots), effective_from, effective_to (nullable), status 
+  (scheduled/active/disabled), version number, created_by, created_at. 
+  NEVER delete or overwrite rows. A change creates a new version row, 
+  and the previous one is closed by setting effective_to.
+- whatsapp_message_usage: organization ID, branch ID, customer ID, 
+  WhatsApp message ID (unique), template name, category, country, sent 
+  timestamp, delivered timestamp, delivery status, meta_chargeable 
+  flag, meta cost, customer rate applied, customer billed amount, 
+  pricing_rule_id and version used, billing_period, invoice_id (null 
+  until invoiced).
+- invoices and invoice_line_items: invoice number (unique, sequential, 
+  configurable format), organization, billing period start/end, 
+  issue date, due date, status (draft, issued, paid, partially paid, 
+  overdue, suspended, void), subtotal, tax breakdown, total, currency, 
+  plan and rate snapshot, notes.
+- payments: invoice ID, Razorpay order ID, payment ID, amount, status, 
+  method, raw webhook reference, timestamps.
+- billing_settings: GST rate and GSTIN fields, SAC code, due-days 
+  after issue (default 7), suspension-days after due date (default 
+  30), reminder schedule, invoice note text.
+All values above must be editable by Super Admin through the UI. 
+Migrations must be safe on the production database. Provide the 
+migration and a rollback plan, and test it on a copy first.
+
+PHASE 2: PLANS (Super Admin and customer)
+Seed exactly three plans, editable by Super Admin afterwards:
+1. Starter: Rs 1,499 per branch per month. Queue management, basic 
+   reports, standard support.
+2. Growth (mark "Recommended"): Rs 2,499 per branch per month. All 
+   Starter features plus advanced reports and analytics, customer 
+   history, multi-branch dashboard, priority support.
+3. Pro: Rs 3,999 per branch per month. All Growth features plus 
+   advanced analytics, API/integration access, advanced configuration, 
+   premium support.
+Every plan states: "WhatsApp messaging billed separately based on 
+usage." Subscription fee = price x number of active branches in the 
+billing period (pro-rate branches added or removed mid-period using a 
+documented rule). Super Admin can change an organization's plan, with 
+changes effective from a chosen date and recorded in history.
+
+PHASE 3: WHATSAPP PRICING ADMIN
+Create Super Admin page: Settings -> Billing -> WhatsApp Pricing.
+Table columns: Category | Country | Meta Cost | Customer Rate | Markup 
+| Effective From | Status.
+Super Admin can: add new pricing, schedule future changes, disable a 
+rule, view full history, set different pricing by country, set markup 
+(percentage or fixed), set minimum billing rate, set free allowance, 
+and choose absorbed vs passed to customer.
+Validation: no overlapping active rules for the same category and 
+country; customer rate must be at least the minimum billing rate; an 
+effective date in the past requires an explicit confirmation and must 
+not alter invoices that are already issued. Log every change with user 
+and timestamp.
+
+PHASE 4: USAGE TRACKING AND RATE APPLICATION
+- Record one usage row per outbound WhatsApp message, keyed by the 
+  WhatsApp message ID (idempotent: webhook retries or duplicates must 
+  never create a second charge).
+- Update delivery status from Meta's status webhooks. Bill only 
+  messages that are delivered AND flagged chargeable. Store the 
+  category and billable flag Meta reports, and do not infer them if 
+  Meta provides them.
+- Resolve the rate at the time the message is sent/delivered, using 
+  country, category and effective date, and store the rule ID and 
+  version on the row. Later rate changes must never alter existing 
+  rows or issued invoices.
+- If no rate rule exists for a message, do not guess: flag it on an 
+  "unpriced usage" report for Super Admin and exclude it from 
+  invoices until resolved.
+- Aggregate usage per organization and per branch for each period.
+- Do not change how or when messages are sent.
+
+PHASE 5: INVOICE GENERATION
+- Generate invoices on a schedule (monthly, at period close) through 
+  a job that is idempotent: running it twice for the same period must 
+  not create duplicates.
+- Invoice = subscription fee + WhatsApp usage charges + add-ons + 
+  taxes. Show a detailed breakdown:
+  * Subscription: plan, branches, rate, amount
+  * WhatsApp usage per branch, per category: quantity x rate = amount 
+    (e.g. "Utility messages: 7,500 x Rs 0.15 = Rs 1,125")
+  * Free allowance applied
+  * Add-ons
+  * Subtotal, GST (configurable rate, shown separately), Total
+  * Billing period, invoice number, issue date, due date
+  * Note: "WhatsApp messaging charges are usage-based and may change 
+    when Meta revises WhatsApp Business Platform pricing. Updated 
+    rates will be communicated and applied from the applicable 
+    effective date."
+- Invoices are immutable once issued. Corrections are made through a 
+  credit note or adjustment on the next invoice, never by editing.
+- Provide PDF download and a per-branch usage annexure listing message 
+  counts by day and category.
+- Verify with a worked test: Growth plan Rs 2,499 + 8,500 chargeable 
+  messages at Rs 0.15 = Rs 1,275, subtotal Rs 3,774, plus GST.
+
+PHASE 6: CUSTOMER BILLING AND USAGE SECTION (web application)
+Add a "Billing & Usage" section showing: current plan, monthly 
+subscription fee, current billing period, WhatsApp messages used, 
+estimated WhatsApp charges, current WhatsApp rate, additional 
+charges, estimated monthly bill, usage by category (utility, service, 
+authentication, marketing), a daily usage chart, a monthly summary, 
+invoice list with status, and invoice detail with the full breakdown. 
+Label current-period figures as estimates until the invoice is issued. 
+Show branch-wise breakdown for multi-branch organizations. Customers 
+see only their own organization's data.
+
+PHASE 7: ONLINE PAYMENT WITH RAZORPAY
+- Customers pay an invoice online from the Billing section using 
+  Razorpay, using a server-created order for the exact outstanding 
+  amount. Never trust an amount sent from the client.
+- Verify the payment signature on the server and confirm via Razorpay 
+  webhook. Webhook handling must be idempotent (same event delivered 
+  twice has no extra effect) and must verify the webhook signature.
+- Mark the invoice paid only after verified confirmation. Handle 
+  failed, pending and partial payments, and show clear status.
+- Provide payment receipts.
+- Use BetterBots' own Razorpay credentials from secure environment 
+  configuration. Never place keys in client code, logs or the 
+  database in plain form. This must be completely separate from the 
+  Razorpay Route/Linked Account setup used for organizations' own 
+  customer payments.
+
+PHASE 8: NON-PAYMENT AND SUSPENSION
+- Due date = issue date + configured due days (default 7).
+- Reminders (email and WhatsApp, using existing channels) at the due 
+  date and at configurable intervals before suspension, e.g. +7, +15, 
+  +23 and +28 days. A final warning before suspension must state the 
+  exact suspension date.
+- If an invoice remains unpaid 30 days after the due date 
+  (configurable), set the organization to "suspended for non-payment".
+- Suspension behavior: block creation of new queues/tickets and 
+  sending of WhatsApp messages for that organization. Still allow 
+  owner login and access to the Billing section so they can pay. Do 
+  NOT delete or alter any data. Tickets already issued must remain 
+  viewable. Define clearly, and tell me, how in-progress queues are 
+  handled at the moment of suspension.
+- On verified payment of all overdue invoices, restore service 
+  automatically and immediately.
+- Super Admin can manually extend the grace period, waive or void an 
+  invoice, or reactivate an organization, with a reason, and every 
+  such action is logged.
+- The enforcement check must be a single central guard reused by the 
+  relevant entry points, and must fail open if the billing system 
+  itself errors (never block a paying customer because of a billing 
+  bug).
+- Exempt flagged internal/demo organizations from suspension.
+
+PHASE 9: SUPER ADMIN BILLING DASHBOARD
+Organizations list with plan, current usage, outstanding balance, 
+overdue age and status; invoices list with filters and export to CSV; 
+unpriced-usage report; payment and suspension history; audit log of 
+all billing configuration changes. Access restricted to Super Admin.
+
+SECURITY AND ACCURACY REQUIREMENTS
+- Role-based access: only Super Admin can edit plans, pricing, tax 
+  and settings. Organization owners can only view and pay their own 
+  invoices.
+- Every billing calculation has automated tests: rate effective-date 
+  boundaries, price change mid-month (messages before and after the 
+  change use their own rates), free allowance, duplicate webhooks, 
+  rounding, GST, branch pro-rating, suspension timing and restore 
+  after payment.
+- Add a reconciliation report comparing stored message usage against 
+  Meta's reported counts so discrepancies are visible.
+- Log billing events without logging card or key data.
+
+DELIVERY
+Build phase by phase. After each phase: confirm the app still builds, 
+confirm existing features (queues, tickets, registration, WhatsApp 
+sending, announcements, existing subscription and ticket payments) 
+work exactly as before, list every file touched and every database 
+change, and wait for my approval before starting the next phase. Test 
+migrations on a copy of production data first. Do not enable 
+suspension enforcement in production until I approve, and start with 
+a "dry run" mode that only logs which organizations WOULD be 
+suspended.

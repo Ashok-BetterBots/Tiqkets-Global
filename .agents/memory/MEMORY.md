@@ -89,3 +89,4 @@
 - [Customer queue WhatsApp boundaries](customer-queue-whatsapp-boundaries.md) — media readiness precedes sending; channels stay independent; deduplication tracks logical actions, not template timing.
 - [TV queue consistency](tv-queue-consistency.md) — reconcile called customers and assignments within device scope; announcements alone are not current queue state.
 - [Android launcher branding](android-launcher-branding.md) — white ticket on raspberry; isolate Android-only branding changes from shared platform assets.
+- [BetterBots billing boundaries](platform-billing-boundaries.md) — separate platform billing from legacy subscriptions and customer payments; additive, phase-approved rollout and suspension dry run.
