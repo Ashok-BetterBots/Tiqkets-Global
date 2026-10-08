@@ -1,0 +1,1 @@
+Improved Android photo selection and store compatibility.
