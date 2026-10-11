@@ -1,0 +1,100 @@
+TASK: Fix the subscription/billing lifecycle in the Tiqkets Organisation dashboard so it follows standard SaaS subscription practice. Work in TWO PHASES. Do NOT write any code in Phase 1.
+
+=====================================================
+STRICT SCOPE RULES (read first, follow throughout)
+=====================================================
+- Only touch code related to ORGANISATION SUBSCRIPTIONS: subscription model/table, plan-change logic, Razorpay Subscriptions API calls, subscription webhooks, the access check that shows "Your subscription is not active", the Billing page, and the Subscription card on the Overview page.
+- DO NOT touch: queue logic, tickets, WhatsApp messaging, branches/services/staff/availability/events/reports, authentication, the customer ticket-payment flow (Razorpay Route / Direct / Payment Links used for ticket payments). These are a SEPARATE payment system and must not change.
+- DO NOT change plan names, prices (₹1699 / ₹7499 / ₹14999), plan limits, branding, colours, layout or styling, except the specific button labels and banners described below.
+- DO NOT drop, rename or delete any database column, table or row. Schema changes must be ADDITIVE ONLY (new nullable columns or new tables), with a migration.
+- DO NOT delete or modify existing payment records.
+- DO NOT run any data fix on production data until I approve it.
+- Before editing any file, list it. If you find you need to edit a file outside the scope above, STOP and ask me first.
+
+=====================================================
+PHASE 1: INVESTIGATE AND REPORT (no code changes)
+=====================================================
+Read the code and report back:
+1. Every file involved in org subscriptions (models, routes, services, webhooks, middleware/guards, Billing page, Overview subscription card, cron jobs).
+2. Exactly how a subscription is created. Is it a Razorpay Subscription (recurring, auto-charge) or a one-time order/payment? Are mandates card or UPI AutoPay?
+3. Every place where subscription `status` is SET. In particular: what does clicking "Downgrade" do? Does it cancel the Razorpay subscription and/or set status to "cancelled"?
+4. The exact condition that triggers the "Your subscription is not active" banner and blocks queue joining / ticket processing.
+5. Which Razorpay webhook events are handled (subscription.activated, .charged, .pending, .halted, .cancelled, .completed, .updated, payment.failed), and whether signature verification and idempotency (dedupe by event id) exist.
+6. Is there any job that runs at period end to renew, apply scheduled changes, or expire subscriptions?
+7. For org "Sangeetha Hospital": current DB values of status, plan, current_period_start/end, scheduled plan change, and the Razorpay subscription id. Fetch the live status from the Razorpay API (read-only) and compare.
+8. Why the payment history shows ₹4999 captured on 5/10/2026 when the current plan is Enterprise (₹14999). Explain only; do not change.
+9. Your root-cause summary and the list of files you plan to change for Phase 2.
+
+STOP after Phase 1 and wait for my approval.
+
+=====================================================
+PHASE 2: IMPLEMENT (only after I approve)
+=====================================================
+Target behaviour (standard SaaS practice):
+
+A. SUBSCRIPTION STATES
+   - trialing: in free trial, full access.
+   - active: paid, auto-renews every period until the customer cancels.
+   - past_due: renewal charge failed; Razorpay is retrying. Full access during a GRACE PERIOD of 3 days after current_period_end.
+   - active + cancel_at_period_end = true: customer cancelled; full access until current_period_end, then no renewal.
+   - expired: period ended after cancellation, OR grace period ended / Razorpay subscription halted. Access blocked.
+   Add fields if missing (additive): cancel_at_period_end (bool), cancelled_at, scheduled_plan_id, scheduled_change_at, grace_until.
+
+B. ACCESS RULE (single helper, used everywhere)
+   Create ONE function, e.g. hasActiveSubscription(org), and use it in every place that currently checks status:
+   access = status in (trialing, active)
+            OR (status = past_due AND now <= grace_until)
+            OR (cancel_at_period_end = true AND now <= current_period_end)
+   Never block access just because a plan change is scheduled.
+
+C. AUTO-RENEWAL
+   - Renewals happen automatically through the Razorpay Subscription. On `subscription.charged`, extend current_period_start/end from the Razorpay payload and record the payment in Payment History.
+   - On `subscription.pending` / `payment.failed`, set past_due and grace_until = current_period_end + 3 days.
+   - On `subscription.halted` (or grace ended without payment), set expired.
+   - Add a daily reconciliation job that fetches the Razorpay status for any subscription whose period has ended and syncs our DB. This covers missed webhooks.
+   - All webhooks: verify the Razorpay signature, dedupe by event id (idempotent), and log the event.
+
+D. PLAN CHANGES
+   - UPGRADE (to a higher plan): takes effect immediately. Use Razorpay's subscription update API with schedule_change_at = "now" if the mandate supports it. Charge the prorated difference for the remaining days of the current period. Check Razorpay docs for exact proration behaviour and tell me what you used. New limits apply immediately.
+   - DOWNGRADE (to a lower plan): scheduled for the end of the current period using schedule_change_at = "cycle_end". The subscription STAYS ACTIVE on the current plan with current limits until then. Store scheduled_plan_id / scheduled_change_at. At cycle end, the new plan applies and billing continues automatically on the new plan.
+   - "Cancel scheduled change" removes the scheduled change (Razorpay cancel-scheduled-changes API) and keeps the current plan.
+   - NEVER cancel the Razorpay subscription as part of an upgrade or downgrade. If the mandate type (e.g. UPI AutoPay) does not allow plan updates, create the new subscription to start at current_period_end and cancel the old one at cycle end, so there is no gap and no double charge. Report which path applies.
+   - If a downgrade would exceed the new plan's limits (e.g. more branches or staff than allowed), warn the user before confirming. Do not delete their data.
+
+E. CANCELLATION
+   - Add a clear "Cancel subscription" action on the Billing page with a confirmation dialog. It cancels at cycle end (Razorpay cancel_at_cycle_end = 1) and sets cancel_at_period_end = true.
+   - Show: "Your plan will end on <date>. You'll keep full access until then." Include a "Resume subscription" button that undoes the cancellation if done before period end.
+   - Only `expired` blocks access.
+
+F. BILLING PAGE UI (labels only; keep the existing design)
+   - Current plan card button: "Current Plan" (disabled).
+   - Higher plans: "Upgrade". Lower plans: "Downgrade".
+   - If a downgrade is scheduled: keep the existing yellow "Plan change scheduled" banner. The status badge must show "Active", not "cancelled".
+   - If cancel_at_period_end: badge "Cancels on <date>" and a "Resume" button.
+   - If past_due: badge "Payment failed", plus a banner with a "Update payment method" / "Retry payment" action.
+   - If expired: all plan buttons read "Choose plan" / "Subscribe". No "Downgrade" labels.
+
+G. OVERVIEW PAGE
+   - Show the red "Your subscription is not active" banner ONLY when hasActiveSubscription(org) is false. Give the correct reason: "Your plan ended on <date>" or "Payment failed, please update your payment method".
+   - Show a softer warning banner for past_due (still in grace) and for cancel_at_period_end ("Your plan ends on <date>").
+   - The Subscription card status badge must use the same state logic as Billing.
+
+H. DATA FIX FOR AFFECTED ORGS
+   - Write a one-off script that finds orgs wrongly marked "cancelled" while their paid period has not ended (e.g. Sangeetha Hospital) and restores them to the correct state, preserving any scheduled downgrade.
+   - Run it in DRY-RUN mode first and show me the list of orgs and exact changes. Apply only after I approve.
+
+=====================================================
+TESTING (show me results)
+=====================================================
+Using Razorpay TEST MODE only, verify:
+1. New subscription → active → renewal charged → period extended, still active, payment appears in history.
+2. Renewal fails → past_due with access during grace → payment succeeds → active.
+3. Renewal fails and grace ends → expired → banner shown, "Choose plan" buttons.
+4. Upgrade mid-period → immediate, prorated charge, new limits.
+5. Downgrade mid-period → still active on current plan, scheduled banner shown, switches at cycle end, billing continues on the new plan.
+6. Cancel scheduled downgrade → stays on current plan.
+7. Cancel subscription → active until period end → expired after. Resume before end → stays active.
+8. Duplicate webhook delivery → processed once.
+9. Regression check: queue join, ticket processing, WhatsApp messages and customer ticket payments (Route/Direct/Payment Links) work exactly as before.
+
+At the end, give me: the list of files changed, the migration added, and a short summary of each change.
