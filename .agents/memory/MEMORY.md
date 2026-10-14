@@ -91,3 +91,4 @@
 - [Android launcher branding](android-launcher-branding.md) — white ticket on raspberry; isolate Android-only branding changes from shared platform assets.
 - [BetterBots billing boundaries](platform-billing-boundaries.md) — separate platform billing from legacy subscriptions and customer payments; additive, phase-approved rollout and suspension dry run.
 - [Queue toast boundaries](queue-toast-boundaries.md) — Queue success/info only; newest wins and modal hosts approved; errors, decisions, scanners and audio stay unchanged.
+- [Dine-In table badge scope](dine-in-table-badge-scope.md) — On Hold/Seated show the current stored table only; no history fallback after Resume clears it.

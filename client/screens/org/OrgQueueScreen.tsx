@@ -2921,6 +2921,12 @@ export default function OrgQueueScreen() {
       return c.tableNumber ? "seated" : "walkin";
     };
 
+    const getStoredTableNumber = (customer: QueueCustomer): string | null => {
+      if (typeof customer.tableNumber !== "string") return null;
+      const value = customer.tableNumber.trim();
+      return value && !/^(?:-|null|undefined)$/i.test(value) ? value : null;
+    };
+
     return (
       <ThemedView style={styles.container}>
 
@@ -3160,6 +3166,7 @@ export default function OrgQueueScreen() {
           {/* ── ON HOLD TAB ── */}
           {dineInTab === "hold" ? getCurrentTabCustomers().map((customer) => {
             const cardData = getDineInCardData(customer);
+            const tableNumber = getStoredTableNumber(customer);
             return (
               <View key={customer.id} style={[styles.diCard, styles.diHoldCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
                 <View style={styles.diCardHeader}>
@@ -3177,34 +3184,42 @@ export default function OrgQueueScreen() {
                       </ThemedText>
                     )}
                   </View>
-                  <View style={styles.diCardMeta}>
-                    <View style={styles.diNameRow}>
+                  <View style={[styles.diCardMeta, tableNumber && styles.diTableCardShrink]}>
+                    <View style={[styles.diNameRow, tableNumber && styles.diTableCardRow]}>
                       <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
                         {customer.customerName}
                       </ThemedText>
-                      <View style={[styles.diTicketChip, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
-                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]}>
+                      <View style={[styles.diTicketChip, tableNumber && styles.diTableCardShrink, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
+                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]} numberOfLines={tableNumber ? 1 : undefined}>
                           {customer.ticketNumber}
                         </ThemedText>
                       </View>
                     </View>
-                    <View style={styles.diTimeRow}>
-                      <View style={styles.diTimeRowItem}>
+                    <View style={[styles.diTimeRow, tableNumber && styles.diTableCardRow]}>
+                      <View style={[styles.diTimeRowItem, tableNumber && styles.diTableCardShrink]}>
                         <Feather name="file-text" size={11} color={colors.textSecondary} />
-                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]} numberOfLines={tableNumber ? 1 : undefined}>
                           {formatTime(customer.joinedAt)}
                         </ThemedText>
                       </View>
                       {customer.holdAt ? (
-                        <View style={styles.diTimeRowItem}>
+                        <View style={[styles.diTimeRowItem, tableNumber && styles.diTableCardShrink]}>
                           <Feather name="pause-circle" size={11} color="#D97706" />
-                          <ThemedText style={[styles.diWaitReg, { color: "#D97706" }]}>
+                          <ThemedText style={[styles.diWaitReg, { color: "#D97706" }]} numberOfLines={tableNumber ? 1 : undefined}>
                             {formatTime(customer.holdAt)}
                           </ThemedText>
                         </View>
                       ) : null}
                     </View>
                   </View>
+                  {tableNumber ? (
+                    <View style={[styles.diTablePill, styles.diStoredTablePill]}>
+                      <MaterialCommunityIcons name="table-furniture" size={13} color={colors.primary} />
+                      <ThemedText style={[styles.diTablePillText, { color: colors.primary }]} numberOfLines={1}>
+                        Table {tableNumber}
+                      </ThemedText>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.diAssignedActions}>
@@ -3230,6 +3245,7 @@ export default function OrgQueueScreen() {
           {/* ── DONE TAB ── */}
           {dineInTab === "done" ? getCurrentTabCustomers().map((customer) => {
             const cardData = getDineInCardData(customer);
+            const tableNumber = getStoredTableNumber(customer);
             const doneStatus = getDoneStatus(customer);
             const regTime = formatTime(customer.joinedAt);
             const doneTime = formatTime((customer.completedAt || customer.servedAt || customer.arrivedAt || customer.joinedAt) as string);
@@ -3253,37 +3269,45 @@ export default function OrgQueueScreen() {
                       </ThemedText>
                     )}
                   </View>
-                  <View style={styles.diCardMeta}>
-                    <View style={styles.diNameRow}>
+                  <View style={[styles.diCardMeta, tableNumber && styles.diTableCardShrink]}>
+                    <View style={[styles.diNameRow, tableNumber && styles.diTableCardRow]}>
                       <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
                         {customer.customerName}
                       </ThemedText>
-                      <View style={[styles.diTicketChip, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
-                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]}>
+                      <View style={[styles.diTicketChip, tableNumber && styles.diTableCardShrink, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
+                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]} numberOfLines={tableNumber ? 1 : undefined}>
                           {customer.ticketNumber}
                         </ThemedText>
                       </View>
-                      <View style={[styles.diStatusBadge, { backgroundColor: statusBg }]}>
-                        <ThemedText style={[styles.diStatusBadgeText, { color: statusColor }]}>
+                      <View style={[styles.diStatusBadge, tableNumber && styles.diTableCardShrink, { backgroundColor: statusBg }]}>
+                        <ThemedText style={[styles.diStatusBadgeText, { color: statusColor }]} numberOfLines={tableNumber ? 1 : undefined}>
                           {statusLabel}
                         </ThemedText>
                       </View>
                     </View>
-                    <View style={styles.diTimeRow}>
-                      <View style={styles.diTimeRowItem}>
+                    <View style={[styles.diTimeRow, tableNumber && styles.diTableCardRow]}>
+                      <View style={[styles.diTimeRowItem, tableNumber && styles.diTableCardShrink]}>
                         <Feather name="file-text" size={11} color={colors.textSecondary} />
-                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]} numberOfLines={tableNumber ? 1 : undefined}>
                           {regTime}
                         </ThemedText>
                       </View>
-                      <View style={styles.diTimeRowItem}>
+                      <View style={[styles.diTimeRowItem, tableNumber && styles.diTableCardShrink]}>
                         <Feather name="check-circle" size={11} color="#059669" />
-                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]} numberOfLines={tableNumber ? 1 : undefined}>
                           {doneTime}
                         </ThemedText>
                       </View>
                     </View>
                   </View>
+                  {tableNumber ? (
+                    <View style={[styles.diTablePill, styles.diStoredTablePill]}>
+                      <MaterialCommunityIcons name="table-furniture" size={13} color={colors.primary} />
+                      <ThemedText style={[styles.diTablePillText, { color: colors.primary }]} numberOfLines={1}>
+                        Table {tableNumber}
+                      </ThemedText>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             );
@@ -6803,6 +6827,18 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     fontFamily: headingFont("semibold"),
+  },
+  diStoredTablePill: {
+    maxWidth: "40%",
+    flexShrink: 0,
+  },
+  diTableCardRow: {
+    flexWrap: "nowrap",
+    minWidth: 0,
+  },
+  diTableCardShrink: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   diAvatarInner: {
     flexDirection: "row",
