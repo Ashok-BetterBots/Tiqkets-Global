@@ -7,6 +7,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script src="/public/dashboard-announcer-audio.js"></script>
+  <script src="/public/dashboard-announcer.js"></script>
   <!--
     Load `country-state-city` (the same ISO catalogue used by the mobile app)
     as an ES module, then expose it on `window.CSC` so the Alpine signup
@@ -815,6 +817,31 @@
             </div>
           </div>
         </header>
+
+        <template x-if="announcementAudio.selected">
+          <section class="mx-8 mt-5 rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3" data-testid="announcement-controls" aria-label="Speaker announcements">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-2 text-sm font-bold">
+                <i class="fa-solid fa-volume-high text-brand" aria-hidden="true"></i>
+                <span role="status" data-testid="announcement-status" x-text="announcementAudio.otherTab ? 'Announcements are playing in another tab' : announcementAudio.active ? 'Announcements active' : 'Click to enable announcements'"></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button x-show="!announcementAudio.wanted" @click="enableDashboardAnnouncements()" :disabled="announcementAudio.busy || !announcementAudio.masterEnabled" class="rounded-xl bg-brand px-3 py-2 text-xs font-bold text-white disabled:opacity-50" data-testid="enable-announcements">Enable announcements</button>
+                <button @click="testDashboardAnnouncement()" :disabled="!announcementAudio.active" class="rounded-xl border border-brand-200 bg-white px-3 py-2 text-xs font-bold text-brand disabled:opacity-50" data-testid="test-announcement">Test announcement</button>
+              </div>
+            </div>
+            <p x-show="!announcementAudio.masterEnabled" class="mt-2 text-xs text-amber-800">Branch announcements are switched off in Settings.</p>
+            <p x-show="announcementAudio.active && !announcementAudio.connected" class="mt-2 text-xs text-amber-800">Reconnecting live announcements…</p>
+            <p x-show="announcementAudio.message" x-text="announcementAudio.message" role="alert" class="mt-2 text-xs text-amber-800" data-testid="announcement-message"></p>
+            <p x-show="announcementAudio.text" x-text="announcementAudio.text" aria-live="polite" class="mt-2 text-sm text-gray-800" data-testid="announcement-text"></p>
+            <p class="mt-2 text-[11px] text-gray-500">Keep this tab open, preferably visible, and the computer awake. Check speaker volume and site mute settings. Only one tab in this browser profile plays.</p>
+            <details class="mt-1 text-[11px] text-gray-500">
+              <summary class="cursor-pointer">Speech voices and speaker test</summary>
+              <p x-text="'Available speech languages on this computer: ' + (announcementAudio.languages.join(', ') || 'checked when voices load or an announcement runs')"></p>
+              <p>The speaker test uses English and the latest received custom sound, or the default sound before the first event. Real calls use their own language, wording and sound.</p>
+            </details>
+          </section>
+        </template>
 
         <div class="p-8">
           <!-- Scope banner: shows which Branch / Service / Desk the current
@@ -8362,10 +8389,9 @@
           if (m === 'takeaway') return 'Orders';
           return 'Tickets';
         },
-        announcementsEnabled: localStorage.getItem('tiqkets_announcements') === 'true',
         announcementSSE: null,
-        announcementQueue: [],
-        announcementPlaying: false,
+        announcementAudio: { selected: false, active: false, wanted: false, otherTab: false,
+          busy: false, message: '', text: '', languages: [], connected: false, masterEnabled: false },
 
         subscription: null,
         plans: [],
@@ -8703,6 +8729,10 @@
         },
 
         async init() {
+          // Audio-only observers. They do not change scope selection or SSE.
+          for (const property of ['selectedBranchId', 'loggedIn', 'branches', 'currentUser.id']) {
+            this.$watch(property, () => this.syncAnnouncementScope());
+          }
           // Wire up the country-state-city ESM module. If it's already on
           // window we flip the flag immediately; otherwise we wait for the
           // `csc-ready` event dispatched by the <script type="module">
@@ -9315,6 +9345,8 @@
         },
 
         async logout() {
+          window.dashboardTicketAnnouncer?.destroy();
+          window.dashboardTicketAnnouncer = null;
           this.disconnectAnnouncementSSE();
           this.stopLivePolling();
           // Tell the backend to clear both the org-session cookie and any
@@ -14562,16 +14594,59 @@
           }
         },
 
-        toggleAnnouncements() {
-          this.announcementsEnabled = !this.announcementsEnabled;
-          localStorage.setItem('tiqkets_announcements', this.announcementsEnabled ? 'true' : 'false');
-          // The SSE connection stays alive regardless so queue_update events
-          // keep working. Only the audio announcement processing is toggled.
-          if (this.announcementsEnabled) {
-            this.showToast('Speaker announcements enabled', 'success');
-          } else {
-            this.showToast('Speaker announcements disabled', 'info');
+        dashboardAnnouncementScope() {
+          const branchId = this.selectedBranchId || this.accessibleBranches[0]?.id || '';
+          const branch = this.branches.find(b => b.id === branchId);
+          const userId = this.currentUser?.id || (this.org?.id ? `owner:${this.org.id}` : '');
+          const key = this.loggedIn && this.org?.id && branchId && !this.isEventAccount
+            ? `${this.org.id}|${userId}|${branchId}` : '';
+          return { key, branchId, selected: !!key && branch?.announcerUserId === userId,
+            enabled: branch?.settings?.display?.announcementsEnabled === true };
+        },
+
+        getDashboardAnnouncer() {
+          if (!window.TiqketsDashboardAnnouncer || !window.TiqketsAnnouncementAudio) {
+            const scope = this.dashboardAnnouncementScope();
+            this.announcementAudio = { ...this.announcementAudio, selected: scope.selected,
+              masterEnabled: scope.enabled, message: 'Announcement audio could not load. Reload this page to retry.' };
+            return null;
           }
+          if (!window.dashboardTicketAnnouncer) {
+            window.dashboardTicketAnnouncer = window.TiqketsDashboardAnnouncer.create({
+              getScope: () => this.dashboardAnnouncementScope(),
+              inspectScope: async () => {
+                const scope = this.dashboardAnnouncementScope();
+                const request = new AbortController();
+                const timeout = setTimeout(() => request.abort(), 5000);
+                let me;
+                try {
+                  me = await api('/api/organizations/me?t=' + Date.now(), { signal: request.signal });
+                } finally { clearTimeout(timeout); }
+                const userId = me.currentUser?.id || (me.mode === 'owner' ? `owner:${me.organization?.id}` : '');
+                const expected = `${me.organization?.id}|${userId}|${scope.branchId}`;
+                const branch = (me.branches || []).find(b => b.id === scope.branchId);
+                return { ...scope, selected: !!scope.key && expected === scope.key && branch?.announcerUserId === userId,
+                  enabled: branch?.settings?.display?.announcementsEnabled === true };
+              },
+              resolveUtterances: event => this.resolveAnnouncementUtterances(event),
+              onState: state => { this.announcementAudio = state; },
+            });
+          }
+          return window.dashboardTicketAnnouncer;
+        },
+
+        syncAnnouncementScope() {
+          if (window.dashboardTicketAnnouncer) {
+            window.dashboardTicketAnnouncer.syncScope(this.dashboardAnnouncementScope());
+          }
+        },
+
+        enableDashboardAnnouncements() {
+          return this.getDashboardAnnouncer()?.enable();
+        },
+
+        testDashboardAnnouncement() {
+          this.getDashboardAnnouncer()?.test();
         },
 
         connectAnnouncementSSE() {
@@ -14581,17 +14656,26 @@
           try {
             const orgId = this.org?.id || '';
             this.announcementSSE = new EventSource(`/api/announcements/stream?branchId=${branchId}&orgId=${orgId}`);
+            const connection = this.announcementSSE;
+            let announcer = null;
+            try {
+              announcer = this.getDashboardAnnouncer();
+              const scope = this.dashboardAnnouncementScope();
+              if (announcer && announcer.scope.key !== scope.key) announcer.syncScope(scope);
+            } catch (error) { console.warn('[dashboard-announcer] Audio unavailable; live queue connection continues.', error); }
+            this.announcementSSE.onopen = () => {
+              if (this.announcementSSE === connection) announcer?.connection(true);
+            };
 
             // Unnamed messages = announcement events (audio). Only process
             // them when the announcements toggle is ON so the SSE connection
             // can stay alive for queue_update events regardless of the toggle.
             this.announcementSSE.onmessage = (e) => {
-              if (!this.announcementsEnabled) return;
+              if (this.announcementSSE !== connection) return;
               try {
                 const event = JSON.parse(e.data);
-                this.announcementQueue.push(event);
-                this.processAnnouncementQueue();
-              } catch (err) {}
+                announcer?.receive(event);
+              } catch (err) { console.warn('[dashboard-announcer] Invalid announcement event', err); }
             };
 
             // Named 'queue_update' events: immediately reload the queue list
@@ -14606,6 +14690,7 @@
             });
 
             this.announcementSSE.onerror = () => {
+              announcer?.connection(false);
               this.disconnectAnnouncementSSE();
               setTimeout(() => {
                 if (this.loggedIn) this.connectAnnouncementSSE();
@@ -14655,30 +14740,6 @@
             clearInterval(this._livePollTimer);
             this._livePollTimer = null;
           }
-        },
-
-        async processAnnouncementQueue() {
-          if (this.announcementPlaying || this.announcementQueue.length === 0) return;
-          this.announcementPlaying = true;
-          const event = this.announcementQueue.shift();
-          try {
-            // Honour the per-mode custom alert sound configured in Super
-            // Admin (event.alertSoundUrl). Falls back to the bundled tone
-            // if no override is set or the audio fails to load.
-            await this.playAlertTone(event);
-            // Always prefer the server-rendered spokenText: it already has
-            // the Super Admin's custom template (per queue mode and per
-            // language) applied with the correct variables interpolated.
-            // Only fall back to the local builder if the server payload
-            // is missing — keeps backward compat with old listeners.
-            const utterances = this.resolveAnnouncementUtterances(event);
-            for (let i = 0; i < utterances.length; i++) {
-              if (i > 0) await this.sleep(1500);
-              await this.speakText(utterances[i].text, utterances[i].lang);
-            }
-          } catch (err) {}
-          this.announcementPlaying = false;
-          if (this.announcementQueue.length > 0) this.processAnnouncementQueue();
         },
 
         // Returns 1 or 2 {text, lang} pairs — primary plus optional
