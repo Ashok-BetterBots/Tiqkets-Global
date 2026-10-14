@@ -119,7 +119,7 @@ interface OrganizationContextType {
   markAsComplete: (customerId: string) => Promise<void>;
   markAsNoShow: (customerId: string) => Promise<void>;
   markAsArrived: (customerId: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
-  holdCustomer: (customerId: string) => Promise<void>;
+  holdCustomer: (customerId: string) => Promise<{ success: boolean; error?: string }>;
   resumeCustomer: (customerId: string) => Promise<void>;
   allocateTable: (customerId: string, tableNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   checkInCustomer: (ticketNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
@@ -2268,8 +2268,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       // branches[0] may be the wrong branch in multi-branch orgs.
       const branchId = queue.find((c) => c.id === customerId)?.branchId || branches[0]?.id;
       if (branchId) await refreshQueueForBranch(branchId);
+      return { success: true };
     } catch (error) {
       logHandledError("Error putting on hold", error);
+      return { success: false, error: "Could not place customer on hold. Please try again." };
     }
   }, [queue, branches, refreshQueueForBranch]);
 

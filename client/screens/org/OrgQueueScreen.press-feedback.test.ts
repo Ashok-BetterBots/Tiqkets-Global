@@ -21,6 +21,7 @@ const expectedActions: Record<string, string> = {
   "button-resume-test-ticket": "handleResumeCustomer",
   "button-popup-walkin": "handleWalkIn",
   "button-popup-edit": "handleOpenEdit",
+  "button-popup-hold": "handleHoldCustomer",
 };
 
 function evaluate(expression: string, context: Record<string, unknown> = {}) {
@@ -52,7 +53,7 @@ function visit(node: ts.Node) {
 }
 visit(source);
 
-test("pressed feedback is limited to the nine Dine-In transaction and More-menu buttons", () => {
+test("pressed feedback is limited to the ten Dine-In transaction and More-menu buttons", () => {
   assert.deepEqual([...buttons.keys()].sort(), Object.keys(expectedActions).sort());
 });
 
@@ -88,7 +89,7 @@ test("the existing transaction callbacks still receive the same ticket, exactly 
     assert.equal(actionCalls.length, 1, id);
     const receivesCustomer = ["handleOpenTableAllocation", "setMorePopupCustomer", "handleOpenEdit"].includes(expectedActions[id]);
     assert.equal(actionCalls[0].value, receivesCustomer ? customer : customer.id, id);
-    if (id === "button-popup-walkin") {
+    if (id === "button-popup-walkin" || id === "button-popup-hold") {
       assert.equal(calls[0].name, "setMorePopupCustomer");
       assert.equal(calls[0].value, null);
     }

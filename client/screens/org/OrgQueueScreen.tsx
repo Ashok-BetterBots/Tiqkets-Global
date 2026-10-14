@@ -978,6 +978,7 @@ export default function OrgQueueScreen() {
   const [tableNumberInput, setTableNumberInput] = useState("");
   const [isAllocatingTable, setIsAllocatingTable] = useState(false);
   const [morePopupCustomer, setMorePopupCustomer] = useState<QueueCustomer | null>(null);
+  const holdingCustomerIdsRef = useRef(new Set<string>());
   const [editCustomer, setEditCustomer] = useState<QueueCustomer | null>(null);
   const [editFormData, setEditFormData] = useState<Record<string, any>>({});
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -2723,10 +2724,20 @@ export default function OrgQueueScreen() {
     };
 
     const handleHoldCustomer = async (customerId: string) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await holdCustomer(customerId);
-      const customer = queue.find((c) => c.id === customerId);
-      showToast("On Hold", `${customer?.customerName || "Customer"} has been placed on hold.`);
+      if (holdingCustomerIdsRef.current.has(customerId)) return;
+      holdingCustomerIdsRef.current.add(customerId);
+      try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        const result = await holdCustomer(customerId);
+        if (!result.success) {
+          Alert.alert("Error", result.error || "Could not place customer on hold. Please try again.");
+          return;
+        }
+        const customer = queue.find((c) => c.id === customerId);
+        showToast("On Hold", `${customer?.customerName || "Customer"} has been placed on hold.`);
+      } finally {
+        holdingCustomerIdsRef.current.delete(customerId);
+      }
     };
 
     const handleResumeCustomer = async (customerId: string) => {
@@ -3703,6 +3714,18 @@ export default function OrgQueueScreen() {
               >
                 <Feather name="edit-2" size={18} color={colors.primary} />
                 <ThemedText style={[styles.morePopupBtnText, { color: colors.primary }]}>Edit</ThemedText>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.morePopupBtn, styles.morePopupBtnOutline, { borderColor: colors.primary }, pressed && styles.diActionPressed]}
+                onPress={() => {
+                  const c = morePopupCustomer;
+                  setMorePopupCustomer(null);
+                  if (c) void handleHoldCustomer(c.id);
+                }}
+                testID="button-popup-hold"
+              >
+                <Feather name="pause-circle" size={18} color={colors.primary} />
+                <ThemedText style={[styles.morePopupBtnText, { color: colors.primary }]}>Hold</ThemedText>
               </Pressable>
             </Pressable>
           </Pressable>

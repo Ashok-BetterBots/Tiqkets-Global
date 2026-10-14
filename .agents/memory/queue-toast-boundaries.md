@@ -17,6 +17,17 @@ not change queue API calls, status transitions, WhatsApp notifications, existing
 action haptics or announcement audio. A toast must introduce no app sound or
 vibration of its own; accessibility announcements are required.
 
+Hold must return a success/failure result without throwing; show its success
+toast only after a successful request, and a native error dialog on failure.
+
+**Why:** The user approved fixing false Hold success messages and explicitly
+preferred a returned result so callers that ignore it cannot gain new crashes
+or unhandled rejections.
+
+**How to apply:** Keep the shared Hold notification/refresh path and Resume
+unchanged. The added Waiting-menu entry is Dine-In only and reuses the existing
+handler with an in-flight per-customer guard.
+
 The user approved newest-message replacement rather than a FIFO toast backlog,
 and one root controller with presentation hosts in native Queue modal windows.
 This is not permission to convert notifications on other screens.

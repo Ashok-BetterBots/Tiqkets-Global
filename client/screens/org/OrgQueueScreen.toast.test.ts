@@ -67,11 +67,11 @@ for (const [handler, title, message] of successMessages) {
   });
 }
 
-test("exactly 16 conversions, with 33 error/validation alerts and 3 decision alerts remaining", () => {
+test("exactly 16 conversions, with 34 error/validation alerts and 3 decision alerts remaining", () => {
   assert.equal(calls.filter((call) => call.name === "showToast").length, 16);
   const remaining = calls.filter((call) => call.name === "Alert.alert");
-  assert.equal(remaining.length, 36);
-  assert.equal(remaining.filter((call) => call.node.arguments.length === 2).length, 33);
+  assert.equal(remaining.length, 37);
+  assert.equal(remaining.filter((call) => call.node.arguments.length === 2).length, 34);
   assert.deepEqual(
     remaining.filter((call) => call.node.arguments.length === 3).map((call) => call.handler),
     ["handleSkip", "handleNoShow", "handleDineInSkip"],
