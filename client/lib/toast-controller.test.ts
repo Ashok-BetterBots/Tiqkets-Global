@@ -32,7 +32,8 @@ function setup() {
   return { controller, advance, tasks };
 }
 
-test("holds for one second after entry, then exits and removes the message", () => {
+test("holds for 2.5 seconds after entry, then exits and removes the message", () => {
+  assert.equal(TOAST_HOLD_MS, 2500);
   const { controller, advance } = setup();
   controller.show("Arrived", "Customer has arrived.");
   advance(TOAST_ENTER_MS + TOAST_HOLD_MS - 1);

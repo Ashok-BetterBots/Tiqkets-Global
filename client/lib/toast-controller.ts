@@ -1,7 +1,7 @@
 export type ToastType = "success" | "info";
 
 export const TOAST_ENTER_MS = 160;
-export const TOAST_HOLD_MS = 1000;
+export const TOAST_HOLD_MS = 2500;
 export const TOAST_EXIT_MS = 160;
 export const ROOT_TOAST_HOST = "app-root";
 

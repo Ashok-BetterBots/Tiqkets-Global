@@ -28,6 +28,14 @@ platforms.
 **How to apply:** Keep one visible toast and one dismissal clock, including
 during native-window handoffs. No new toast dependency without approval.
 
+Keep Queue toasts readable for 2.5 seconds before the exit animation.
+
+**Why:** The user reported that the original one-second hold was too fast to
+read and requested 2.5 seconds.
+
+**How to apply:** Preserve the existing animations and newest-message behavior
+when adjusting duration.
+
 Acceptance testing must use iOS/Android development or TestFlight builds, not
 Expo Go. Unit/source checks, successful bundles and web screenshots are not
 proof of native touch-through, safe-area positioning or modal layering.
