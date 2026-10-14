@@ -13,7 +13,7 @@
       this.options = options;
       this.scope = {};
       this.state = { selected: false, active: false, wanted: false, otherTab: false, busy: false,
-        message: "", text: "", languages: [], connected: false, masterEnabled: false };
+        message: "", text: "", fallbackText: "", languages: [], connected: false, masterEnabled: false };
       this.queue = [];
       this.seen = new Set();
       this.epoch = 0;
@@ -31,6 +31,7 @@
         resolveUtterances: options.resolveUtterances,
         onBlocked: message => { if (this.state.wanted) this.block(message); },
         notice: message => this.publish({ message }),
+        textFallback: fallbackText => this.publish({ fallbackText }),
         languages: languages => this.publish({ languages }),
       });
       this.tick = setInterval(() => {
@@ -162,7 +163,7 @@
           const event = this.queue.shift();
           const controller = new AbortController();
           this.controller = controller;
-          this.publish({ text: this.options.resolveUtterances(event).map(u => u.text).join(" — ") });
+          this.publish({ text: this.options.resolveUtterances(event).map(u => u.text).join(" — "), fallbackText: "" });
           let timer;
           try {
             await Promise.race([
@@ -214,7 +215,7 @@
       this.releaseLock = null;
       release?.();
       void this.releaseWake();
-      this.publish({ active: false, wanted: false, otherTab: false, text: "", busy: false });
+      this.publish({ active: false, wanted: false, otherTab: false, text: "", fallbackText: "", busy: false });
     }
     async releaseWake() {
       const wake = this.wake;

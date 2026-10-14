@@ -245,10 +245,12 @@ test("speaker Test queues a local English test without calling any queue API", a
   h.announcer.destroy(); await flush();
 });
 
-test("playback uses two complete tones before speech, with English/no-voice fallbacks", async () => {
+test("playback uses one complete tone then two speech passes, with English/no-voice fallbacks", async () => {
+  for (const bilingual of [false, true]) {
   for (const languages of [["ar", "en"], ["en"], []]) {
     const h = harness();
     const tones: any[] = [], speech: any[] = [], notices: string[] = [];
+    const fallbacks: string[] = [];
     const context: any = { ...emitter(), state: "running", destination: {},
       resume: async () => {}, decodeAudioData: async () => ({}),
       createGain: () => ({ gain: { value: 1 }, connect() {}, disconnect() {} }),
@@ -264,26 +266,34 @@ test("playback uses two complete tones before speech, with English/no-voice fall
       speak: (utterance: any) => speech.push(utterance) };
     const engine = new h.root.TiqketsAnnouncementAudio.BrowserAnnouncementAudio({
       onBlocked() {}, notice: (text: string) => notices.push(text), languages() {},
-      resolveUtterances: () => [{ text: "Arabic ticket wording", lang: "ar-SA" }],
+      textFallback: (text: string) => fallbacks.push(text),
+      resolveUtterances: () => [{ text: "Arabic ticket wording", lang: "ar-SA" },
+        bilingual ? { text: "English ticket wording", lang: "en-US" } : { text: "Arabic ticket wording", lang: "ar-SA" }],
     });
     await engine.unlock(); speech.length = 0;
     const signal = new AbortController();
     const playback = engine.play({ spokenTextEn: "English ticket wording" }, signal.signal);
     await flush(); assert.equal(tones.length, 1); assert.equal(speech.length, 0);
     tones[0].onended(); await flush();
-    assert.equal(tones.length, 2); assert.equal(speech.length, 0);
-    tones[1].onended(); await flush();
+    assert.equal(tones.length, 1);
     if (!languages.length) await h.time.advance(1000);
     if (languages.length) {
       assert.equal(speech.length, 1);
       assert.equal(speech[0].text, languages.includes("ar") ? "Arabic ticket wording" : "English ticket wording");
       speech[0].onend();
+      await flush(); await h.time.advance(1500);
+      assert.equal(speech.length, 2);
+      assert.equal(speech[1].text, bilingual || !languages.includes("ar") ? "English ticket wording" : "Arabic ticket wording");
+      speech[1].onend();
+      assert.equal(fallbacks[0], "");
     } else {
       assert.equal(speech.length, 0);
-      assert.match(notices[0], /Tones and announcement text only/);
+      assert.match(notices[0], /Alert tone and fallback text only/);
+      assert.equal(fallbacks[0], bilingual ? "Arabic ticket wording — English ticket wording" : "Arabic ticket wording");
     }
     await playback;
     h.announcer.destroy(); await flush();
+  }
   }
 });
 
@@ -333,7 +343,7 @@ test("event custom sound is fetched, with a visible default-sound fallback only 
     await engine.unlock();
     await engine.play({ alertSoundUrl: "/public/custom.wav" }, new AbortController().signal);
     assert.equal(fetched[0], "https://example.test/public/custom.wav");
-    assert.equal(tones, 2);
+    assert.equal(tones, 1);
     if (fails) {
       assert.equal(fetched[1], "/public/alert-tone.wav");
       assert.match(notices[0], /Custom alert sound unavailable/);

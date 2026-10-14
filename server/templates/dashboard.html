@@ -833,13 +833,7 @@
             <p x-show="!announcementAudio.masterEnabled" class="mt-2 text-xs text-amber-800">Branch announcements are switched off in Settings.</p>
             <p x-show="announcementAudio.active && !announcementAudio.connected" class="mt-2 text-xs text-amber-800">Reconnecting live announcements…</p>
             <p x-show="announcementAudio.message" x-text="announcementAudio.message" role="alert" class="mt-2 text-xs text-amber-800" data-testid="announcement-message"></p>
-            <p x-show="announcementAudio.text" x-text="announcementAudio.text" aria-live="polite" class="mt-2 text-sm text-gray-800" data-testid="announcement-text"></p>
-            <p class="mt-2 text-[11px] text-gray-500">Keep this tab open, preferably visible, and the computer awake. Check speaker volume and site mute settings. Only one tab in this browser profile plays.</p>
-            <details class="mt-1 text-[11px] text-gray-500">
-              <summary class="cursor-pointer">Speech voices and speaker test</summary>
-              <p x-text="'Available speech languages on this computer: ' + (announcementAudio.languages.join(', ') || 'checked when voices load or an announcement runs')"></p>
-              <p>The speaker test uses English and the latest received custom sound, or the default sound before the first event. Real calls use their own language, wording and sound.</p>
-            </details>
+            <p x-show="announcementAudio.fallbackText" x-text="announcementAudio.fallbackText" aria-live="polite" class="mt-2 text-sm text-gray-800" data-testid="announcement-fallback-text"></p>
           </section>
         </template>
 
@@ -8391,7 +8385,7 @@
         },
         announcementSSE: null,
         announcementAudio: { selected: false, active: false, wanted: false, otherTab: false,
-          busy: false, message: '', text: '', languages: [], connected: false, masterEnabled: false },
+          busy: false, message: '', text: '', fallbackText: '', languages: [], connected: false, masterEnabled: false },
 
         subscription: null,
         plans: [],

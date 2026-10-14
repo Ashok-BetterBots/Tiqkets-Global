@@ -20,3 +20,9 @@ Remote announcer changes have no existing push notification dedicated to selecti
 **Why:** The user prohibited server changes. Instant remote revocation cannot be promised by a web-only implementation using the current stream.
 
 **How to apply:** Keep audio eligibility checks separate from queue state, fail closed when access cannot be verified, and disclose polling/network/background-tab latency rather than claiming instantaneous remote detection.
+
+Keep the web announcer section minimal: controls and status, with attention warnings only. Do not restore the normal announcement transcript, keep-awake guidance or voice/test details panel. Missing speech is an exception: show the unspoken wording once as fallback information.
+
+**Why:** The user explicitly requested this reduced display while retaining warnings and information for staff when no suitable speech voice exists.
+
+**How to apply:** Preserve voice checking, English fallback, wake lock, tab ownership and Test behavior even when their explanatory UI is hidden.

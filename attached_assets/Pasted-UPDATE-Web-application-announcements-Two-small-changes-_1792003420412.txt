@@ -1,0 +1,61 @@
+UPDATE: Web application announcements. Two small changes to the 
+announcer section of the dashboard. Web only. Do not change the 
+mobile app, the server, the speaker page, the announcer selection, 
+the announcement wording, the queue/sequencing rules, or any other 
+feature.
+
+1. TONE AND SPEECH COUNT
+Currently the web plays the alert tone twice, followed by the spoken 
+announcement. Change it so each announcement plays:
+- the alert tone ONCE, then
+- the spoken announcement TWICE.
+This should match how the mobile app currently plays announcements. 
+Keep everything else about playback the same: the one-second gap 
+between announcements, the arrival-order queue, the 30 second safety 
+timeout, duplicate protection, the English secondary announcement 
+and the language fallback behavior. If an English secondary 
+announcement is configured today, handle it exactly as mobile does. 
+Do not add any new settings.
+
+2. CLEAN UP THE ENABLE ANNOUNCEMENTS SECTION
+In the "Enable announcements" section, stop displaying all of the 
+following:
+- the announcement text line (for example "Booking S006, please 
+  proceed to Table 23" shown as a list item, including the repeated 
+  copy),
+- the note "Keep this tab open, preferably visible, and the computer 
+  awake. Check speaker volume and site mute settings. Only one tab in 
+  this browser profile plays.",
+- the "Speech voices and speaker test" content.
+
+Keep these exactly as they work now:
+- the Enable announcements button,
+- the status text ("Announcements active" / "Click to enable 
+  announcements"),
+- the Test announcement button.
+
+Keep the important warning messages that appear only when something 
+needs attention, because staff need them: the browser-blocked-audio 
+message, and the message that announcements are playing in another 
+tab. If no suitable speech voice exists on the computer, keep a 
+fallback so staff are not left without information, and tell me 
+exactly how you handled this case.
+
+Do not remove any underlying behavior: voice checking, fallback, 
+wake lock, one-tab-only playback and the test function must keep 
+working. This change only removes what is displayed.
+
+TESTING (real browser with speakers)
+1. Trigger a ticket call: the tone plays once, then the spoken 
+   announcement plays twice.
+2. Trigger several calls quickly: still played in order with a 
+   one-second gap, none cut off.
+3. The Enable announcements section shows only the button, status 
+   and Test announcement button, with none of the removed text.
+4. Test announcement still works and plays once-tone, twice-speech.
+5. Blocked-audio and other-tab warnings still appear when relevant.
+6. Confirm mobile announcements, the speaker page and all other 
+   dashboard features are unchanged.
+Report every file touched. State clearly which tests you ran and 
+which you could not, and do not claim a test passed unless you ran 
+it.

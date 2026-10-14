@@ -148,12 +148,12 @@
         buffer = await this.buffer("/public/alert-tone.wav", signal);
       }
       await this.tone(buffer, signal);
-      await this.tone(buffer, signal);
       await this.waitForVoices(signal);
       check(signal);
       const utterances = this.options.resolveUtterances(event);
       this.options.languages([...new Set(this.voices().map(v => v.lang))].sort());
       const spoken = [];
+      const unspoken = [];
       for (const utterance of utterances) {
         const voice = this.voice(utterance.lang);
         if (voice) spoken.push({ ...utterance, voice });
@@ -165,10 +165,14 @@
             this.options.notice(`No ${utterance.lang} voice on this computer; using English.`);
             spoken.push({ text: englishText, voice: englishVoice });
           } else {
-            this.options.notice(`No suitable ${utterance.lang} voice on this computer. Tones and announcement text only.`);
+            this.options.notice(`No suitable ${utterance.lang} voice on this computer. Alert tone and fallback text only.`);
+            unspoken.push(utterance.text);
           }
         }
       }
+      // Normal calls have no visible transcript. Only unavailable speech gets
+      // an on-screen fallback; repeated copies are displayed just once.
+      this.options.textFallback?.([...new Set(unspoken)].join(" — "));
       for (let i = 0; i < spoken.length; i++) {
         if (i) await completion(signal, done => {
           const timer = setTimeout(done, 1500);
