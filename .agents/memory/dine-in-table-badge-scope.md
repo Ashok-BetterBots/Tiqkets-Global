@@ -13,5 +13,5 @@ historical table retention or changing the server.
 
 **How to apply:** Keep assignment/storage and Resume clearing behavior unchanged.
 Reuse the Assigned badge appearance only on the Dine-In On Hold and Seated
-cards; do not modify Assigned or Waiting cards, or infer a table from other
-customer fields.
+cards; do not infer a table from other customer fields. Later visual redesigns
+may change badge placement and card styling, but must preserve this data rule.

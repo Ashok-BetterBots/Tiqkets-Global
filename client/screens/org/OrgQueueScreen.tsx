@@ -2928,37 +2928,34 @@ export default function OrgQueueScreen() {
     };
 
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView style={[styles.container, styles.diRoot, { paddingBottom: 64 + insets.bottom }]}>
 
         {/* Dine-In Tab Bar */}
-        {renderQueueSearch()}
-        <View style={[styles.diTabBar, { borderBottomColor: colors.borderSubtle }]}>
+        <View style={styles.diTabBar}>
           {dineInTabs.map((tab) => {
             const active = dineInTab === tab.key;
             return (
               <Pressable
                 key={tab.key}
-                style={[styles.diTab, active && { borderBottomColor: colors.primary }]}
+                style={[styles.diTab, active && styles.diTabActive]}
                 onPress={() => setDineInTab(tab.key)}
               >
-                <ThemedText style={[styles.diTabText, { color: active ? colors.primary : colors.textSecondary, fontWeight: active ? "700" : "500" }]}>
+                <ThemedText style={[styles.diTabText, active && styles.diTabTextActive]}>
                   {tab.label}
                 </ThemedText>
-                {tab.count > 0 ? (
-                  <View style={[styles.diTabBadge, { backgroundColor: active ? colors.primary : colors.textSecondary + "28" }]}>
-                    <ThemedText style={[styles.diTabBadgeText, { color: active ? "#FFFFFF" : colors.textSecondary }]}>
+                <View style={[styles.diTabBadge, active ? styles.diTabBadgeActive : styles.diTabBadgeInactive]}>
+                    <ThemedText style={[styles.diTabBadgeText, active ? styles.diTabBadgeTextActive : styles.diTabBadgeTextInactive]}>
                       {tab.count}
                     </ThemedText>
                   </View>
-                ) : null}
               </Pressable>
             );
           })}
         </View>
 
         <ScrollView
-          style={styles.queueList}
-          contentContainerStyle={[styles.dineInContent, { paddingBottom: insets.bottom + 80 }]}
+          style={styles.diQueueList}
+          contentContainerStyle={styles.diListContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -2987,92 +2984,88 @@ export default function OrgQueueScreen() {
             const shareChip = cardData.statusChips.find(c => c.label === "Shared Table");
             const splitChip = cardData.statusChips.find(c => c.label === "Split Seating");
             return (
-              <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
-                <View style={styles.diCardHeader}>
-                  <View style={[styles.diAvatar, { backgroundColor: colors.primary + "20" }]}>
+              <View key={customer.id} style={styles.diCard}>
+                <View style={styles.diCardMainRow}>
+                <View style={[styles.diCardHeader, styles.diWaitingHeader]}>
+                  <View style={[styles.diAvatar, styles.diWaitingAvatar]}>
                     {cardData.partySize != null ? (
                       <View style={styles.diAvatarInner}>
-                        <Feather name="users" size={10} color={colors.primary} />
-                        <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                        <Feather name="users" size={10} color="#611A4D" />
+                        <ThemedText style={[styles.diAvatarText, styles.diWaitingAvatarText]}>
                           {String(cardData.partySize)}
                         </ThemedText>
                       </View>
                     ) : (
-                      <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                      <ThemedText style={[styles.diAvatarText, styles.diWaitingAvatarText]}>
                         {getInitials(customer.customerName)}
                       </ThemedText>
                     )}
                   </View>
                   <View style={styles.diCardMeta}>
                     <View style={styles.diNameRow}>
-                      <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
+                      <ThemedText style={styles.diCustomerName} numberOfLines={1}>
                         {customer.customerName}
                       </ThemedText>
-                      <View style={[styles.diTicketChip, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
-                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]}>
+                      <View style={styles.diTicketChip}>
+                        <ThemedText style={styles.diTicketChipText}>
                           {customer.ticketNumber}
                         </ThemedText>
                       </View>
                     </View>
-                    <View style={styles.diTimeRow}>
-                      <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                    <View style={styles.diWaitingMetaLine}>
+                      <ThemedText style={styles.diWaitReg}>
                         {formatTime(customer.joinedAt)}
                       </ThemedText>
-                      <View style={styles.diWaitPill}>
-                        <ThemedText style={styles.diWaitPillText}>
+                      <View style={[styles.diWaitPill, waitMins >= 30 ? styles.diWaitPillLate : styles.diWaitPillNormal]}>
+                        <ThemedText style={[styles.diWaitPillText, waitMins >= 30 ? styles.diWaitPillLateText : styles.diWaitPillNormalText]}>
                           {waitMins} min
                         </ThemedText>
                       </View>
                     </View>
+                    {(cardData.gender || (shareChip?.active ?? false) || (splitChip?.active ?? false)) ? (
+                      <View style={styles.diChipsRow}>
+                        {cardData.gender ? (
+                          <View style={styles.diGenderChip}>
+                            <ThemedText style={styles.diGenderChipText}>{cardData.gender}</ThemedText>
+                          </View>
+                        ) : null}
+                        {shareChip?.active ? (
+                          <View style={styles.diActiveChip}>
+                            <ThemedText style={styles.diActiveChipText}>✓ Share</ThemedText>
+                          </View>
+                        ) : null}
+                        {splitChip?.active ? (
+                          <View style={styles.diActiveChip}>
+                            <ThemedText style={styles.diActiveChipText}>✓ Split</ThemedText>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
                   </View>
-                  <ThemedText style={styles.diPosLabel}>#{waitingCustomers.indexOf(customer) + 1}</ThemedText>
                 </View>
-
-                {(cardData.gender || shareChip != null || splitChip != null) ? (
-                  <View style={styles.diChipsRow}>
-                    {cardData.gender ? (
-                      <View style={[styles.diChip, { backgroundColor: getGenderColors(cardData.gender).bg }]}>
-                        <ThemedText style={[styles.diChipText, { color: getGenderColors(cardData.gender).fg }]}>
-                          {cardData.gender}
-                        </ThemedText>
-                      </View>
-                    ) : null}
-                    {shareChip != null ? (
-                      <View style={[styles.diChip, { backgroundColor: shareChip.active ? "#D1FAE5" : "#FEE2E2" }]}>
-                        <ThemedText style={[styles.diChipText, { color: shareChip.active ? "#059669" : "#DC2626" }]}>
-                          {shareChip.active ? "✓ Share OK" : "No Share"}
-                        </ThemedText>
-                      </View>
-                    ) : null}
-                    {splitChip != null ? (
-                      <View style={[styles.diChip, { backgroundColor: splitChip.active ? "#D1FAE5" : isDark ? colors.surfaceMuted : "#F3F4F6" }]}>
-                        <ThemedText style={[styles.diChipText, { color: splitChip.active ? "#059669" : colors.textSecondary }]}>
-                          {splitChip.active ? "✓ Split OK" : "No Split"}
-                        </ThemedText>
-                      </View>
-                    ) : null}
+                <View style={styles.diWaitingRight}>
+                  <View style={styles.diWaitingTopRight}>
+                    <ThemedText style={styles.diPosLabel}>#{waitingCustomers.indexOf(customer) + 1}</ThemedText>
+                    <Pressable
+                      style={({ pressed }) => [styles.diMoreBtn, pressed && styles.diActionPressed]}
+                      onPress={() => setMorePopupCustomer(customer)}
+                      testID={`button-more-${customer.id}`}
+                      accessibilityRole="button"
+                      accessibilityLabel="More actions"
+                      hitSlop={4}
+                    >
+                      <Feather name="more-vertical" size={19} color="#5E5A70" />
+                    </Pressable>
                   </View>
-                ) : null}
-
-                <View style={[styles.diDivider, { backgroundColor: colors.borderSubtle }]} />
-
-                <View style={styles.diWaitingActions}>
                   <Pressable
-                    style={({ pressed }) => [styles.diAssignBtn, { backgroundColor: colors.primaryDark }, pressed && styles.diActionPressed]}
+                    style={({ pressed }) => [styles.diAssignBtn, styles.diAssignCompact, pressed && styles.diActionPressed]}
                     onPress={() => handleOpenTableAllocation(customer)}
                     testID={`button-assign-table-${customer.id}`}
+                    accessibilityRole="button"
                   >
-                    <ThemedText style={styles.diAssignBtnText}>Assign Table</ThemedText>
+                    <ThemedText style={styles.diAssignBtnText}>Assign</ThemedText>
                   </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [styles.diMoreBtn, { borderColor: colors.primary }, pressed && styles.diActionPressed]}
-                    onPress={() => setMorePopupCustomer(customer)}
-                    testID={`button-more-${customer.id}`}
-                  >
-                    <ThemedText style={[styles.diMoreBtnText, { color: colors.primary }]}>
-                      ··· More
-                    </ThemedText>
-                  </Pressable>
+                </View>
                 </View>
               </View>
             );
@@ -3082,82 +3075,96 @@ export default function OrgQueueScreen() {
           {dineInTab === "assigned" ? getCurrentTabCustomers().map((customer) => {
             const cardData = getDineInCardData(customer);
             return (
-              <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
+              <View key={customer.id} style={styles.diCard}>
+                <View style={styles.diCardMainRow}>
                 <View style={styles.diCardHeader}>
-                  <View style={[styles.diAvatar, { backgroundColor: colors.primary + "20" }]}>
+                  <View style={[styles.diAvatar, styles.diWaitingAvatar]}>
                     {cardData.partySize != null ? (
                       <View style={styles.diAvatarInner}>
-                        <Feather name="users" size={10} color={colors.primary} />
-                        <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                        <Feather name="users" size={10} color="#611A4D" />
+                        <ThemedText style={[styles.diAvatarText, styles.diWaitingAvatarText]}>
                           {String(cardData.partySize)}
                         </ThemedText>
                       </View>
                     ) : (
-                      <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                      <ThemedText style={[styles.diAvatarText, styles.diWaitingAvatarText]}>
                         {getInitials(customer.customerName)}
                       </ThemedText>
                     )}
                   </View>
                   <View style={styles.diCardMeta}>
                     <View style={styles.diNameRow}>
-                      <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
+                      <ThemedText style={styles.diCustomerName} numberOfLines={1}>
                         {customer.customerName}
                       </ThemedText>
-                      <View style={[styles.diTicketChip, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
-                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]}>
+                      <View style={styles.diTicketChip}>
+                        <ThemedText style={styles.diTicketChipText}>
                           {customer.ticketNumber}
                         </ThemedText>
                       </View>
                     </View>
+                    {customer.tableNumber ? (
+                      <View style={styles.diTableInfoLine}>
+                        <View style={[styles.diTablePill, styles.diTableInfoPill]}>
+                          <MaterialCommunityIcons name="table-furniture" size={13} color="#611A4D" />
+                          <ThemedText style={[styles.diTablePillText, { color: "#611A4D" }]} numberOfLines={1}>
+                            Table {customer.tableNumber}
+                          </ThemedText>
+                        </View>
+                      </View>
+                    ) : null}
                     <View style={styles.diTimeRow}>
                       <View style={styles.diTimeRowItem}>
-                        <Feather name="file-text" size={11} color={colors.textSecondary} />
-                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                        <Feather name="file-text" size={11} color="#5E5A70" />
+                        <ThemedText style={styles.diWaitReg}>
                           {formatTime(customer.joinedAt)}
                         </ThemedText>
                       </View>
                       {customer.calledAt ? (
                         <View style={styles.diTimeRowItem}>
-                          <Feather name="phone-call" size={11} color={colors.primary} />
-                          <ThemedText style={[styles.diWaitReg, { color: colors.primary }]}>
+                          <Feather name="phone-call" size={11} color="#611A4D" />
+                          <ThemedText style={[styles.diWaitReg, { color: "#611A4D" }]}>
                             {formatTime(customer.calledAt)}
                           </ThemedText>
                         </View>
                       ) : null}
                     </View>
                   </View>
-                  {customer.tableNumber ? (
-                    <View style={styles.diTablePill}>
-                      <MaterialCommunityIcons name="table-furniture" size={13} color={colors.primary} />
-                      <ThemedText style={[styles.diTablePillText, { color: colors.primary }]}>
-                        Table {customer.tableNumber}
-                      </ThemedText>
-                    </View>
-                  ) : null}
                 </View>
 
-                <View style={styles.diAssignedActions}>
+                <View style={styles.diAssignedRight}>
+                  <View style={styles.diAssignedTopActions}>
                   <Pressable
-                    style={({ pressed }) => [styles.diAssignedBtn, { borderColor: colors.primary }, pressed && styles.diActionPressed]}
+                    style={({ pressed }) => [styles.diAssignedBtn, styles.diTopAction, styles.diHoldTopAction, { borderColor: "#611A4D" }, pressed && styles.diActionPressed]}
                     onPress={() => handleHoldCustomer(customer.id)}
                     testID={`button-hold-${customer.id}`}
+                    accessibilityRole="button"
+                    hitSlop={{ top: 4, bottom: 4 }}
                   >
-                    <ThemedText style={[styles.diAssignedBtnText, { color: colors.primary }]}>Hold</ThemedText>
+                    <Feather name="pause" size={12} color="#611A4D" />
+                    <ThemedText style={[styles.diAssignedBtnText, { color: "#611A4D" }]}>Hold</ThemedText>
                   </Pressable>
                   <Pressable
-                    style={({ pressed }) => [styles.diAssignedBtn, { borderColor: colors.primary }, pressed && styles.diActionPressed]}
+                    style={({ pressed }) => [styles.diAssignedBtn, styles.diTopAction, styles.diCallTopAction, { borderColor: "#611A4D" }, pressed && styles.diActionPressed]}
                     onPress={() => handleDineInCallAgain(customer.id)}
                     testID={`button-call-again-${customer.id}`}
+                    accessibilityRole="button"
+                    hitSlop={{ top: 4, bottom: 4 }}
                   >
-                    <ThemedText style={[styles.diAssignedBtnText, { color: colors.primary }]}>Call again</ThemedText>
+                    <Feather name="phone" size={12} color="#611A4D" />
+                    <ThemedText style={[styles.diAssignedBtnText, { color: "#611A4D" }]}>Call again</ThemedText>
                   </Pressable>
+                  </View>
                   <Pressable
-                    style={({ pressed }) => [styles.diSeatedBtn, pressed && styles.diActionPressed]}
+                    style={({ pressed }) => [styles.diSeatedBtn, styles.diSeatedCompact, pressed && styles.diActionPressed]}
                     onPress={() => handleMarkArrived(customer.id)}
                     testID={`button-seated-${customer.id}`}
+                    accessibilityRole="button"
                   >
-                    <ThemedText style={styles.diSeatedBtnText}>Seated ✓</ThemedText>
+                    <ThemedText style={styles.diSeatedBtnText}>Seated</ThemedText>
+                    <Feather name="check" size={14} color="#FFFFFF" />
                   </Pressable>
+                </View>
                 </View>
               </View>
             );
@@ -3168,75 +3175,83 @@ export default function OrgQueueScreen() {
             const cardData = getDineInCardData(customer);
             const tableNumber = getStoredTableNumber(customer);
             return (
-              <View key={customer.id} style={[styles.diCard, styles.diHoldCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
+              <View key={customer.id} style={[styles.diCard, styles.diHoldCard]}>
+                <View style={styles.diCardMainRow}>
                 <View style={styles.diCardHeader}>
-                  <View style={[styles.diAvatar, { backgroundColor: "#FEF3C7" }]}>
+                  <View style={[styles.diAvatar, styles.diHoldAvatar]}>
                     {cardData.partySize != null ? (
                       <View style={styles.diAvatarInner}>
-                        <Feather name="users" size={10} color="#D97706" />
-                        <ThemedText style={[styles.diAvatarText, { color: "#D97706" }]}>
+                        <Feather name="users" size={10} color="#8A4B05" />
+                        <ThemedText style={[styles.diAvatarText, styles.diHoldAvatarText]}>
                           {String(cardData.partySize)}
                         </ThemedText>
                       </View>
                     ) : (
-                      <ThemedText style={[styles.diAvatarText, { color: "#D97706" }]}>
+                      <ThemedText style={[styles.diAvatarText, styles.diHoldAvatarText]}>
                         {getInitials(customer.customerName)}
                       </ThemedText>
                     )}
                   </View>
                   <View style={[styles.diCardMeta, tableNumber && styles.diTableCardShrink]}>
                     <View style={[styles.diNameRow, tableNumber && styles.diTableCardRow]}>
-                      <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
+                      <ThemedText style={styles.diCustomerName} numberOfLines={1}>
                         {customer.customerName}
                       </ThemedText>
-                      <View style={[styles.diTicketChip, tableNumber && styles.diTableCardShrink, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
-                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]} numberOfLines={tableNumber ? 1 : undefined}>
+                      <View style={[styles.diTicketChip, tableNumber && styles.diTableCardShrink]}>
+                        <ThemedText style={styles.diTicketChipText} numberOfLines={tableNumber ? 1 : undefined}>
                           {customer.ticketNumber}
                         </ThemedText>
                       </View>
                     </View>
+                    {tableNumber ? (
+                      <View style={styles.diTableInfoLine}>
+                        <View style={[styles.diTablePill, styles.diTableInfoPill]}>
+                          <MaterialCommunityIcons name="table-furniture" size={13} color="#611A4D" />
+                          <ThemedText style={[styles.diTablePillText, { color: "#611A4D" }]} numberOfLines={1}>
+                            Table {tableNumber}
+                          </ThemedText>
+                        </View>
+                      </View>
+                    ) : null}
                     <View style={[styles.diTimeRow, tableNumber && styles.diTableCardRow]}>
                       <View style={[styles.diTimeRowItem, tableNumber && styles.diTableCardShrink]}>
-                        <Feather name="file-text" size={11} color={colors.textSecondary} />
-                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]} numberOfLines={tableNumber ? 1 : undefined}>
+                        <Feather name="file-text" size={11} color="#5E5A70" />
+                        <ThemedText style={styles.diWaitReg} numberOfLines={tableNumber ? 1 : undefined}>
                           {formatTime(customer.joinedAt)}
                         </ThemedText>
                       </View>
                       {customer.holdAt ? (
                         <View style={[styles.diTimeRowItem, tableNumber && styles.diTableCardShrink]}>
-                          <Feather name="pause-circle" size={11} color="#D97706" />
-                          <ThemedText style={[styles.diWaitReg, { color: "#D97706" }]} numberOfLines={tableNumber ? 1 : undefined}>
+                          <Feather name="pause-circle" size={11} color="#8A4B05" />
+                          <ThemedText style={[styles.diWaitReg, { color: "#8A4B05" }]} numberOfLines={tableNumber ? 1 : undefined}>
                             {formatTime(customer.holdAt)}
                           </ThemedText>
                         </View>
                       ) : null}
                     </View>
                   </View>
-                  {tableNumber ? (
-                    <View style={[styles.diTablePill, styles.diStoredTablePill]}>
-                      <MaterialCommunityIcons name="table-furniture" size={13} color={colors.primary} />
-                      <ThemedText style={[styles.diTablePillText, { color: colors.primary }]} numberOfLines={1}>
-                        Table {tableNumber}
-                      </ThemedText>
-                    </View>
-                  ) : null}
                 </View>
 
-                <View style={styles.diAssignedActions}>
+                <View style={styles.diHoldRight}>
                   <Pressable
-                    style={({ pressed }) => [styles.diAssignedBtn, { borderColor: colors.primary, flex: 1 }, pressed && styles.diActionPressed]}
+                    style={({ pressed }) => [styles.diAssignedBtn, styles.diWalkInCompact, { borderColor: "#611A4D" }, pressed && styles.diActionPressed]}
                     onPress={() => handleWalkIn(customer.id)}
                     testID={`button-walkin-hold-${customer.id}`}
+                    accessibilityRole="button"
+                    hitSlop={{ top: 4, bottom: 4 }}
                   >
-                    <ThemedText style={[styles.diAssignedBtnText, { color: colors.primary }]}>Walk In</ThemedText>
+                    <ThemedText style={[styles.diAssignedBtnText, { color: "#611A4D" }]}>Walk In</ThemedText>
                   </Pressable>
                   <Pressable
-                    style={({ pressed }) => [styles.diSeatedBtn, { flex: 1.4 }, pressed && styles.diActionPressed]}
+                    style={({ pressed }) => [styles.diSeatedBtn, styles.diResumeCompact, pressed && styles.diActionPressed]}
                     onPress={() => handleResumeCustomer(customer.id)}
                     testID={`button-resume-${customer.id}`}
+                    accessibilityRole="button"
                   >
-                    <ThemedText style={styles.diSeatedBtnText}>Resume →</ThemedText>
+                    <ThemedText style={styles.diSeatedBtnText}>Resume</ThemedText>
+                    <Feather name="arrow-right" size={14} color="#FFFFFF" />
                   </Pressable>
+                </View>
                 </View>
               </View>
             );
@@ -3253,61 +3268,65 @@ export default function OrgQueueScreen() {
             const statusBg = doneStatus === "seated" ? "#D1FAE5" : doneStatus === "walkin" ? "#DBEAFE" : "#FEE2E2";
             const statusColor = doneStatus === "seated" ? "#059669" : doneStatus === "walkin" ? "#2563EB" : "#DC2626";
             return (
-              <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
+              <View key={customer.id} style={styles.diCard}>
                 <View style={styles.diCardHeader}>
-                  <View style={[styles.diAvatar, { backgroundColor: doneStatus === "cancelled" ? "#FEE2E2" : "#D1FAE5" }]}>
+                  <View style={[styles.diAvatar, doneStatus === "cancelled" ? styles.diDoneCancelledAvatar : styles.diDoneAvatar]}>
                     {cardData.partySize != null ? (
                       <View style={styles.diAvatarInner}>
-                        <Feather name="users" size={10} color={doneStatus === "cancelled" ? "#DC2626" : "#059669"} />
-                        <ThemedText style={[styles.diAvatarText, { color: doneStatus === "cancelled" ? "#DC2626" : "#059669" }]}>
+                        <Feather name="users" size={10} color={doneStatus === "cancelled" ? "#A3251B" : "#17663F"} />
+                        <ThemedText style={[styles.diAvatarText, doneStatus === "cancelled" ? styles.diDoneCancelledAvatarText : styles.diDoneAvatarText]}>
                           {String(cardData.partySize)}
                         </ThemedText>
                       </View>
                     ) : (
-                      <ThemedText style={[styles.diAvatarText, { color: doneStatus === "cancelled" ? "#DC2626" : "#059669" }]}>
+                      <ThemedText style={[styles.diAvatarText, doneStatus === "cancelled" ? styles.diDoneCancelledAvatarText : styles.diDoneAvatarText]}>
                         {getInitials(customer.customerName)}
                       </ThemedText>
                     )}
                   </View>
                   <View style={[styles.diCardMeta, tableNumber && styles.diTableCardShrink]}>
                     <View style={[styles.diNameRow, tableNumber && styles.diTableCardRow]}>
-                      <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
+                      <ThemedText style={styles.diCustomerName} numberOfLines={1}>
                         {customer.customerName}
                       </ThemedText>
-                      <View style={[styles.diTicketChip, tableNumber && styles.diTableCardShrink, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
-                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]} numberOfLines={tableNumber ? 1 : undefined}>
+                      <View style={[styles.diTicketChip, tableNumber && styles.diTableCardShrink]}>
+                        <ThemedText style={styles.diTicketChipText} numberOfLines={tableNumber ? 1 : undefined}>
                           {customer.ticketNumber}
                         </ThemedText>
                       </View>
-                      <View style={[styles.diStatusBadge, tableNumber && styles.diTableCardShrink, { backgroundColor: statusBg }]}>
-                        <ThemedText style={[styles.diStatusBadgeText, { color: statusColor }]} numberOfLines={tableNumber ? 1 : undefined}>
-                          {statusLabel}
-                        </ThemedText>
-                      </View>
+                      {doneStatus !== "seated" ? (
+                        <View style={[styles.diStatusBadge, { backgroundColor: statusBg }]}>
+                          <ThemedText style={[styles.diStatusBadgeText, { color: statusColor }]} numberOfLines={1}>
+                            {statusLabel}
+                          </ThemedText>
+                        </View>
+                      ) : null}
                     </View>
+                    {tableNumber ? (
+                      <View style={styles.diTableInfoLine}>
+                        <View style={[styles.diTablePill, styles.diTableInfoPill]}>
+                          <MaterialCommunityIcons name="table-furniture" size={13} color="#611A4D" />
+                          <ThemedText style={[styles.diTablePillText, { color: "#611A4D" }]} numberOfLines={1}>
+                            Table {tableNumber}
+                          </ThemedText>
+                        </View>
+                      </View>
+                    ) : null}
                     <View style={[styles.diTimeRow, tableNumber && styles.diTableCardRow]}>
                       <View style={[styles.diTimeRowItem, tableNumber && styles.diTableCardShrink]}>
-                        <Feather name="file-text" size={11} color={colors.textSecondary} />
-                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]} numberOfLines={tableNumber ? 1 : undefined}>
+                        <Feather name="file-text" size={11} color="#5E5A70" />
+                        <ThemedText style={styles.diWaitReg} numberOfLines={tableNumber ? 1 : undefined}>
                           {regTime}
                         </ThemedText>
                       </View>
                       <View style={[styles.diTimeRowItem, tableNumber && styles.diTableCardShrink]}>
-                        <Feather name="check-circle" size={11} color="#059669" />
-                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]} numberOfLines={tableNumber ? 1 : undefined}>
+                        <Feather name="check-circle" size={11} color="#17663F" />
+                        <ThemedText style={[styles.diWaitReg, { color: "#17663F" }]} numberOfLines={tableNumber ? 1 : undefined}>
                           {doneTime}
                         </ThemedText>
                       </View>
                     </View>
                   </View>
-                  {tableNumber ? (
-                    <View style={[styles.diTablePill, styles.diStoredTablePill]}>
-                      <MaterialCommunityIcons name="table-furniture" size={13} color={colors.primary} />
-                      <ThemedText style={[styles.diTablePillText, { color: colors.primary }]} numberOfLines={1}>
-                        Table {tableNumber}
-                      </ThemedText>
-                    </View>
-                  ) : null}
                 </View>
               </View>
             );
@@ -3315,32 +3334,38 @@ export default function OrgQueueScreen() {
 
         </ScrollView>
 
-        {/* FAB Buttons */}
-        <View style={styles.fabContainer}>
+        {/* Dine-In quick actions */}
+        <View style={styles.diActionBar}>
+          <QueueSearchBar value={queueSearch} onChange={setQueueSearch} compact />
           {/* Dine-In QR Scanner — scan a customer's ticket QR to quickly
               look up their booking and perform status actions (Arrived,
               Seated, Hold, Resume) without searching the list. */}
-          {isDineInMode ? (
-            <Pressable
-              style={[styles.fabButton, { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary }]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                navigation.navigate("DineInScanner");
-              }}
-            >
-              <Feather name="maximize" size={22} color={colors.primary} />
-            </Pressable>
-          ) : null}
+          <Pressable
+            style={({ pressed }) => [styles.diScanButton, pressed && styles.diToolbarPressed]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              navigation.navigate("DineInScanner");
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Scan QR"
+            hitSlop={4}
+          >
+            <Feather name="maximize" size={20} color="#611A4D" />
+          </Pressable>
 
           {/* Manual Registration Button */}
           <Pressable
-            style={[styles.fabButton, { backgroundColor: colors.primary }]}
+            style={({ pressed }) => [styles.diAddButton, pressed && styles.diToolbarPressed]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               handleOpenManualRegistration();
             }}
+            accessibilityRole="button"
+            accessibilityLabel="Add customer"
+            hitSlop={4}
           >
-            <Feather name="user-plus" size={24} color="#FFFFFF" />
+            <Feather name="user-plus" size={18} color="#FFFFFF" />
+            <ThemedText style={styles.diAddButtonText}>Add</ThemedText>
           </Pressable>
         </View>
 
@@ -6748,51 +6773,301 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   // ── New Dine-In Redesign Styles ──
   diTabBar: {
     flexDirection: "row",
+    height: 44,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    marginTop: Spacing.xs,
-    paddingHorizontal: Spacing.md,
+    borderBottomColor: "#E7E3EF",
+    paddingHorizontal: 8,
+    backgroundColor: "#F6F4FA",
   },
   diTab: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: Spacing.sm,
-    gap: 6,
-    borderBottomWidth: 2.5,
+    paddingVertical: 0,
+    paddingHorizontal: 2,
+    gap: 5,
+    borderBottomWidth: 3,
     borderBottomColor: "transparent",
     flex: 1,
     justifyContent: "center",
+    minWidth: 0,
+  },
+  diTabActive: {
+    borderBottomColor: "#611A4D",
   },
   diTabText: {
     fontSize: 13,
+    lineHeight: 16,
+    color: "#5E5A70",
+    fontWeight: "500",
+    flexShrink: 1,
+  },
+  diTabTextActive: {
+    color: "#611A4D",
+    fontWeight: "700",
   },
   diTabBadge: {
-    minWidth: 20,
-    height: 20,
+    minWidth: 18,
+    height: 18,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 5,
+    paddingHorizontal: 4,
+    flexShrink: 0,
+  },
+  diTabBadgeActive: {
+    backgroundColor: "#611A4D",
+  },
+  diTabBadgeInactive: {
+    backgroundColor: "#E9E6F0",
   },
   diTabBadgeText: {
     fontSize: 11,
+    lineHeight: 13,
+    fontWeight: "700",
+  },
+  diTabBadgeTextActive: {
+    color: "#FFFFFF",
+  },
+  diTabBadgeTextInactive: {
+    color: "#5E5A70",
+  },
+  diRoot: {
+    backgroundColor: "#F6F4FA",
+    paddingTop: 0,
+  },
+  diQueueList: {
+    flex: 1,
+  },
+  diListContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 6,
+    flexGrow: 1,
+  },
+  diActionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E7E3EF",
+    backgroundColor: "#F6F4FA",
+  },
+  diScanButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#611A4D",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  diAddButton: {
+    minWidth: 88,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#611A4D",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    paddingHorizontal: 12,
+  },
+  diAddButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
     fontWeight: "700",
   },
   diCard: {
-    borderRadius: 16,
-    padding: 18,
-    shadowColor: "#000000",
+    borderRadius: 14,
+    minHeight: 80,
+    paddingVertical: 8,
+    paddingLeft: 10,
+    paddingRight: 8,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#28143C",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   diHoldCard: {},
+  diCardMainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
+  },
   diCardHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 10,
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
+  diWaitingHeader: {
+    alignSelf: "stretch",
+  },
+  diWaitingAvatar: {
+    backgroundColor: "#F3E6EE",
+  },
+  diWaitingAvatarText: {
+    color: "#611A4D",
+  },
+  diHoldAvatar: {
+    backgroundColor: "#FDF0C8",
+  },
+  diHoldAvatarText: {
+    color: "#8A4B05",
+  },
+  diDoneAvatar: {
+    backgroundColor: "#DDF5E8",
+  },
+  diDoneAvatarText: {
+    color: "#17663F",
+  },
+  diDoneCancelledAvatar: {
+    backgroundColor: "#FDE3E1",
+  },
+  diDoneCancelledAvatarText: {
+    color: "#A3251B",
+  },
+  diWaitingRight: {
+    width: 86,
+    minHeight: 68,
+    gap: 4,
+    alignSelf: "stretch",
+    justifyContent: "space-between",
+    alignItems: "stretch",
+  },
+  diWaitingTopRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    minHeight: 28,
+    gap: 1,
+  },
+  diAssignCompact: {
+    flex: 0,
+    height: 36,
+    minHeight: 36,
+    paddingVertical: 0,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    backgroundColor: "#611A4D",
+  },
+  diAssignedRight: {
+    width: 136,
+    alignSelf: "stretch",
+    justifyContent: "center",
+    gap: 4,
+  },
+  diAssignedTopActions: {
+    flexDirection: "row",
+    gap: 5,
+  },
+  diTopAction: {
+    flexDirection: "row",
+    gap: 4,
+    minHeight: 28,
+    height: 28,
+    paddingVertical: 0,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  diHoldTopAction: {
+    flex: 0,
+    width: 48,
+    minWidth: 48,
+    maxWidth: 48,
+    flexBasis: 48,
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  diCallTopAction: {
+    flex: 1,
+  },
+  diSeatedCompact: {
+    flex: 0,
+    flexDirection: "row",
+    gap: 5,
+    height: 36,
+    minHeight: 36,
+    paddingVertical: 0,
+    borderRadius: 10,
+    backgroundColor: "#2E8B4E",
+  },
+  diHoldRight: {
+    width: 104,
+    alignSelf: "stretch",
+    justifyContent: "center",
+    gap: 4,
+  },
+  diWalkInCompact: {
+    flex: 0,
+    height: 28,
+    minHeight: 28,
+    paddingVertical: 0,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  diResumeCompact: {
+    flex: 0,
+    flexDirection: "row",
+    gap: 4,
+    height: 36,
+    minHeight: 36,
+    paddingVertical: 0,
+    paddingHorizontal: 3,
+    borderRadius: 10,
+    backgroundColor: "#2E8B4E",
+  },
+  diWaitingMetaLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 4,
+    flexWrap: "wrap",
+  },
+  diWaitPillNormal: {
+    backgroundColor: "#FDF0C8",
+  },
+  diWaitPillNormalText: {
+    color: "#8A4B05",
+  },
+  diWaitPillLate: {
+    backgroundColor: "#FDE3E1",
+  },
+  diWaitPillLateText: {
+    color: "#A3251B",
+  },
+  diGenderChip: {
+    backgroundColor: "#F0EFF4",
+    borderRadius: 9,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+  },
+  diGenderChipText: {
+    color: "#4A4660",
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: "700",
+  },
+  diActiveChip: {
+    backgroundColor: "#DDF5E8",
+    borderRadius: 9,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+  },
+  diActiveChipText: {
+    color: "#17663F",
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: "700",
   },
   diAvatar: {
     width: 44,
@@ -6804,33 +7079,50 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   diAvatarText: {
     fontSize: 16,
+    lineHeight: 18,
     fontWeight: "800",
     fontFamily: headingFont("heavy"),
   },
   diPosLabel: {
     fontSize: 12,
-    fontWeight: "400",
-    color: "#9CA3AF",
+    lineHeight: 14,
+    fontWeight: "700",
+    color: "#8A8699",
     alignSelf: "flex-start",
+    minWidth: 20,
+    textAlign: "right",
   },
   diTablePill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#F7F5FE",
-    borderRadius: 10,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    backgroundColor: "#F3E6EE",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    maxWidth: "100%",
+    minWidth: 0,
     alignSelf: "flex-start",
   },
-  diTablePillText: {
-    fontSize: 13,
-    fontWeight: "600",
-    fontFamily: headingFont("semibold"),
+  diTableInfoLine: {
+    flexDirection: "row",
+    minWidth: 0,
+    maxWidth: "100%",
+    marginTop: 4,
   },
-  diStoredTablePill: {
-    maxWidth: "40%",
-    flexShrink: 0,
+  diTableInfoPill: {
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
+  },
+  diTablePillText: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "800",
+    fontFamily: headingFont("heavy"),
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: "100%",
   },
   diTableCardRow: {
     flexWrap: "nowrap",
@@ -6841,37 +7133,47 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     minWidth: 0,
   },
   diAvatarInner: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
     gap: 2,
   },
   diCardMeta: {
     flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
   },
   diNameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    flexWrap: "wrap",
+    gap: 5,
+    flexWrap: "nowrap",
+    minWidth: 0,
   },
   diCustomerName: {
-    fontSize: 16,
+    fontSize: 15,
+    lineHeight: 18,
     fontWeight: "800",
     fontFamily: headingFont("heavy"),
-    flexShrink: 1,
+    flex: 1,
+    minWidth: 0,
+    color: "#2C2534",
   },
   diGenderIcon: {
     fontSize: 14,
   },
   diTicketChip: {
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.full,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    backgroundColor: "#EFECF6",
+    flexShrink: 0,
   },
   diTicketChipText: {
-    fontSize: 12,
+    fontSize: 11,
+    lineHeight: 13,
     fontWeight: "700",
     fontFamily: headingFont("bold"),
+    color: "#611A4D",
   },
   diGuestBadge: {
     backgroundColor: "#FCE7F3",
@@ -6911,35 +7213,43 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   diTimeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginTop: 6,
+    gap: 7,
+    marginTop: 3,
     flexWrap: "wrap",
+    minWidth: 0,
   },
   diTimeRowItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
+    minWidth: 0,
+    flexShrink: 1,
   },
   diWaitReg: {
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 15,
     fontWeight: "500",
+    color: "#5E5A70",
+    flexShrink: 1,
   },
   diWaitPill: {
     backgroundColor: "#FEF3C7",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
     borderRadius: BorderRadius.full,
   },
   diWaitPillText: {
     fontSize: 11,
+    lineHeight: 13,
     fontWeight: "700",
     color: "#D97706",
   },
   diChipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 10,
+    gap: 4,
+    marginBottom: 0,
+    marginTop: 4,
   },
   diChip: {
     flexDirection: "row",
@@ -6975,17 +7285,20 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     justifyContent: "center",
   },
   diAssignBtnText: {
-    fontSize: 15,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: "700",
     color: "#FFFFFF",
   },
   diMoreBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1.5,
+    width: 32,
+    height: 28,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 0,
   },
   diMoreBtnText: {
     fontSize: 13,
@@ -7041,12 +7354,13 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     justifyContent: "center",
   },
   diAssignedBtnText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: "700",
   },
   diSeatedBtn: {
     flex: 1,
-    paddingVertical: 11,
+    paddingVertical: 0,
     borderRadius: 10,
     backgroundColor: "#16A34A",
     alignItems: "center",
@@ -7054,18 +7368,20 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   diSeatedBtnText: {
     fontSize: 13,
+    lineHeight: 16,
     fontWeight: "700",
     color: "#FFFFFF",
   },
   diStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
     borderRadius: BorderRadius.full,
     flexShrink: 0,
   },
   diStatusBadgeText: {
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: "700",
   },
   diDoneMeta: {
     fontSize: 12,

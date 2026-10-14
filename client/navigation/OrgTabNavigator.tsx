@@ -27,7 +27,7 @@ import {
   ORG_QUEUE_NAV_PERMISSIONS,
   EVENTS_NAV_PERMISSIONS,
 } from "@shared/permissions";
-import { Spacing } from "@/constants/theme";
+import { Spacing, headingFont } from "@/constants/theme";
 import { getQueueModeForService } from "@/utils/settingsHierarchy";
 
 export type OrgTabParamList = {
@@ -303,6 +303,26 @@ export default function OrgTabNavigator() {
               title: t.title,
               headerTitle: t.headerTitle ?? t.title,
               headerShown: t.headerShown,
+              ...(t.name === "OrgQueue" && normalizedAvailabilityMode === "dinein" ? {
+                headerTitleAlign: "left" as const,
+                headerStyle: { backgroundColor: "#F6F4FA", height: 60 + insets.top },
+                headerTitleStyle: { fontSize: 20, fontFamily: headingFont("heavy"), fontWeight: "800" as const },
+                headerTintColor: "#211B2B",
+                tabBarActiveTintColor: "#4B4BC8",
+                tabBarInactiveTintColor: "#8A8699",
+                tabBarLabelStyle: { fontSize: 11, fontWeight: "600" as const, marginTop: 2 },
+                tabBarItemStyle: { paddingTop: 8, paddingBottom: 4 },
+                tabBarStyle: {
+                  position: "absolute" as const,
+                  backgroundColor: "#FFFFFF",
+                  borderTopWidth: 1,
+                  borderTopColor: "#E7E3EF",
+                  elevation: 0,
+                  height: 64 + insets.bottom,
+                  paddingBottom: insets.bottom,
+                },
+                tabBarBackground: () => null,
+              } : {}),
               tabBarIcon: ({ color, size, focused }) => (
                 <View style={{ alignItems: "center", justifyContent: "center" }}>
                   {t.icon.family === "mci" ? (

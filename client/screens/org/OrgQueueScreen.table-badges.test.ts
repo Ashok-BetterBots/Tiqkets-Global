@@ -61,14 +61,15 @@ const badges = (root: Element) => nodes(root, node => hasStyle(node, "diTablePil
 const label = (root: Element) => nodes(root, node => hasStyle(node, "diTablePillText"))[0]
   .children.filter(child => typeof child === "string").join("").replace(/\s+/g, " ").trim();
 
-test("On Hold and Seated cards render the received table in the existing badge position", () => {
+test("On Hold and Seated cards render the received table on the info column's second line", () => {
   for (const tab of ["hold", "done"] as const) {
     const root = render(tab, "6");
     assert.equal(badges(root).length, 1);
-    const header = nodes(root, node => hasStyle(node, "diCardHeader"))[0];
-    const children = header.children.filter(child => child && typeof child === "object");
-    assert.equal(children.at(-1), badges(root)[0]);
-    assert.ok(hasStyle(children.at(-2), "diCardMeta"));
+    const meta = nodes(root, node => hasStyle(node, "diCardMeta"))[0];
+    const children = meta.children.filter(child => child && typeof child === "object");
+    assert.ok(hasStyle(children[0], "diNameRow"));
+    assert.ok(hasStyle(children[1], "diTableInfoLine"));
+    assert.equal(nodes(children[1], node => hasStyle(node, "diTablePill"))[0], badges(root)[0]);
     assert.equal(label(root), "Table 6");
   }
 });
@@ -102,12 +103,12 @@ test("new badges reuse Assigned badge styles, furniture icon and wording", () =>
   const assigned = find(source, node => ts.isJsxElement(node)
     && node.openingElement.attributes.properties.some(attr => ts.isJsxAttribute(attr)
       && attr.name.getText(source) === "style"
-      && attr.initializer?.getText(source) === "{styles.diTablePill}"))!;
+      && attr.initializer?.getText(source).includes("styles.diTablePill,")))!;
   const original = evaluate(assigned, { ...renderContext, customer: { tableNumber: "6" } }) as Element;
   for (const tab of ["hold", "done"] as const) {
     const root = render(tab, "6");
     const badge = badges(root)[0];
-    assert.ok(hasStyle(badge, original.props.style));
+    for (const style of [original.props.style].flat()) assert.ok(hasStyle(badge, style));
     assert.equal(JSON.stringify(nodes(badge, node => node.type === "MaterialCommunityIcons")[0].props),
       JSON.stringify(nodes(original, node => node.type === "MaterialCommunityIcons")[0].props));
     assert.equal(JSON.stringify(nodes(badge, node => hasStyle(node, "diTablePillText"))[0].props.style),

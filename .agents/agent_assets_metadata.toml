@@ -32,3 +32,59 @@ mtime_ms = 1789390033474
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d51db51a-4520-4822-a057-a8067df5fb96/29794462-0ee7-415f-aeed-4a205bee6613/a8296700-765f-4298-a79e-e2afb2fed293"
 storage_version_token = "1789390040455427"
 content_type = "image/png"
+
+[[outputs]]
+id = "0O__qa1s4Oe5fLEE6hCHf"
+uri = "file://screenshots/queue-redesign/waiting.png"
+type = "image"
+title = "Waiting tab"
+description = "390×844 browser source preview using existing development queue records; not a physical-device capture."
+logical_id = "92473b5e-70df-477c-9e0b-edcb834b0fe3"
+content_hash = "sha256:f7a248f0136a837bac82fe2841c72b717b11e679fb8373d32893689061b8a713"
+size = 79101
+mtime_ms = 1792011062828
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d51db51a-4520-4822-a057-a8067df5fb96/92473b5e-70df-477c-9e0b-edcb834b0fe3/058debea-5288-4ea7-b509-c4bc0a8769c2"
+storage_version_token = "1792011068934333"
+content_type = "image/png"
+
+[[outputs]]
+id = "aGmztcULfx6BVcONtDcYU"
+uri = "file://screenshots/queue-redesign/assigned.png"
+type = "image"
+title = "Assigned tab"
+description = "390×844 browser source preview using existing development queue records; not a physical-device capture."
+logical_id = "79db302e-c68d-4761-aa12-cf298807b10f"
+content_hash = "sha256:a74d4e6638af54057057019ee523f8f6245d34dbe04b6a66d47d3dfdfdb18934"
+size = 98142
+mtime_ms = 1792011062853
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d51db51a-4520-4822-a057-a8067df5fb96/79db302e-c68d-4761-aa12-cf298807b10f/7aa895c6-db54-4700-ad9e-187fad7b3633"
+storage_version_token = "1792011070832564"
+content_type = "image/png"
+
+[[outputs]]
+id = "7L1sygOWYzqi25uLC_8kr"
+uri = "file://screenshots/queue-redesign/on-hold.png"
+type = "image"
+title = "On Hold tab"
+description = "390×844 browser source preview using existing development queue records; not a physical-device capture."
+logical_id = "27637b8b-d75c-49e5-90fe-b7a5e16a4582"
+content_hash = "sha256:902c1322f3279b911871793c24fb1204b61a1ba3764d6f1ff26e17beeccc2339"
+size = 30563
+mtime_ms = 1792011062873
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d51db51a-4520-4822-a057-a8067df5fb96/27637b8b-d75c-49e5-90fe-b7a5e16a4582/e74cd68a-357a-44c3-917d-b2e1228a340c"
+storage_version_token = "1792011072122815"
+content_type = "image/png"
+
+[[outputs]]
+id = "kX7BV99EJKGtKboVwcDQJ"
+uri = "file://screenshots/queue-redesign/seated.png"
+type = "image"
+title = "Seated tab"
+description = "390×844 browser source preview using existing development queue records; not a physical-device capture."
+logical_id = "03511a13-1717-49b1-bb3d-611efe89a0aa"
+content_hash = "sha256:592b83e975795b3899c188b5b4c74c5c03fe1d94a9b7bfe1119e6e46e137737d"
+size = 71414
+mtime_ms = 1792011062896
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d51db51a-4520-4822-a057-a8067df5fb96/03511a13-1717-49b1-bb3d-611efe89a0aa/21ab8e86-0a23-4673-8031-a570021d1253"
+storage_version_token = "1792011073889834"
+content_type = "image/png"
