@@ -1,0 +1,39 @@
+STEP 2: IMPLEMENT (after I review the findings)
+Behavior to build:
+- When the logged-in web user is the selected announcer, play each 
+  ticket-call announcement in the browser: alert tone twice, then the 
+  spoken announcement, using the same wording, repeat and language 
+  settings as mobile.
+- Announcements must play strictly one after another in arrival 
+  order, with a one second pause between them, and a new event must 
+  never cut off the one that is playing. Include a safety timeout so 
+  a stuck announcement never blocks the queue.
+- Browser sound rules: browsers block audio until the user interacts 
+  with the page. Add a clear, simple "Enable announcements" control 
+  that the user clicks once after logging in (for example a small 
+  banner or button, only shown to the selected announcer user). Show 
+  a visible status such as "Announcements active" or "Click to enable 
+  announcements", so staff can tell at a glance whether sound will 
+  play. If the browser blocks audio later, show the "Click to enable" 
+  state again instead of failing silently.
+- Show announcements only for the user and branch the setting selects. 
+  Users who are not the selected announcer must hear nothing.
+- Keep the connection alive: if the real-time connection drops, 
+  reconnect automatically and avoid replaying old announcements after 
+  reconnecting. Avoid duplicate announcements for the same event.
+- Reduce the chance the computer goes to sleep or throttles the page 
+  while announcing (for example by requesting a screen wake lock 
+  where the browser supports it). Tell me what the user must do, for 
+  example keep the tab open and the computer awake, because browsers 
+  limit background tabs.
+- Spoken language: use the browser's available voices. If the 
+  configured language has no voice on that computer, fall back 
+  gracefully (use the fallback language, or the tone plus a text 
+  banner) and tell me which languages are supported on common 
+  browsers.
+- Add a "Test announcement" button for the announcer user, so the 
+  restaurant can check their speakers and volume without waiting for 
+  a real ticket.
+- When the user logs out, switches branch or is no longer the 
+  selected announcer, stop playback and clear any queued 
+  announcements.
