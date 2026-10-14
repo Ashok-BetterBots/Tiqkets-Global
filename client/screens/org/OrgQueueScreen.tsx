@@ -2990,7 +2990,7 @@ export default function OrgQueueScreen() {
                   <View style={[styles.diAvatar, styles.diWaitingAvatar]}>
                     {cardData.partySize != null ? (
                       <View style={styles.diAvatarInner}>
-                        <Feather name="users" size={10} color="#611A4D" />
+                        <Feather name="users" size={10} color="#8C1867" />
                         <ThemedText style={[styles.diAvatarText, styles.diWaitingAvatarText]}>
                           {String(cardData.partySize)}
                         </ThemedText>
@@ -3074,6 +3074,7 @@ export default function OrgQueueScreen() {
           {/* ── ASSIGNED TAB ── */}
           {dineInTab === "assigned" ? getCurrentTabCustomers().map((customer) => {
             const cardData = getDineInCardData(customer);
+            const tableNumber = getStoredTableNumber(customer);
             return (
               <View key={customer.id} style={styles.diCard}>
                 <View style={styles.diCardMainRow}>
@@ -3081,7 +3082,7 @@ export default function OrgQueueScreen() {
                   <View style={[styles.diAvatar, styles.diWaitingAvatar]}>
                     {cardData.partySize != null ? (
                       <View style={styles.diAvatarInner}>
-                        <Feather name="users" size={10} color="#611A4D" />
+                        <Feather name="users" size={10} color="#8C1867" />
                         <ThemedText style={[styles.diAvatarText, styles.diWaitingAvatarText]}>
                           {String(cardData.partySize)}
                         </ThemedText>
@@ -3103,12 +3104,12 @@ export default function OrgQueueScreen() {
                         </ThemedText>
                       </View>
                     </View>
-                    {customer.tableNumber ? (
+                    {tableNumber ? (
                       <View style={styles.diTableInfoLine}>
                         <View style={[styles.diTablePill, styles.diTableInfoPill]}>
-                          <MaterialCommunityIcons name="table-furniture" size={13} color="#611A4D" />
-                          <ThemedText style={[styles.diTablePillText, { color: "#611A4D" }]} numberOfLines={1}>
-                            Table {customer.tableNumber}
+                          <MaterialCommunityIcons name="table-furniture" size={13} color="#8C1867" />
+                          <ThemedText style={[styles.diTablePillText, { color: "#8C1867" }]} numberOfLines={1}>
+                            Table {tableNumber}
                           </ThemedText>
                         </View>
                       </View>
@@ -3122,8 +3123,8 @@ export default function OrgQueueScreen() {
                       </View>
                       {customer.calledAt ? (
                         <View style={styles.diTimeRowItem}>
-                          <Feather name="phone-call" size={11} color="#611A4D" />
-                          <ThemedText style={[styles.diWaitReg, { color: "#611A4D" }]}>
+                          <Feather name="phone-call" size={11} color="#8C1867" />
+                          <ThemedText style={[styles.diWaitReg, { color: "#8C1867" }]}>
                             {formatTime(customer.calledAt)}
                           </ThemedText>
                         </View>
@@ -3135,24 +3136,24 @@ export default function OrgQueueScreen() {
                 <View style={styles.diAssignedRight}>
                   <View style={styles.diAssignedTopActions}>
                   <Pressable
-                    style={({ pressed }) => [styles.diAssignedBtn, styles.diTopAction, styles.diHoldTopAction, { borderColor: "#611A4D" }, pressed && styles.diActionPressed]}
+                    style={({ pressed }) => [styles.diAssignedBtn, styles.diTopAction, styles.diHoldTopAction, { borderColor: "#8C1867" }, pressed && styles.diActionPressed]}
                     onPress={() => handleHoldCustomer(customer.id)}
                     testID={`button-hold-${customer.id}`}
                     accessibilityRole="button"
                     hitSlop={{ top: 4, bottom: 4 }}
                   >
-                    <Feather name="pause" size={12} color="#611A4D" />
-                    <ThemedText style={[styles.diAssignedBtnText, { color: "#611A4D" }]}>Hold</ThemedText>
+                    <Feather name="pause" size={12} color="#8C1867" />
+                    <ThemedText style={[styles.diAssignedBtnText, { color: "#8C1867" }]}>Hold</ThemedText>
                   </Pressable>
                   <Pressable
-                    style={({ pressed }) => [styles.diAssignedBtn, styles.diTopAction, styles.diCallTopAction, { borderColor: "#611A4D" }, pressed && styles.diActionPressed]}
+                    style={({ pressed }) => [styles.diAssignedBtn, styles.diTopAction, styles.diCallTopAction, { borderColor: "#8C1867" }, pressed && styles.diActionPressed]}
                     onPress={() => handleDineInCallAgain(customer.id)}
                     testID={`button-call-again-${customer.id}`}
                     accessibilityRole="button"
                     hitSlop={{ top: 4, bottom: 4 }}
                   >
-                    <Feather name="phone" size={12} color="#611A4D" />
-                    <ThemedText style={[styles.diAssignedBtnText, { color: "#611A4D" }]}>Call again</ThemedText>
+                    <Feather name="phone" size={12} color="#8C1867" />
+                    <ThemedText style={[styles.diAssignedBtnText, { color: "#8C1867" }]}>Call again</ThemedText>
                   </Pressable>
                   </View>
                   <Pressable
@@ -3206,8 +3207,8 @@ export default function OrgQueueScreen() {
                     {tableNumber ? (
                       <View style={styles.diTableInfoLine}>
                         <View style={[styles.diTablePill, styles.diTableInfoPill]}>
-                          <MaterialCommunityIcons name="table-furniture" size={13} color="#611A4D" />
-                          <ThemedText style={[styles.diTablePillText, { color: "#611A4D" }]} numberOfLines={1}>
+                          <MaterialCommunityIcons name="table-furniture" size={13} color="#8C1867" />
+                          <ThemedText style={[styles.diTablePillText, { color: "#8C1867" }]} numberOfLines={1}>
                             Table {tableNumber}
                           </ThemedText>
                         </View>
@@ -3234,13 +3235,13 @@ export default function OrgQueueScreen() {
 
                 <View style={styles.diHoldRight}>
                   <Pressable
-                    style={({ pressed }) => [styles.diAssignedBtn, styles.diWalkInCompact, { borderColor: "#611A4D" }, pressed && styles.diActionPressed]}
+                    style={({ pressed }) => [styles.diAssignedBtn, styles.diWalkInCompact, { borderColor: "#8C1867" }, pressed && styles.diActionPressed]}
                     onPress={() => handleWalkIn(customer.id)}
                     testID={`button-walkin-hold-${customer.id}`}
                     accessibilityRole="button"
                     hitSlop={{ top: 4, bottom: 4 }}
                   >
-                    <ThemedText style={[styles.diAssignedBtnText, { color: "#611A4D" }]}>Walk In</ThemedText>
+                    <ThemedText style={[styles.diAssignedBtnText, { color: "#8C1867" }]}>Walk In</ThemedText>
                   </Pressable>
                   <Pressable
                     style={({ pressed }) => [styles.diSeatedBtn, styles.diResumeCompact, pressed && styles.diActionPressed]}
@@ -3305,8 +3306,8 @@ export default function OrgQueueScreen() {
                     {tableNumber ? (
                       <View style={styles.diTableInfoLine}>
                         <View style={[styles.diTablePill, styles.diTableInfoPill]}>
-                          <MaterialCommunityIcons name="table-furniture" size={13} color="#611A4D" />
-                          <ThemedText style={[styles.diTablePillText, { color: "#611A4D" }]} numberOfLines={1}>
+                          <MaterialCommunityIcons name="table-furniture" size={13} color="#8C1867" />
+                          <ThemedText style={[styles.diTablePillText, { color: "#8C1867" }]} numberOfLines={1}>
                             Table {tableNumber}
                           </ThemedText>
                         </View>
@@ -3350,7 +3351,7 @@ export default function OrgQueueScreen() {
             accessibilityLabel="Scan QR"
             hitSlop={4}
           >
-            <Feather name="maximize" size={20} color="#611A4D" />
+            <Feather name="maximize" size={20} color="#8C1867" />
           </Pressable>
 
           {/* Manual Registration Button */}
@@ -6792,7 +6793,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     minWidth: 0,
   },
   diTabActive: {
-    borderBottomColor: "#611A4D",
+    borderBottomColor: "#8C1867",
   },
   diTabText: {
     fontSize: 13,
@@ -6802,7 +6803,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexShrink: 1,
   },
   diTabTextActive: {
-    color: "#611A4D",
+    color: "#8C1867",
     fontWeight: "700",
   },
   diTabBadge: {
@@ -6815,7 +6816,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexShrink: 0,
   },
   diTabBadgeActive: {
-    backgroundColor: "#611A4D",
+    backgroundColor: "#8C1867",
   },
   diTabBadgeInactive: {
     backgroundColor: "#E9E6F0",
@@ -6859,7 +6860,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     height: 44,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: "#611A4D",
+    borderColor: "#8C1867",
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -6868,7 +6869,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     minWidth: 88,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#611A4D",
+    backgroundColor: "#8C1867",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -6914,7 +6915,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     backgroundColor: "#F3E6EE",
   },
   diWaitingAvatarText: {
-    color: "#611A4D",
+    color: "#8C1867",
   },
   diHoldAvatar: {
     backgroundColor: "#FDF0C8",
@@ -6956,7 +6957,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     paddingVertical: 0,
     paddingHorizontal: 4,
     borderRadius: 10,
-    backgroundColor: "#611A4D",
+    backgroundColor: "#8C1867",
   },
   diAssignedRight: {
     width: 136,
@@ -7173,7 +7174,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     lineHeight: 13,
     fontWeight: "700",
     fontFamily: headingFont("bold"),
-    color: "#611A4D",
+    color: "#8C1867",
   },
   diGuestBadge: {
     backgroundColor: "#FCE7F3",

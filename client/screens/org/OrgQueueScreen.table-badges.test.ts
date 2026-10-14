@@ -42,7 +42,7 @@ const renderContext = {
   getDineInCardData: () => ({ partySize: 2 }),
   getStoredTableNumber: storedTable, getDoneStatus: doneStatus, formatTime: () => "9:05 PM",
 };
-function render(tab: "hold" | "done", tableNumber: unknown): Element {
+function render(tab: "assigned" | "hold" | "done", tableNumber: unknown): Element {
   const conditional = find(source, node => ts.isConditionalExpression(node)
     && node.condition.getText(source) === `dineInTab === "${tab}"`
     && ts.isCallExpression(node.whenTrue)) as ts.ConditionalExpression;
@@ -61,8 +61,8 @@ const badges = (root: Element) => nodes(root, node => hasStyle(node, "diTablePil
 const label = (root: Element) => nodes(root, node => hasStyle(node, "diTablePillText"))[0]
   .children.filter(child => typeof child === "string").join("").replace(/\s+/g, " ").trim();
 
-test("On Hold and Seated cards render the received table on the info column's second line", () => {
-  for (const tab of ["hold", "done"] as const) {
+test("Assigned, On Hold and Seated cards render the received table on the info column's second line", () => {
+  for (const tab of ["assigned", "hold", "done"] as const) {
     const root = render(tab, "6");
     assert.equal(badges(root).length, 1);
     const meta = nodes(root, node => hasStyle(node, "diCardMeta"))[0];
@@ -82,7 +82,7 @@ test("new assignment replaces the displayed table; cleared Resume data never reu
 });
 
 test("missing, blank and placeholder values render no badge or table label", () => {
-  for (const tab of ["hold", "done"] as const) {
+  for (const tab of ["assigned", "hold", "done"] as const) {
     for (const value of [undefined, null, "", "  ", "-", "null", " NULL ", "undefined", 0, false, {}]) {
       const root = render(tab, value);
       assert.equal(badges(root).length, 0);
@@ -104,7 +104,7 @@ test("new badges reuse Assigned badge styles, furniture icon and wording", () =>
     && node.openingElement.attributes.properties.some(attr => ts.isJsxAttribute(attr)
       && attr.name.getText(source) === "style"
       && attr.initializer?.getText(source).includes("styles.diTablePill,")))!;
-  const original = evaluate(assigned, { ...renderContext, customer: { tableNumber: "6" } }) as Element;
+  const original = evaluate(assigned, { ...renderContext, tableNumber: "6", customer: { tableNumber: "6" } }) as Element;
   for (const tab of ["hold", "done"] as const) {
     const root = render(tab, "6");
     const badge = badges(root)[0];
@@ -137,14 +137,14 @@ test("layout guards are confined to cards with a badge and constrain text withou
   assert.equal(evaluate(shrink.initializer, {}).flexShrink, 1);
 });
 
-test("the table display helper and both calls remain inside the Dine-In branch", () => {
+test("the table display helper and all three calls remain inside the Dine-In branch", () => {
   const references: ts.Node[] = [];
   const visit = (node: ts.Node) => {
     if (ts.isIdentifier(node) && node.text === "getStoredTableNumber") references.push(node);
     ts.forEachChild(node, visit);
   };
   visit(source);
-  assert.equal(references.length, 3);
+  assert.equal(references.length, 4);
   for (const reference of references) {
     let parent: ts.Node | undefined = reference;
     while (parent && !(ts.isIfStatement(parent)

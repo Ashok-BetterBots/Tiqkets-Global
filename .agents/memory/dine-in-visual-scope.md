@@ -9,6 +9,12 @@ Dine-In Process Queue redesigns must retain existing action handlers and data be
 
 **How to apply:** Keep queue actions, form handling, notification/audio behavior and navigation destinations unchanged; optional shared presentation variants must preserve default callers.
 
+Use `#8C1867` for the Process Queue brand accent, replacing the earlier dark plum.
+
+**Why:** The user explicitly requested this updated colour for Process Queue.
+
+**How to apply:** Keep the change local to Dine-In Process Queue; retain blue navigation and green/amber status accents.
+
 The floating blue gear in the supplied phone references belongs to Expo Go, not Tiqkets. Ignore it rather than adding a new app Settings action.
 
 **Why:** The user clarified this after the gear could not be traced to application code.
