@@ -38,6 +38,7 @@ import { AppointmentProvider } from "@/contexts/AppointmentContext";
 import { OrganizationProvider, useOrganization } from "@/contexts/OrganizationContext";
 import { ThemeProvider, ThemeVariantProvider } from "@/contexts/ThemeContext";
 import { useNotificationHandler } from "@/hooks/useNotificationHandler";
+import { AppToastProvider } from "@/components/Toast";
 
 function NotificationWrapper({ children }: { children: React.ReactNode }) {
   useNotificationHandler();
@@ -182,12 +183,14 @@ export default function App() {
                   <SafeAreaProvider initialMetrics={initialWindowMetrics}>
                     <GestureHandlerRootView style={styles.root}>
                       <KeyboardProvider>
-                        <NavigationContainer>
-                          <NotificationWrapper>
-                            <AppContent />
-                          </NotificationWrapper>
-                        </NavigationContainer>
-                        <StatusBar style="auto" />
+                        <AppToastProvider>
+                          <NavigationContainer>
+                            <NotificationWrapper>
+                              <AppContent />
+                            </NotificationWrapper>
+                          </NavigationContainer>
+                          <StatusBar style="auto" />
+                        </AppToastProvider>
                       </KeyboardProvider>
                     </GestureHandlerRootView>
                   </SafeAreaProvider>

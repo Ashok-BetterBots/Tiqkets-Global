@@ -13,7 +13,6 @@ import {
   TextInput,
   Platform,
   Keyboard,
-  Modal,
   KeyboardAvoidingView,
   ActivityIndicator,
   FlatList,
@@ -30,6 +29,8 @@ import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { BottomSheetModal } from "@/components/BottomSheetModal";
+import { QueueToastModal as Modal } from "@/components/QueueToastModal";
+import { showToast } from "@/lib/toast-controller";
 import { Colors, Spacing, BorderRadius, Shadows, headingFont } from "@/constants/theme";
 import { OrgDesign } from "@/constants/orgDesign";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -1394,7 +1395,7 @@ export default function OrgQueueScreen() {
 
   const handleCallNext = async () => {
     if (waitingCount === 0) {
-      Alert.alert("No Customers", "There are no customers waiting in the queue.");
+      showToast("No Customers", "There are no customers waiting in the queue.", "info");
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1442,7 +1443,7 @@ export default function OrgQueueScreen() {
       setCompleteAllConfirmText("");
       refreshQueueForBranch(currentBranchId);
       const n = data?.completed || 0;
-      Alert.alert("Done", n > 0 ? `${n} customer${n === 1 ? "" : "s"} moved to completed.` : "No active customers to complete.");
+      showToast("Done", n > 0 ? `${n} customer${n === 1 ? "" : "s"} moved to completed.` : "No active customers to complete.");
     } catch (error) {
       logHandledError("Error completing active customers", error);
       Alert.alert("Error", "Failed to complete active customers. Please try again.");
@@ -1454,7 +1455,7 @@ export default function OrgQueueScreen() {
   const handleCallAgain = async (customerId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
-    Alert.alert("Called Again", "Notification sent to customer");
+    showToast("Called Again", "Notification sent to customer");
   };
 
   const handleSkip = async (customerId: string) => {
@@ -1477,10 +1478,10 @@ export default function OrgQueueScreen() {
             const result = await skipCustomer(customerId);
             if (result.isNoShow) {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-              Alert.alert("No Show", "Customer marked as No Show after 3 skips. Notification sent.");
+              showToast("No Show", "Customer marked as No Show after 3 skips. Notification sent.");
             } else {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              Alert.alert("Skipped", "Customer moved back in queue. Notification sent.");
+              showToast("Skipped", "Customer moved back in queue. Notification sent.");
             }
           },
         },
@@ -1547,7 +1548,7 @@ export default function OrgQueueScreen() {
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: organizationTimeZone }),
         });
         setTicketInput("");
-        Alert.alert(
+        showToast(
           "Check-In Successful",
           `${result.customer.customerName} (${result.customer.ticketNumber}) has been checked in.`
         );
@@ -1603,7 +1604,7 @@ export default function OrgQueueScreen() {
       
       if (result.success && result.customer) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
+        showToast(
           "Order Created",
           `Order ${newOrderId.trim()} created for ${customerName}`
         );
@@ -2554,7 +2555,7 @@ export default function OrgQueueScreen() {
       const result = await checkInReservation(customerId);
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Checked In", `${result.customer?.customerName || "Customer"} has been checked in and moved to Waiting.`);
+        showToast("Checked In", `${result.customer?.customerName || "Customer"} has been checked in and moved to Waiting.`);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert("Error", result.error || "Failed to check in reservation");
@@ -2565,7 +2566,7 @@ export default function OrgQueueScreen() {
       const result = await checkInApiReservation(reservationId);
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Checked In", `${customerName} has been checked in and added to the waiting queue.`);
+        showToast("Checked In", `${customerName} has been checked in and added to the waiting queue.`);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert("Error", result.error || "Failed to check in reservation");
@@ -2649,7 +2650,7 @@ export default function OrgQueueScreen() {
         
         if (result.success) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert(
+          showToast(
             "Customer Registered",
             `${result.customer?.customerName} has been added to the queue.\n\nTicket: ${result.customer?.ticketNumber}`
           );
@@ -2691,7 +2692,7 @@ export default function OrgQueueScreen() {
         const result = await allocateTable(selectedCustomerForTable.id, tableNumberInput.trim());
         if (result.success) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert(
+          showToast(
             "Table Allocated",
             `Table ${tableNumberInput.trim()} has been allocated to ${selectedCustomerForTable.customerName}. Notification sent to customer.`
           );
@@ -2715,7 +2716,7 @@ export default function OrgQueueScreen() {
       await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
       const customer = queue.find((c) => c.id === customerId);
       const callNum = (customer?.callCount || 0) + 1;
-      Alert.alert(
+      showToast(
         "Customer Notified",
         `Reminder sent to ${customer?.customerName || "customer"}. (Called ${callNum} time${callNum > 1 ? "s" : ""})`
       );
@@ -2725,7 +2726,7 @@ export default function OrgQueueScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await holdCustomer(customerId);
       const customer = queue.find((c) => c.id === customerId);
-      Alert.alert("On Hold", `${customer?.customerName || "Customer"} has been placed on hold.`);
+      showToast("On Hold", `${customer?.customerName || "Customer"} has been placed on hold.`);
     };
 
     const handleResumeCustomer = async (customerId: string) => {
@@ -2733,14 +2734,14 @@ export default function OrgQueueScreen() {
       const customer = queue.find((c) => c.id === customerId);
       await resumeCustomer(customerId);
       setDineInTab("waiting");
-      Alert.alert("Resumed", `${customer?.customerName || "Customer"} has been moved back to the waiting queue with their original position.`);
+      showToast("Resumed", `${customer?.customerName || "Customer"} has been moved back to the waiting queue with their original position.`);
     };
 
     const handleMarkArrived = async (customerId: string) => {
       const result = await markAsArrived(customerId);
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Arrived", `${result.customer?.customerName || "Customer"} has been marked as arrived at table ${result.customer?.tableNumber || ""}.`);
+        showToast("Arrived", `${result.customer?.customerName || "Customer"} has been marked as arrived at table ${result.customer?.tableNumber || ""}.`);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert("Error", result.error || "Failed to mark as arrived");
@@ -2776,7 +2777,7 @@ export default function OrgQueueScreen() {
       const customer = queue.find((c) => c.id === customerId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await markAsComplete(customerId);
-      Alert.alert("Walk In", `${customer?.customerName || "Customer"} has been marked as walked in.`);
+      showToast("Walk In", `${customer?.customerName || "Customer"} has been marked as walked in.`);
     };
 
     const handleOpenEdit = (customer: QueueCustomer) => {
@@ -3709,6 +3710,7 @@ export default function OrgQueueScreen() {
 
         <BottomSheetModal
           visible={editCustomer !== null}
+          queueToastHost
           onClose={() => { setEditCustomer(null); setEditFormData({}); }}
           title="Edit Details"
           onConfirm={handleSaveEdit}

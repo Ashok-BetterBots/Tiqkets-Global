@@ -16,6 +16,7 @@ import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { BrandColors, Spacing } from "@/constants/theme";
+import { QueueToastModal } from "@/components/QueueToastModal";
 
 export interface SubSheetProps {
   visible: boolean;
@@ -36,6 +37,8 @@ export interface BottomSheetModalProps {
   confirmLabel?: string;
   confirmLoading?: boolean;
   subSheet?: SubSheetProps;
+  /** Only Queue opts into the global toast's native-window presentation slot. */
+  queueToastHost?: boolean;
 }
 
 // Approximate height of the fixed chrome: drag handle (~20) + header (~56) + footer (~86) + padding (~12).
@@ -52,6 +55,7 @@ export function BottomSheetModal({
   confirmLabel = "Save",
   confirmLoading = false,
   subSheet,
+  queueToastHost = false,
 }: BottomSheetModalProps) {
   const isDark = useColorScheme() === "dark";
   const { height: screenHeight } = useWindowDimensions();
@@ -61,6 +65,7 @@ export function BottomSheetModal({
   const textColor = isDark ? "#F5F5F5" : "#1A1A2E";
 
   const showSub = subSheet?.visible === true;
+  const SheetModal = queueToastHost ? QueueToastModal : Modal;
 
   // The scroll area can grow up to (90% of screen) minus the fixed chrome height.
   // This means the total card height is at most 90% of the screen, and the footer
@@ -74,7 +79,7 @@ export function BottomSheetModal({
   };
 
   return (
-    <Modal
+    <SheetModal
       visible={visible}
       transparent
       animationType="none"
@@ -177,7 +182,7 @@ export function BottomSheetModal({
         </KeyboardAvoidingView>
 
       </View>
-    </Modal>
+    </SheetModal>
   );
 }
 
