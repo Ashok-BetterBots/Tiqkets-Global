@@ -5,6 +5,14 @@ description: Which keyboard-avoidance approach to use for forms vs modals in thi
 
 # Keyboard-overlap handling convention
 
+## Nested form controls
+
+For buttons inside nested scroll areas, check keyboard tap handling on every scroll ancestor, not just the outer form.
+
+**Why:** A nested ScrollView's default keyboard-dismiss capture can consume the first button tap even when the parent uses `keyboardShouldPersistTaps="handled"`.
+
+**How to apply:** Fix the affected form's nested scroll area locally; do not change shared defaults or other forms without approval.
+
 Two distinct approaches are used across the app — pick by container type:
 
 - **Full-screen scrolls that contain TextInputs** → use `KeyboardAwareScrollViewCompat`

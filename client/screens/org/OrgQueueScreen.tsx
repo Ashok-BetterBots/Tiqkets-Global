@@ -3532,7 +3532,7 @@ export default function OrgQueueScreen() {
                         {field.label}{field.required ? " *" : ""}
                       </ThemedText>
                       {field.type === "select" && field.options ? (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                           <View style={{ flexDirection: "row", gap: 8 }}>
                             {field.options.map((opt: string) => (
                               <Pressable key={opt} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: manualRegistrationFormData[field.id] === opt ? colors.primary : (colors.borderSubtle), backgroundColor: manualRegistrationFormData[field.id] === opt ? colors.primary + "15" : (colors.surfaceMuted) }} onPress={() => setManualRegistrationFormData(prev => ({ ...prev, [field.id]: opt }))}>
