@@ -117,17 +117,6 @@ export function ProfileModal({
       setIsPickingImage(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (!permissionResult.granted) {
-        Alert.alert(
-          "Permission Required",
-          "Please allow access to your photo library to change your profile picture.",
-          [{ text: "OK" }]
-        );
-        return;
-      }
-
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
