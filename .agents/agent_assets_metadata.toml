@@ -88,3 +88,31 @@ mtime_ms = 1792011062896
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d51db51a-4520-4822-a057-a8067df5fb96/03511a13-1717-49b1-bb3d-611efe89a0aa/21ab8e86-0a23-4673-8031-a570021d1253"
 storage_version_token = "1792011073889834"
 content_type = "image/png"
+
+[[outputs]]
+id = "YzUrZtovzxFvlMlQTrpzg"
+uri = "file://screenshots/queue-search-clear/before.png"
+type = "image"
+title = "Before — two search controls"
+description = "Browser render of the original component with “tdx” entered. Source preview, not a native-device capture."
+logical_id = "5f28ccdb-40db-4614-94f5-d9352d8a5064"
+content_hash = "sha256:99dc3c8f37fc15b00e01d1a65441e4750b32b3b414826599bb9d578700d2720a"
+size = 6955
+mtime_ms = 1792098078618
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d51db51a-4520-4822-a057-a8067df5fb96/5f28ccdb-40db-4614-94f5-d9352d8a5064/a80ad2ad-9720-445a-aac2-006d86a1c8c3"
+storage_version_token = "1792098112789891"
+content_type = "image/png"
+
+[[outputs]]
+id = "7WUV4kg7zdrqDOevNCTJr"
+uri = "file://screenshots/queue-search-clear/after.png"
+type = "image"
+title = "After — one clear button"
+description = "Browser render of the updated component with “tdx” entered. One plain ✕; source preview, not a native-device capture."
+logical_id = "822f8c95-b8c5-48ba-92b5-2335b5377eba"
+content_hash = "sha256:ddb77b2ab1bc5e015288ad858e6ae00251fe07c75ab019de256c91388d354c3d"
+size = 5476
+mtime_ms = 1792098079101
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d51db51a-4520-4822-a057-a8067df5fb96/822f8c95-b8c5-48ba-92b5-2335b5377eba/57372396-50fa-4aee-b9f7-3b4e7bfc76c8"
+storage_version_token = "1792098114189801"
+content_type = "image/png"

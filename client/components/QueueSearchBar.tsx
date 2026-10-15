@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Keyboard, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -7,6 +7,7 @@ import { useTheme } from "@/hooks/useTheme";
 export function QueueSearchBar({ value, onChange, compact = false }: { value: string; onChange: (value: string) => void; compact?: boolean }) {
   const { theme } = useTheme();
   const [open, setOpen] = useState(false);
+  const inputRef = useRef<TextInput>(null);
   const close = () => { onChange(""); setOpen(false); Keyboard.dismiss(); };
   return (
     <View style={[styles.container, compact && styles.compactContainer]}>
@@ -29,6 +30,7 @@ export function QueueSearchBar({ value, onChange, compact = false }: { value: st
           <View style={[styles.inputRow, compact && styles.compactInputRow, { backgroundColor: compact ? "#FFFFFF" : theme.surface, borderColor: compact ? "#DDD8E8" : theme.borderSubtle }]}>
             <Feather name="search" size={17} color={compact ? "#4B4BC8" : theme.textSecondary} />
             <TextInput
+              ref={inputRef}
               autoFocus
               value={value}
               onChangeText={onChange}
@@ -37,19 +39,24 @@ export function QueueSearchBar({ value, onChange, compact = false }: { value: st
               accessibilityLabel="Search by name, booking ID or phone number"
               autoCapitalize="none"
               autoCorrect={false}
+              clearButtonMode={compact ? "never" : undefined}
               returnKeyType="search"
               onSubmitEditing={() => Keyboard.dismiss()}
               style={[styles.input, compact && styles.compactInput, { color: theme.text }]}
               testID="queue-search-input"
             />
             {value ? (
-              <Pressable onPress={() => onChange("")} accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={8}>
-                <Feather name="x-circle" size={18} color={theme.textSecondary} />
-              </Pressable>
-            ) : null}
-            {compact ? (
-              <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Close queue search" hitSlop={6}>
-                <Feather name="x" size={18} color={theme.textSecondary} />
+              <Pressable
+                onPress={() => {
+                  onChange("");
+                  if (compact) inputRef.current?.focus();
+                }}
+                style={compact ? styles.compactClearButton : undefined}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+                hitSlop={8}
+              >
+                <Feather name={compact ? "x" : "x-circle"} size={18} color={theme.textSecondary} />
               </Pressable>
             ) : null}
           </View>
@@ -70,6 +77,7 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12 },
   compactInputRow: { height: 44, flex: 1 },
   compactInput: { height: 44 },
+  compactClearButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   input: { flex: 1, minWidth: 0, height: 46, fontSize: 14 },
   hint: { fontSize: 12 },
 });

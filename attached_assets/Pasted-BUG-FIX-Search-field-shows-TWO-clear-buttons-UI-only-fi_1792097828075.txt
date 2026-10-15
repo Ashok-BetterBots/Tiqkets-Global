@@ -1,0 +1,47 @@
+BUG FIX – Search field shows TWO clear buttons (UI-only fix)
+
+WHERE
+Organisation version of the mobile app → Process Queue screen in Dine-in mode → the search box in the bottom action bar (next to the Scan and "Add" buttons).
+
+PROBLEM
+When text is typed in the search box (e.g. "tdx"), two clear buttons appear inside the same field:
+1. A circled ⊗ icon
+2. A plain ✕ icon
+Both clear the text. There should be only ONE.
+
+LIKELY CAUSE (check this first)
+One of the two is our own custom clear button. The other is a native/browser clear button, added because of one of these:
+- The input uses type="search". Chrome/WebView then adds its own built-in cancel button (::-webkit-search-cancel-button).
+- On React Native, the TextInput has clearButtonMode="while-editing" (or similar) AND we also render a custom clear icon.
+- A UI library's search component (e.g. a SearchBar with a built-in clear icon) is used AND we added our own clear icon next to it.
+Find which applies before changing anything.
+
+FIX
+- Keep ONLY our own custom plain ✕ clear button, on the right side of the field.
+- Remove or disable the other one:
+  - Web/WebView: keep type="search" if other code depends on it (keyboard "Search" key, etc.), and hide the native button with CSS scoped to this input only:
+    input[type="search"]::-webkit-search-cancel-button,
+    input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
+    input[type="search"]::-ms-clear { display: none; }
+    Otherwise switch to type="text" with inputMode="search" and enterKeyHint="search".
+  - React Native: remove clearButtonMode from the TextInput (or set it to "never").
+  - UI-library SearchBar: turn off its built-in clear icon via its prop instead of rendering a second one.
+- The remaining ✕ must:
+  - Show only when the field has text. Hide it when empty.
+  - On tap: clear the text, reset the search/filter so the full list shows again, and keep focus in the field (keyboard stays open).
+  - Have a tap area of at least 36×36 and an accessibility label "Clear search".
+  - Be vertically centred, with ~12px right padding. Text must not run underneath it (add right padding to the input).
+
+DO NOT CHANGE
+- Search logic, filtering, debounce, API calls, or what the search matches on.
+- The Scan button, the Add button, the tabs, the cards or the bottom nav.
+- Any other screen. Scope all CSS/style changes to this search input only.
+
+TEST
+1. Dine-in mode, Process Queue: type text → exactly ONE ✕ appears.
+2. Tap ✕ → text clears, list returns to the full unfiltered list, keyboard stays open.
+3. Empty field → no ✕ visible.
+4. Check on both Android and iOS (and the web build if there is one), and in every tab (Waiting, Assigned, On Hold, Seated).
+5. Check the same search field in the other modes (not just Dine-in) so the fix doesn't create the problem there or remove the only clear button there.
+
+When done, list the files you changed and show a before/after screenshot with text typed in the search field.
