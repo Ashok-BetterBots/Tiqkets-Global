@@ -116,3 +116,17 @@ mtime_ms = 1792098079101
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d51db51a-4520-4822-a057-a8067df5fb96/822f8c95-b8c5-48ba-92b5-2335b5377eba/57372396-50fa-4aee-b9f7-3b4e7bfc76c8"
 storage_version_token = "1792098114189801"
 content_type = "image/png"
+
+[[outputs]]
+id = "tTjDswKiCtcoUyaHaDhIX"
+uri = "file://screenshots/splash-white/splash-preview.png"
+type = "image"
+title = "White splash logo preview"
+description = "Rendered 390×844 preview using the new white artwork, unchanged #8C1867 background and 200-point image size. This is not a physical Android/iOS screenshot."
+logical_id = "64e29c9b-0e06-41ca-abb7-cddc6624c1a1"
+content_hash = "sha256:9a29f2daac026cde9820cec99e103c7c4af3cb1697bf0d8b42a479edb6733991"
+size = 7102
+mtime_ms = 1792101213553
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d51db51a-4520-4822-a057-a8067df5fb96/64e29c9b-0e06-41ca-abb7-cddc6624c1a1/172a709c-29b3-494e-a9c1-fedb241114f6"
+storage_version_token = "1792101292289385"
+content_type = "image/png"
