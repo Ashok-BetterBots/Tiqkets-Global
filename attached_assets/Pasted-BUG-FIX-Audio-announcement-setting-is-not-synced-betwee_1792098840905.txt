@@ -1,0 +1,49 @@
+BUG FIX – "Audio announcement" setting is not synced between the mobile app and the web app
+
+PROBLEM
+The "Audio announcement" on/off toggle is set separately on each device.
+- Turn it ON in the mobile app → the web app still shows OFF for the same branch.
+- Turn it ON/OFF in the web app → the mobile app doesn't change.
+Expected: this is a BRANCH-level setting. One value per branch, shared by the mobile app and the web app.
+
+STEP 1 – INVESTIGATE FIRST (no code changes yet)
+Find and tell me:
+1. Where the toggle's value is stored today in the mobile app (AsyncStorage / SecureStore / local state / API?) and in the web app (localStorage / local state / API?).
+2. Whether a branch settings table/record already exists in the database (e.g. branch_settings or columns on the branches table) and how other branch-level settings are saved and loaded.
+3. Every place in both apps that reads this value to decide whether to play announcements.
+4. Whether the apps already have a real-time channel (WebSocket / Socket.IO / Supabase realtime / Firebase / polling) that pushes queue updates to devices.
+Then continue with the fix below, reusing whatever already exists.
+
+STEP 2 – FIX
+- Store the setting in the backend database as a single field per branch, e.g. audio_announcement_enabled (boolean). Use the existing branch settings table/record if there is one. Only add a new column if needed.
+- Default for branches with no saved value: use the CURRENT default behaviour so nothing changes for existing branches until someone toggles it.
+- API: reuse the existing branch settings endpoints if they exist. If not, add only:
+  - GET the setting for a branch
+  - UPDATE the setting for a branch
+  Use the same auth and permission checks as other branch settings, so a user can only change branches they have access to.
+- Mobile app and web app:
+  - On load, and when the user switches branch, read the value from the backend for the selected branch.
+  - When toggled, save it to the backend for that branch. Update the toggle immediately, but revert it and show the existing error message/toast if the save fails.
+  - Remove the device-only storage of this setting (or use it only as a temporary cache that is always overwritten by the backend value).
+- Live sync:
+  - If a real-time channel exists, broadcast a "branch setting changed" event for that branch when the value changes. Other devices on the same branch update the toggle and behaviour without a refresh.
+  - If there is no real-time channel, re-fetch the value when the app/page comes to the foreground and when the Queue or Settings screen opens. Do NOT build a new real-time system just for this.
+- The announcement logic on every device must read the synced branch value, not the old local value.
+
+DO NOT CHANGE
+- How announcements sound, what they say, their language, voice, timing or triggers.
+- Any other setting, toggle or screen.
+- Queue logic, tabs, cards, search, scan, add guest, auth, or any existing API behaviour.
+- The design/layout of the settings screens. Only the data source of this one toggle changes.
+- Database: only add what is needed for this one setting. No other schema changes, and no data deletion.
+
+TEST
+1. Branch A: turn ON in mobile → web (same branch) shows ON (live, or after reopening the screen).
+2. Branch A: turn OFF in web → mobile shows OFF.
+3. Branch B is NOT affected by changes to Branch A.
+4. Log out and back in, or reinstall the mobile app → the value stays as saved for the branch.
+5. Announcements actually play/stop on both devices according to the synced value.
+6. Turn on airplane mode and toggle → the toggle reverts and shows an error. Nothing gets out of sync.
+7. Everything else in Settings and Queue works exactly as before.
+
+When done, list every file changed, any database change made, and the API endpoints used or added.

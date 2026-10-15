@@ -94,3 +94,4 @@
 - [Dine-In table badge scope](dine-in-table-badge-scope.md) — On Hold/Seated show the current stored table only; no history fallback after Resume clears it.
 - [Dine-In visual scope](dine-in-visual-scope.md) — preserve operational handlers and other modes; the floating blue gear in phone references is an Expo Go overlay.
 - [Web announcement boundaries](web-announcement-boundaries.md) — web-only audio leaves mobile/speaker behavior unchanged; tab ownership is same-origin/profile, remote selection changes require observation.
+- [Branch audio master scope](branch-audio-master-scope.md) — one shared branch flag, never a service override; browser sound permission remains device-local.

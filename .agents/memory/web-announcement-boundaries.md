@@ -3,9 +3,9 @@ name: Web announcement boundaries
 description: Approved web-only audio scope, browser tab exclusivity limits, and remote selection revocation constraints.
 ---
 
-Web dashboard audio must remain separate from mobile audio and the dedicated speaker page. The same selected account may announce on both mobile and web; changing that requires separate approval.
+Web dashboard playback must remain separate from mobile playback and the dedicated speaker page. The branch Audio announcement master is shared across mobile and web; browser Enable permission is still local. The same selected account may announce on both mobile and web; changing that requires separate approval.
 
-**Why:** The user explicitly approved web-only playback and prohibited changes to announcer selection, mobile behavior, the server stream, or the dedicated speaker page.
+**Why:** The user initially approved web-only playback, and later explicitly required the single branch master to sync across mobile and web. This does not change announcer selection, audio wording/timing, or the dedicated speaker page.
 
 **How to apply:** Do not turn browser-tab ownership into account-wide or device-wide suppression. Preserve live queue updates independently of local sound enablement.
 

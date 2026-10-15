@@ -26,7 +26,8 @@ import { registerReportRoutes } from "./reports";
 import { registerQueueTicketRoutes } from "./queue-ticket-routes";
 import { registerRoutePayoutRoutes } from "./route-payouts";
 import { directCredentialStatus, getEventPaymentMethod, setEventPaymentMethod } from "./event-payment-method";
-import { broadcastAnnouncement, broadcastQueueUpdate, resolveEffectiveQueueMode } from "./announcements";
+import { broadcastAnnouncement, broadcastQueueUpdate, broadcastBranchAnnouncementSetting, resolveEffectiveQueueMode } from "./announcements";
+import { isAnnouncementOnlyUpdate, updateBranchAnnouncementEnabled } from "./branch-announcement-setting";
 import {
   checkAndSendQueueNotifications,
   sendCalledNotification,
@@ -3689,7 +3690,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updateData.announcerUserId = announcerUserId;
         }
       }
-      const branch = await storage.updateBranch(branchId, updateData);
+      const previousBranch = await storage.getBranchById(branchId);
+      const branch = isAnnouncementOnlyUpdate(req.body)
+        ? await updateBranchAnnouncementEnabled(branchId, displaySettings.announcementsEnabled)
+        : await storage.updateBranch(branchId, updateData);
+      if (branch && ((branch.displaySettings as any)?.announcementsEnabled === true)
+        !== ((previousBranch?.displaySettings as any)?.announcementsEnabled === true)) {
+        broadcastBranchAnnouncementSetting(branchId, (branch.displaySettings as any)?.announcementsEnabled === true);
+      }
       res.json({ branch });
     } catch (error) {
       console.error("Error updating branch settings:", error);

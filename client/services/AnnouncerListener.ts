@@ -23,6 +23,7 @@ type AnnouncementPayload = {
 type BranchInfo = {
   id: string;
   announcerUserId?: string | null;
+  announcementsEnabled?: boolean;
 };
 
 const isWeb =
@@ -167,13 +168,29 @@ class AnnouncerListenerImpl {
   private nativeVoicesLoaded = false;
   private nativeVoices: Speech.Voice[] = [];
   private playbackCleanup: Promise<void> | null = null;
-  private announcementQueue = new AnnouncementQueue<{ payload: AnnouncementPayload; gen: number }>({
-    play: ({ payload, gen }, signal) => this.playAnnouncement(payload, gen, signal),
+  private branchAudioEnabled = new Map<string, boolean>();
+  private branchAudioEpoch = new Map<string, number>();
+  private activeAudioBranch: string | null = null;
+  private activeAudioAbort: AbortController | null = null;
+  private announcementQueue = new AnnouncementQueue<{ payload: AnnouncementPayload; gen: number; branchId: string; audioEpoch: number }>({
+    play: (item, signal) => this.playQueuedAnnouncement(item, signal),
     cancelPlayback: () => this.stopPlayback(),
     warn: (message, error) => console.warn(`[announcer] ${message}`, ...(error === undefined ? [] : [error])),
   });
 
   start(orgId: string | null, userId: string | null, branches: BranchInfo[]) {
+    const nextAudio = new Map(branches.map(b => [b.id, b.announcementsEnabled === true]));
+    for (const [branchId, enabled] of this.branchAudioEnabled) {
+      if (enabled && nextAudio.get(branchId) !== true) {
+        this.branchAudioEpoch.set(branchId, (this.branchAudioEpoch.get(branchId) || 0) + 1);
+        this.announcementQueue.discardWhere(item => item.branchId === branchId);
+        if (this.activeAudioBranch === branchId) {
+          this.activeAudioAbort?.abort();
+          void this.stopPlayback();
+        }
+      }
+    }
+    this.branchAudioEnabled = nextAudio;
     const targetBranchIds = (branches || [])
       .filter((b) => b && b.announcerUserId && userId && b.announcerUserId === userId)
       .map((b) => b.id)
@@ -222,7 +239,7 @@ class AnnouncerListenerImpl {
           const raw = ev?.data ?? ev?.detail?.data;
           if (!raw || typeof raw !== "string") return;
           const data: AnnouncementPayload = JSON.parse(raw);
-          this.fire(data, myGen);
+          this.fire(data, myGen, branchId);
         } catch {
           // ignore malformed payloads
         }
@@ -333,9 +350,27 @@ class AnnouncerListenerImpl {
     this.audioModeReady = true;
   }
 
-  private fire(payload: AnnouncementPayload, gen: number) {
-    if (gen !== this.generation) return;
-    this.announcementQueue.enqueue({ payload, gen });
+  private fire(payload: AnnouncementPayload, gen: number, branchId: string) {
+    if (gen !== this.generation || !this.branchAudioEnabled.get(branchId)) return;
+    this.announcementQueue.enqueue({ payload, gen, branchId, audioEpoch: this.branchAudioEpoch.get(branchId) || 0 });
+  }
+
+  private async playQueuedAnnouncement(item: { payload: AnnouncementPayload; gen: number; branchId: string; audioEpoch: number }, signal: AbortSignal) {
+    if (!this.branchAudioEnabled.get(item.branchId)
+      || item.audioEpoch !== (this.branchAudioEpoch.get(item.branchId) || 0)) return;
+    const playback = new AbortController();
+    const abort = () => playback.abort();
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+    this.activeAudioBranch = item.branchId;
+    this.activeAudioAbort = playback;
+    try {
+      await this.playAnnouncement(item.payload, item.gen, playback.signal);
+    } finally {
+      signal.removeEventListener("abort", abort);
+      this.activeAudioBranch = null;
+      this.activeAudioAbort = null;
+    }
   }
 
   private async playAnnouncement(payload: AnnouncementPayload, gen: number, signal: AbortSignal) {

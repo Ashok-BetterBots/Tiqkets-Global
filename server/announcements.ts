@@ -502,6 +502,19 @@ export function broadcastQueueUpdate(branchId: string): void {
   }
 }
 
+// A named settings event is deliberately separate from queue and audio events.
+export function broadcastBranchAnnouncementSetting(branchId: string, enabled: boolean): void {
+  const payload = JSON.stringify({ branchId, announcementsEnabled: enabled });
+  for (const client of [...clients]) {
+    if (client.branchId !== branchId) continue;
+    try {
+      client.res.write(`event: branch_settings_changed\ndata: ${payload}\n\n`);
+    } catch {
+      removeClient(client.id);
+    }
+  }
+}
+
 function removeClient(id: string) {
   const idx = clients.findIndex((c) => c.id === id);
   if (idx !== -1) clients.splice(idx, 1);

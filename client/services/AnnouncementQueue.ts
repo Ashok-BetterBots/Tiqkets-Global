@@ -23,6 +23,10 @@ export class AnnouncementQueue<T> {
     this.startWorker();
   }
 
+  discardWhere(predicate: (item: T) => boolean) {
+    this.items = this.items.filter(item => !predicate(item));
+  }
+
   stop() {
     this.epoch += 1;
     this.items = [];

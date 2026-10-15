@@ -84,7 +84,7 @@ async function harness(web = false) {
     },
   });
   const listener = listenerExports.AnnouncerListener;
-  listener.start("org", "user", [{ id: "branch", announcerUserId: "user" }]);
+  listener.start("org", "user", [{ id: "branch", announcerUserId: "user", announcementsEnabled: true }]);
   await flush();
   const baselineStops = stops;
   const emit = (label: string, fallback?: string) => {
@@ -124,6 +124,45 @@ async function harness(web = false) {
   return { listener, sounds, speech, warnings, modes, sources, emit, advance, toneDone, speechDone, complete, stop,
     additionalStops: () => stops - baselineStops };
 }
+
+test("branch audio OFF stops current sound, drops its pending calls, and ON permits only fresh calls", async () => {
+  const h = await harness();
+  h.emit("old-current"); h.emit("old-queued"); await flush();
+  const source = h.sources[0];
+  h.listener.start("org", "user", [{ id: "branch", announcerUserId: "user", announcementsEnabled: false }]);
+  await flush();
+  assert.equal(h.sounds[0].stopped, true);
+  h.emit("while-off"); await flush();
+  assert.equal(h.sounds.length, 1);
+  h.listener.start("org", "user", [{ id: "branch", announcerUserId: "user", announcementsEnabled: true }]);
+  assert.equal(h.sources.length, 1);
+  assert.equal(source.closed, false);
+  h.emit("fresh");
+  await h.advance(1000);
+  assert.equal(h.sounds.length, 2);
+  await h.complete(1);
+  assert.deepEqual(h.speech.map(s => s.text), ["fresh", "fresh"]);
+  await h.stop();
+});
+
+test("switching audio OFF on branch A does not stop branch B or change its wording", async () => {
+  const h = await harness();
+  const config = (a: boolean) => [
+    { id: "A", announcerUserId: "user", announcementsEnabled: a },
+    { id: "B", announcerUserId: "user", announcementsEnabled: true },
+  ];
+  h.listener.start("org", "user", config(true)); await flush();
+  const [a, b] = h.sources.slice(-2);
+  b.listeners.message({ data: JSON.stringify({ spokenText: "B call", language: "en" }) });
+  a.listeners.message({ data: JSON.stringify({ spokenText: "A queued", language: "en" }) });
+  await flush();
+  h.listener.start("org", "user", config(false)); await flush();
+  assert.equal(h.sounds[0].stopped, false);
+  await h.complete(0); await h.advance(1000);
+  assert.deepEqual(h.speech.map(s => s.text), ["B call", "B call"]);
+  assert.equal(h.sounds.length, 1);
+  await h.stop();
+});
 
 test("single event starts immediately, preserving sound, speech, repeat/fallback, and cadence", async () => {
   const h = await harness();
@@ -256,7 +295,7 @@ test("logout clears waiting items and cancels current speech and repeat", async 
 test("announcer/branch change discards old work and stale callbacks, but permits new work", async () => {
   const h = await harness();
   h.emit("OLD"); h.emit("DISCARD"); await flush();
-  h.listener.start("org", "new-user", [{ id: "new-branch", announcerUserId: "new-user" }]);
+  h.listener.start("org", "new-user", [{ id: "new-branch", announcerUserId: "new-user", announcementsEnabled: true }]);
   h.emit("NEW"); await flush();
   assert.ok(h.sounds[0].stopped);
   assert.equal(h.sounds.length, 2);

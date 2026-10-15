@@ -7,6 +7,8 @@ import { isValidIanaTimezone } from "@shared/timezone";
 import { isDineInMode, seedDineInFields } from "@shared/dineInFields";
 import { isTakeawayMode, seedTakeawayFields } from "@shared/takeawayFields";
 import { buildQueueModePresetFields, queueModesEqual } from "@shared/queueModeFields";
+import { isAnnouncementOnlyUpdate, updateBranchAnnouncementEnabled } from "./branch-announcement-setting";
+import { broadcastBranchAnnouncementSetting } from "./announcements";
 
 // See `canonicalQueueMode` in server/routes.ts — same rationale: normalize
 // `branch.queueMode` at the response boundary so mobile clients always
@@ -1456,7 +1458,9 @@ export function registerBillingRoutes(app: Express) {
         }
       }
       const previousBranch = await storage.getBranchById(branchId);
-      const branch = await storage.updateBranch(branchId, updateData);
+      const branch = isAnnouncementOnlyUpdate(req.body)
+        ? await updateBranchAnnouncementEnabled(branchId, displaySettings.announcementsEnabled)
+        : await storage.updateBranch(branchId, updateData);
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
       }
@@ -1503,6 +1507,10 @@ export function registerBillingRoutes(app: Express) {
         }
       }
       await writeAudit(req, { action: "branch.settings.update", targetType: "branch", targetId: branchId, targetLabel: branch.name, diff: req.body });
+      const audioEnabled = (branch.displaySettings as any)?.announcementsEnabled === true;
+      if (audioEnabled !== ((previousBranch?.displaySettings as any)?.announcementsEnabled === true)) {
+        broadcastBranchAnnouncementSetting(branchId, audioEnabled);
+      }
       res.json({ branch });
     } catch (error) {
       console.error("Error updating branch settings:", error);

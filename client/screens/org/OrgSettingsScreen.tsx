@@ -419,6 +419,8 @@ export default function OrgSettingsScreen() {
   );
 
   const currentSettingsLevel: SettingsLevel = selectedService ? "service" : "branch";
+  // The audio master belongs to the branch, never to a service override.
+  const branchAnnouncementsEnabled = selectedBranch?.settings?.display?.announcementsEnabled === true;
 
   const openQueueModeModal = () => {
     setShowQueueModeModal(true);
@@ -685,10 +687,13 @@ export default function OrgSettingsScreen() {
   const handleToggleAnnouncements = async () => {
     if (!selectedBranch) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const next = !(settings.display.announcementsEnabled === true);
-    await saveSetting({
-      display: { ...settings.display, announcementsEnabled: next },
-    });
+    try {
+      await updateBranchSettings(selectedBranch.id, {
+        display: { announcementsEnabled: !branchAnnouncementsEnabled } as OrgSettings["display"],
+      });
+    } catch (err: any) {
+      Alert.alert("Couldn't save settings", err?.message || "Please try again.");
+    }
   };
 
   const handleToggleDedicatedPlayer = async () => {
@@ -1151,14 +1156,14 @@ export default function OrgSettingsScreen() {
             isDark={isDark}
             right={
               <Switch
-                value={settings.display.announcementsEnabled === true}
+                value={branchAnnouncementsEnabled}
                 onValueChange={handleToggleAnnouncements}
                 trackColor={switchTrackColor}
                 thumbColor={switchThumbColor}
               />
             }
           />
-          {settings.display.announcementsEnabled === true ? (
+          {branchAnnouncementsEnabled ? (
             <>
               <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
               <Pressable

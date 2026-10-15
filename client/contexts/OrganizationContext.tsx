@@ -6,6 +6,8 @@ import { AppState, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiRequest, getApiUrl, getErrorMessage, setCurrentUserIdHeader, queryClient } from "@/lib/query-client";
 import { AnnouncerListener } from "@/services/AnnouncerListener";
+import RNEventSource from "react-native-sse";
+import { observeBranchAnnouncementSettings } from "@/services/BranchAnnouncementSettings";
 import { ALL_PERMISSION_KEYS, getBuiltinPermissions } from "@shared/permissions";
 import {
   RegisteredOrganization,
@@ -829,12 +831,54 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     AnnouncerListener.start(
       orgId,
       userId,
-      branches.map((b) => ({ id: b.id, announcerUserId: b.announcerUserId ?? null })),
+      branches.map((b) => ({ id: b.id, announcerUserId: b.announcerUserId ?? null,
+        announcementsEnabled: b.settings?.display?.announcementsEnabled === true })),
     );
     return () => {
       // Don't stop on every render — only on unmount/logout
     };
   }, [organization?.id, currentUser?.id, branches]);
+
+  // Non-announcer staff also need settings updates. This observer never handles
+  // audio messages or queue_update events and does not alter announcer selection.
+  const audioSettingsBranchId = selectedBranchId || branches[0]?.id;
+  useEffect(() => {
+    if (!organization?.id || !currentUser?.id || !audioSettingsBranchId) return;
+    const branchId = audioSettingsBranchId;
+    const Source: any = Platform.OS === "web" ? (globalThis as any).EventSource : RNEventSource;
+    return observeBranchAnnouncementSettings({
+      branchId,
+      createSource: () => new Source(new URL(
+        `/api/announcements/stream?branchId=${encodeURIComponent(branchId)}&orgId=${encodeURIComponent(organization.id)}&userId=${encodeURIComponent(currentUser.id)}`,
+        getApiUrl(),
+      ).toString(), { withCredentials: true }),
+      load: async () => {
+        const res = await apiRequest("GET", `/api/organizations/me?t=${Date.now()}`);
+        const data = await res.json();
+        const branch = data.branches?.find((b: Branch) => b.id === branchId);
+        if (!branch) throw new Error("Branch no longer accessible");
+        return branch.settings?.display?.announcementsEnabled === true;
+      },
+      apply: enabled => setBranches(prev => prev.map(b => b.id !== branchId ? b : ({
+        ...b, settings: { ...b.settings, display: { ...b.settings.display, announcementsEnabled: enabled } },
+      }))),
+      subscribeForeground: refresh => {
+        if (Platform.OS === "web") {
+          const visible = () => { if (!document.hidden) refresh(); };
+          window.addEventListener("focus", refresh);
+          document.addEventListener("visibilitychange", visible);
+          return () => {
+            window.removeEventListener("focus", refresh);
+            document.removeEventListener("visibilitychange", visible);
+          };
+        }
+        const subscription = AppState.addEventListener("change", state => {
+          if (state === "active") refresh();
+        });
+        return () => subscription.remove();
+      },
+    });
+  }, [organization?.id, currentUser?.id, audioSettingsBranchId]);
 
   useEffect(() => {
     return () => {
@@ -2786,10 +2830,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     // scheduling — that would silently leave prevBranch null and skip
     // persistence of operatingHours/breaks/holidays.
     const prevBranch: any = branchesRef.current.find((b) => b.id === branchId) || null;
+    const announcementOnly = Object.keys(settings).length === 1
+      && !!settings.display && Object.keys(settings.display).length === 1
+      && typeof settings.display.announcementsEnabled === "boolean";
 
     setBranches((prev) => prev.map((b) => {
       if (b.id !== branchId) return b;
       const next: any = { ...b, settings: { ...b.settings, ...settingsForMerge } };
+      if (announcementOnly) next.settings.display = { ...b.settings.display, ...settings.display };
       if (hasAnnouncerPatch) next.announcerUserId = announcerUserIdPatch;
       return next;
     }));
@@ -2814,7 +2862,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       // Roll back the optimistic patch so the UI reflects what actually
       // persisted (a failed save must not look successful), then rethrow so the
       // caller can surface the failure (e.g. the announcer picker's Alert).
-      setBranches((prev) => prev.map((b) => (b.id === branchId ? (prevBranch ?? b) : b)));
+      setBranches((prev) => prev.map((b) => {
+        if (b.id !== branchId) return b;
+        if (!announcementOnly) return prevBranch ?? b;
+        return { ...b, settings: { ...b.settings, display: {
+          ...b.settings.display, announcementsEnabled: prevBranch?.settings?.display?.announcementsEnabled,
+        } } };
+      }));
       throw error;
     }
 

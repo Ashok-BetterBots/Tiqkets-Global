@@ -10407,9 +10407,7 @@
           if (!branchId) return;
           const enabled = this.branchAnnouncementsEnabled;
           try {
-            const branch = this.selectedBranch;
-            const existing = branch?.settings?.display || {};
-            const displaySettings = { ...existing, announcementsEnabled: enabled };
+            const displaySettings = { announcementsEnabled: enabled };
             await api(`/api/dashboard/branches/${branchId}/settings`, {
               method: 'PUT',
               body: JSON.stringify({ displaySettings }),
@@ -10417,7 +10415,7 @@
             this.showToast(enabled ? 'Announcements enabled' : 'Announcements disabled', 'success');
             await this.loadBranches();
           } catch (e) {
-            this.branchAnnouncementsEnabled = !enabled;
+            if (this.selectedBranchId === branchId) this.branchAnnouncementsEnabled = !enabled;
             this.showToast(e.message || 'Failed to update', 'error');
           }
         },
@@ -14643,6 +14641,25 @@
           this.getDashboardAnnouncer()?.test();
         },
 
+        applyBranchAnnouncementSetting(branchId, enabled) {
+          this.branches = this.branches.map(b => b.id !== branchId ? b : ({
+            ...b, settings: { ...b.settings, display: { ...b.settings?.display, announcementsEnabled: enabled } },
+          }));
+          if (this.selectedBranchId === branchId) this.branchAnnouncementsEnabled = enabled;
+          this.syncAnnouncementScope();
+        },
+
+        async refreshBranchAnnouncementSetting(branchId, connection) {
+          const revision = this._announcementSettingsRevision = (this._announcementSettingsRevision || 0) + 1;
+          try {
+            const me = await api('/api/organizations/me?t=' + Date.now());
+            if (this.announcementSSE !== connection || revision !== this._announcementSettingsRevision) return;
+            const branch = (me.branches || []).find(b => b.id === branchId);
+            if (branch) this.applyBranchAnnouncementSetting(branchId,
+              branch.settings?.display?.announcementsEnabled === true);
+          } catch (_) { /* Keep the current value while offline. */ }
+        },
+
         connectAnnouncementSSE() {
           this.disconnectAnnouncementSSE();
           const branchId = this.selectedBranchId || (this.accessibleBranches[0]?.id);
@@ -14658,8 +14675,25 @@
               if (announcer && announcer.scope.key !== scope.key) announcer.syncScope(scope);
             } catch (error) { console.warn('[dashboard-announcer] Audio unavailable; live queue connection continues.', error); }
             this.announcementSSE.onopen = () => {
-              if (this.announcementSSE === connection) announcer?.connection(true);
+              if (this.announcementSSE === connection) {
+                announcer?.connection(true);
+                this.refreshBranchAnnouncementSetting(branchId, connection);
+              }
             };
+            this._announcementSettingsForeground = () => {
+              if (!document.hidden) this.refreshBranchAnnouncementSetting(branchId, connection);
+            };
+            document.addEventListener('visibilitychange', this._announcementSettingsForeground);
+            this.announcementSSE.addEventListener('branch_settings_changed', (e) => {
+              if (this.announcementSSE !== connection) return;
+              try {
+                const data = JSON.parse(e.data);
+                if (data.branchId === branchId && typeof data.announcementsEnabled === 'boolean') {
+                  this._announcementSettingsRevision = (this._announcementSettingsRevision || 0) + 1;
+                  this.applyBranchAnnouncementSetting(branchId, data.announcementsEnabled);
+                }
+              } catch (_) {}
+            });
 
             // Unnamed messages = announcement events (audio). Only process
             // them when the announcements toggle is ON so the SSE connection
@@ -14694,6 +14728,10 @@
         },
 
         disconnectAnnouncementSSE() {
+          if (this._announcementSettingsForeground) {
+            document.removeEventListener('visibilitychange', this._announcementSettingsForeground);
+            this._announcementSettingsForeground = null;
+          }
           if (this.announcementSSE) {
             this.announcementSSE.close();
             this.announcementSSE = null;
