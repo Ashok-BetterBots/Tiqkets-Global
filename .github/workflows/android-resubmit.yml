@@ -1,0 +1,73 @@
+name: Resubmit existing Android bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: GitHub Release containing the signed AAB (v1.0.2)
+        required: true
+        type: string
+      track:
+        description: Google Play track
+        default: production
+        type: choice
+        options: [internal, production]
+
+concurrency:
+  group: tiqkets-store-android
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  CI: "true"
+  FASTLANE_SKIP_UPDATE_CHECK: "1"
+  FASTLANE_HIDE_CHANGELOG: "1"
+  FASTLANE_OPT_OUT_USAGE: "1"
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      PLAY_TRACK: ${{ inputs.track }}
+      PLAY_STATUS: completed
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - name: Validate request and credentials
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Use a stable vX.Y.Z tag." >&2; exit 1; }
+          test -n "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" || { echo "Missing Google Play service-account credential." >&2; exit 1; }
+      - name: Download the signed release bundle and notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release-output
+          gh release download "$RELEASE_TAG" --pattern 'tiqkets-*.aab' --dir release-output
+          gh release view "$RELEASE_TAG" --json body > release-output/release.json
+      - name: Validate one versioned bundle
+        id: bundle
+        run: |
+          mapfile -t bundles < <(find release-output -maxdepth 1 -type f -name 'tiqkets-*.aab' -print)
+          test "${#bundles[@]}" -eq 1 || { echo "Expected exactly one AAB release asset." >&2; exit 1; }
+          filename=$(basename "${bundles[0]}")
+          version_code=${filename%.aab}
+          version_code=${version_code##*-}
+          [[ "$version_code" =~ ^[1-9][0-9]*$ ]] || { echo "AAB filename must end in its numeric version code." >&2; exit 1; }
+          echo "aab=${bundles[0]}" >> "$GITHUB_OUTPUT"
+          echo "code=$version_code" >> "$GITHUB_OUTPUT"
+      - name: Prepare Google Play release notes
+        run: node scripts/generate-release-notes.mjs release-output/release.json "${{ steps.bundle.outputs.code }}"
+      - name: Submit the existing signed bundle to Google Play
+        run: bundle exec fastlane android publish aab:"${{ steps.bundle.outputs.aab }}"
